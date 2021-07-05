@@ -10,20 +10,12 @@ import {
   Spacer,
   theme,
   Heading,
-  Divider,
   Tag,
 } from '@chakra-ui/react';
 // import { ColorModeSwitcher } from './ColorModeSwitcher';
 import prof_pic from './prof_pic.jpeg';
 import virus from './Virus512.png';
-import {
-  FaGithub,
-  FaInstagram,
-  FaBehance,
-  FaLinkedinIn,
-  FaFigma,
-} from 'react-icons/fa';
-import { RiMailLine } from 'react-icons/ri';
+import { FaFigma } from 'react-icons/fa';
 
 function App() {
   return (
