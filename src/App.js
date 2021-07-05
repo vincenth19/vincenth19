@@ -62,6 +62,7 @@ function App() {
                     <Link
                       href="https://www.linkedin.com/in/vincenth19/"
                       target="_blank"
+                      rel="noreferrer"
                       bg="blue.100"
                       py={1}
                       px={2}
@@ -82,6 +83,7 @@ function App() {
                       mt={2}
                       href="https://github.com/vincenth19"
                       target="_blank"
+                      rel="noreferrer"
                     >
                       <Text fontSize="1rem" color="blue.700">
                         GitHub
@@ -90,6 +92,7 @@ function App() {
                     <Link
                       href="https://instagram.com/vincenth19"
                       target="_blank"
+                      rel="noreferrer"
                       bg="blue.100"
                       py={1}
                       px={2}
@@ -110,6 +113,7 @@ function App() {
                       mt={2}
                       href="mailto:vincenthary19@gmail.com"
                       target="_blank"
+                      rel="noreferrer"
                     >
                       <Text fontSize="1rem" color="blue.700">
                         Email
@@ -124,6 +128,7 @@ function App() {
                       borderRadius={10}
                       href="https://www.behance.net/vincentharyadi"
                       target="_blank"
+                      rel="noreferrer"
                     >
                       <Text fontSize="1rem" color="blue.700">
                         Behance
@@ -142,7 +147,11 @@ function App() {
                 >
                   MY PROJECTS
                 </Text>
-                <Link href="https://covidtracker.pages.dev" target="_blank">
+                <Link
+                  href="https://covidtracker.pages.dev"
+                  target="_blank"
+                  rel="noreferrer"
+                >
                   <Box
                     border="1px"
                     borderColor="gray.300"
@@ -155,7 +164,7 @@ function App() {
                         <Text fontWeight="bold" fontSize="1.2rem">
                           CovidTracker
                         </Text>
-                        <Stack direction="row">
+                        <Stack direction={['column', 'row']}>
                           <Tag>ReactJS</Tag>
                           <Tag>Chakra UI</Tag>
                         </Stack>
@@ -167,6 +176,7 @@ function App() {
                 <Link
                   href="https://www.figma.com/file/k9KnpIAi7BoJqOQAXfR90X/Reminder-2.0?node-id=0%3A1"
                   target="_blank"
+                  rel="noreferrer"
                 >
                   <Box
                     border="1px"
@@ -174,7 +184,7 @@ function App() {
                     p={5}
                     borderRadius={10}
                   >
-                    <Stack direction="row" spacing={5}>
+                    <Stack direction={['column', 'row']} spacing={5}>
                       <Box fontSize="70px" color="#A359FF">
                         <FaFigma />
                       </Box>
@@ -182,7 +192,7 @@ function App() {
                         <Text fontWeight="bold" fontSize="1.2rem">
                           Mask Reminder App Design
                         </Text>
-                        <Stack direction="row">
+                        <Stack direction={['column', 'row']}>
                           <Tag>Figma</Tag>
                           <Tag>UI/UX</Tag>
                         </Stack>
@@ -197,6 +207,15 @@ function App() {
               </Stack>
             </Box>
           </Stack>
+          {/* <Box
+            borderTop="1px"
+            pt={4}
+            borderColor="gray.200"
+            alignItems="center"
+            align="center"
+          >
+            <Text>Footer</Text>
+          </Box> */}
         </Flex>
       </Box>
     </ChakraProvider>
