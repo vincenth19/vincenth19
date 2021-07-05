@@ -54,7 +54,11 @@ function App() {
                     Vincent Haryadi
                   </Heading>
                   <Text fontSize="md">{`Front-end Developer & UI/UX Designer`}</Text>
-                  <Stack direction="row" spacing={2} alignItems="center">
+                  <Flex
+                    wrap="wrap"
+                    alignItems="center"
+                    justifyContent={['center', 'left', 'left', 'left']}
+                  >
                     <Link
                       href="https://www.linkedin.com/in/vincenth19/"
                       target="_blank"
@@ -62,8 +66,10 @@ function App() {
                       py={1}
                       px={2}
                       borderRadius={10}
+                      mr={2}
+                      mt={2}
                     >
-                      <Text fontSize="1rem" color="#blue.700">
+                      <Text fontSize="1rem" color="blue.700">
                         LinkedIn
                       </Text>
                     </Link>
@@ -72,10 +78,12 @@ function App() {
                       py={1}
                       px={2}
                       borderRadius={10}
+                      mr={2}
+                      mt={2}
                       href="https://github.com/vincenth19"
                       target="_blank"
                     >
-                      <Text fontSize="1rem" color="#blue.700">
+                      <Text fontSize="1rem" color="blue.700">
                         GitHub
                       </Text>
                     </Link>
@@ -86,8 +94,10 @@ function App() {
                       py={1}
                       px={2}
                       borderRadius={10}
+                      mr={2}
+                      mt={2}
                     >
-                      <Text fontSize="1rem" color="#blue.700">
+                      <Text fontSize="1rem" color="blue.700">
                         Instagram
                       </Text>
                     </Link>
@@ -96,6 +106,8 @@ function App() {
                       py={1}
                       px={2}
                       borderRadius={10}
+                      mr={2}
+                      mt={2}
                       href="mailto:vincenthary19@gmail.com"
                       target="_blank"
                     >
@@ -107,6 +119,8 @@ function App() {
                       bg="blue.100"
                       py={1}
                       px={2}
+                      mr={2}
+                      mt={2}
                       borderRadius={10}
                       href="https://www.behance.net/vincentharyadi"
                       target="_blank"
@@ -115,10 +129,10 @@ function App() {
                         Behance
                       </Text>
                     </Link>
-                  </Stack>
+                  </Flex>
                 </Stack>
               </Stack>
-              <Stack spacing={5} mt={[0, 5]}>
+              <Stack spacing={5} mt={5}>
                 <Text
                   pb={2}
                   borderBottom="1px"
