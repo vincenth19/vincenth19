@@ -10,10 +10,9 @@ import {
   Spacer,
   theme,
   Heading,
-  SimpleGrid,
   Divider
 } from '@chakra-ui/react';
-import { ColorModeSwitcher } from './ColorModeSwitcher';
+// import { ColorModeSwitcher } from './ColorModeSwitcher';
 import prof_pic from './prof_pic.jpeg'
 import virus from './Virus512.png'
 import {FaGithub, FaInstagram, FaBehance, FaLinkedinIn, FaFigma} from 'react-icons/fa'
@@ -59,7 +58,7 @@ function App() {
               </Stack>
               <Divider/>
               <Stack spacing={5} mt={[0,5]}>
-                <Heading as="h2" size="md" color="gray.700">My Projects</Heading>
+              <Text color="gray.500" fontWeight="semibold">MY PROJECTS</Text>
                 <Link href="https://covidtracker.pages.dev" target="_blank">
                   <Box border="1px" borderColor="gray.300" p={5} borderRadius={10}>
                     <Stack direction="row" spacing={5}>
