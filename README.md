@@ -12,11 +12,13 @@ I am a front-end developer and most of my experience is in web applications.
 These are the tech, libraries, frameworks, softwares, etc. that I am familiar with:
 - ReactJS
 - Javascript
+- jQuery
 - Bootstrap
 - Chakra UI
 - Figma
 - Adobe XD
 - Adobe Photoshop
+- WordPress
 - Powershell scripting
 - SwiftUI (:books: learning!)
 - Typescript (:books: learning!)
