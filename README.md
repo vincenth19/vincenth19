@@ -1,4 +1,4 @@
-# Hi everyone!
+# Your friendly neighbourhood front-end dev!
 
 My name is Vincent Haryadi and I am a front-end engineer from Indonesia!
 
