@@ -1,6 +1,8 @@
 # Your friendly neighbourhood front-end dev!
 
-My name is Vincent Haryadi and I am a front-end engineer from Indonesia!
+My name is Vincent Haryadi and I am a front-end engineer from Indonesia :indonesia:!
+I am always following and keen to learn new tech.
+Contact me at my email at `vincenthary19@gmail.com` if you want to do a collab, help, or hire me!
 
 ## Tech Stack
 
