@@ -16,6 +16,7 @@ import {
 import prof_pic from './prof_pic.jpeg';
 import virus from './Virus512.png';
 import { FaFigma } from 'react-icons/fa';
+import { AiFillApi } from 'react-icons/ai';
 
 function App() {
   return (
@@ -169,6 +170,39 @@ function App() {
                           <Tag>Chakra UI</Tag>
                         </Stack>
                         <Text>Simple COVID-19 dashboard for Indonesia</Text>
+                      </Stack>
+                    </Stack>
+                  </Box>
+                </Link>
+                <Link
+                  href="https://covidtracker-backend.vercel.app/api/"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <Box
+                    border="1px"
+                    borderColor="gray.300"
+                    p={5}
+                    borderRadius={10}
+                  >
+                    <Stack direction="row" spacing={5}>
+                      <Box fontSize="70px" color="blue.500">
+                        <AiFillApi />
+                      </Box>
+
+                      <Stack>
+                        <Text fontWeight="bold" fontSize="1.2rem">
+                          CovidTracker Backend (APIs)
+                        </Text>
+                        <Stack direction={['column', 'row']}>
+                          <Tag>ExpressJS</Tag>
+                          <Tag>NodeJS</Tag>
+                        </Stack>
+                        <Text>
+                          HTTP Proxy to get data from government official
+                          COVID-19 data APIs. I made some custom API endpoints
+                          for my own use case.
+                        </Text>
                       </Stack>
                     </Stack>
                   </Box>
