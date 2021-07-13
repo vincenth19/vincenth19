@@ -200,8 +200,8 @@ function App() {
                         </Stack>
                         <Text>
                           APIs to get data from CITF-Malaysia about vaccination.
-                          This API response is converted to JSON with several
-                          options endpoints to get customized result.
+                          This converting original CSV files into JSON with
+                          several options endpoints to get customized result.
                         </Text>
                       </Stack>
                     </Stack>
