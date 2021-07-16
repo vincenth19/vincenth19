@@ -15,6 +15,8 @@ import {
 // import { ColorModeSwitcher } from './ColorModeSwitcher';
 import prof_pic from './prof_pic.jpeg';
 import virus from './Virus512.png';
+import virus2 from './virus.png';
+import strive from './strive.png';
 import { FaFigma } from 'react-icons/fa';
 import { AiFillApi } from 'react-icons/ai';
 
@@ -169,7 +171,39 @@ function App() {
                           <Tag>ReactJS</Tag>
                           <Tag>Chakra UI</Tag>
                         </Stack>
-                        <Text>Simple COVID-19 dashboard for Indonesia</Text>
+                        <Text>
+                          Simple COVID-19 & vaccination data dashboard for
+                          Indonesia and it's province.
+                        </Text>
+                      </Stack>
+                    </Stack>
+                  </Box>
+                </Link>
+                <Link
+                  href="https://mycoronastat.pages.dev"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <Box
+                    border="1px"
+                    borderColor="gray.300"
+                    p={5}
+                    borderRadius={10}
+                  >
+                    <Stack direction="row" spacing={5}>
+                      <Image src={virus2} boxSize="70px" borderRadius={100} />
+                      <Stack>
+                        <Text fontWeight="bold" fontSize="1.2rem">
+                          MyCoronaStat
+                        </Text>
+                        <Stack direction={['column', 'row']}>
+                          <Tag>ReactJS</Tag>
+                          <Tag>Chakra UI</Tag>
+                        </Stack>
+                        <Text>
+                          Simple COVID-19 & vaccination data dashboard of
+                          Malaysia and it's states.
+                        </Text>
                       </Stack>
                     </Stack>
                   </Box>
@@ -192,7 +226,7 @@ function App() {
 
                       <Stack>
                         <Text fontWeight="bold" fontSize="1.2rem">
-                          MyVaccination Backend (APIs)
+                          Malaysia Vaccination APIs
                         </Text>
                         <Stack direction={['column', 'row']}>
                           <Tag>ExpressJS</Tag>
@@ -235,6 +269,38 @@ function App() {
                           HTTP Proxy to get data from government official
                           COVID-19 data APIs. Custom API endpoints are created
                           to make customized response for my own use case.
+                        </Text>
+                      </Stack>
+                    </Stack>
+                  </Box>
+                </Link>
+                <Link
+                  href="https://strive.asia"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <Box
+                    border="1px"
+                    borderColor="gray.300"
+                    p={5}
+                    borderRadius={10}
+                  >
+                    <Stack direction={['column', 'row']} spacing={5}>
+                      <Image src={strive} boxSize="70px" />
+                      <Stack>
+                        <Text fontWeight="bold" fontSize="1.2rem">
+                          Strive.asia web & mobile app UI/UX designer
+                        </Text>
+                        <Stack direction={['column', 'row']}>
+                          <Tag>Figma</Tag>
+                          <Tag>Adobe XD</Tag>
+                          <Tag>Prototyping</Tag>
+                          <Tag>UI/UX</Tag>
+                        </Stack>
+                        <Text>
+                          Designed the UI/UX for strive.asia web and mobile
+                          platform. Strive.asia is a data-driven CRM that will
+                          help you boost your sales.
                         </Text>
                       </Stack>
                     </Stack>
