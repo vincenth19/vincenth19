@@ -7,15 +7,15 @@ Currently working as Software Engineer at Dell Technologies Malaysia.
 <br/><br/>
 Contact me at my email at [`vincenthary19@gmail.com`](mailto:vincenthary19@gmail.com)
 
-## 🛠️ Tech Stack
-<img height="30" src="https://upload.wikimedia.org/wikipedia/commons/a/a7/React-icon.svg"> | <img height="30" src="https://upload.wikimedia.org/wikipedia/commons/9/99/Unofficial_JavaScript_logo_2.svg"> | <img height="30" src="https://upload.wikimedia.org/wikipedia/commons/b/b2/Bootstrap_logo.svg"> | <img height="40" src="https://upload.wikimedia.org/wikipedia/commons/d/d5/CSS3_logo_and_wordmark.svg"> | <img height="30" src="https://raw.githubusercontent.com/chakra-ui/chakra-ui/4c63b82d8a0354f94fb7de9835564ccb83420b95/logo/logomark-colored.svg"> | <img height="30" src="https://upload.wikimedia.org/wikipedia/commons/3/33/Figma-logo.svg"> | <img height="30" src="https://upload.wikimedia.org/wikipedia/commons/c/c2/Adobe_XD_CC_icon.svg"> | <img height="30" src="https://upload.wikimedia.org/wikipedia/commons/a/af/Adobe_Photoshop_CC_icon.svg"> | <img height="30" src="https://upload.wikimedia.org/wikipedia/commons/0/0c/Wordpress_logo_8.png">
----- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- |
-ReactJS | Javascript | Bootstrap | CSS | Chakra-UI | Figma | Adobe XD | Photoshop | WordPress 
+## 🛠️ Tech Stack Experience
+<img height="30" src="https://upload.wikimedia.org/wikipedia/commons/a/a7/React-icon.svg"> | <img height="30" src="https://upload.wikimedia.org/wikipedia/commons/9/99/Unofficial_JavaScript_logo_2.svg"> | <img height="30" src="https://upload.wikimedia.org/wikipedia/commons/b/b2/Bootstrap_logo.svg"> | <img height="40" src="https://upload.wikimedia.org/wikipedia/commons/d/d5/CSS3_logo_and_wordmark.svg"> | <img height="30" src="https://raw.githubusercontent.com/chakra-ui/chakra-ui/4c63b82d8a0354f94fb7de9835564ccb83420b95/logo/logomark-colored.svg"> | <img height="30" src="https://upload.wikimedia.org/wikipedia/commons/3/33/Figma-logo.svg"> | <img height="30" src="https://upload.wikimedia.org/wikipedia/commons/c/c2/Adobe_XD_CC_icon.svg"> | <img height="30" src="https://upload.wikimedia.org/wikipedia/commons/a/af/Adobe_Photoshop_CC_icon.svg"> | <img height="30" src="https://upload.wikimedia.org/wikipedia/commons/0/0c/Wordpress_logo_8.png"> | <img height="30" src="https://iconape.com/wp-content/files/fh/110909/png/typescript.png"> | <img height="30" src="https://upload.wikimedia.org/wikipedia/commons/thumb/9/96/Sass_Logo_Color.svg/220px-Sass_Logo_Color.svg.png">
+---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- |
+ReactJS/TS | Javascript | Bootstrap | CSS | Chakra-UI | Figma | Adobe XD | Photoshop | WordPress | Typescript | SASS |
 
 ## :books: Currently Learning 
-<img height="30" src="https://developer.apple.com/assets/elements/icons/swiftui/swiftui-128x128_2x.png"> | <img height="30" src="https://iconape.com/wp-content/files/fh/110909/png/typescript.png">
----- | ---- |
-SwiftUI | Typescript
+<img height="30" src="https://cdn-icons.flaticon.com/png/512/2546/premium/2546584.png?token=exp=1638978763~hmac=3db01f184e15a61413d543060178305f"> | <img height="30" src="https://iconape.com/wp-content/files/mm/370537/svg/angular-icon-logo-icon-png-svg.png">
+---- | ---- | 
+UI/UX | Angular
 
 You can check my personal website and projects at https://vincenth19.com/
 
