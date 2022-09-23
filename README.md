@@ -1,4 +1,4 @@
-# [Your friendly neighbourhood front-end dev!](https://vincenth19.com/)
+# [Your friendly neighbourhood front-end dev!](https://vincenth19.pages.dev/)
 
 My name is Vincent Haryadi and I come from Indonesia :indonesia:!
 <br/>
