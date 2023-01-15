@@ -13,9 +13,9 @@ Contact me at my email at [`vincenthary19@gmail.com`](mailto:vincenthary19@gmail
 ReactJS/TS | Javascript | Bootstrap | CSS | Chakra-UI | Figma | Adobe XD | Photoshop | WordPress | Typescript | SASS
 
 ## :books: Currently Learning 
-<img height="30" src="https://cdn-icons.flaticon.com/png/512/2546/premium/2546584.png?token=exp=1638978763~hmac=3db01f184e15a61413d543060178305f"> | <img height="30" src="https://iconape.com/wp-content/files/mm/370537/svg/angular-icon-logo-icon-png-svg.png">
----- | ---- | 
-UI/UX | Angular
+<img height="30" src="https://avatars.githubusercontent.com/u/24939410?s=280&v=4">
+---- |
+Fastify 
 
 You can check my personal website and projects at https://vincenth19.com/
 
