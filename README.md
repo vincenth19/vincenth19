@@ -13,7 +13,7 @@ Contact me at my email at [`vincenthary19@gmail.com`](mailto:vincenthary19@gmail
 ReactJS/TS | Javascript | Bootstrap | CSS | Chakra-UI | Figma | Adobe XD | Photoshop | WordPress | Typescript | SASS
 
 ## :books: Currently Learning 
-<img height="30" src="https://avatars.githubusercontent.com/u/24939410?s=280&v=4">
+<img height="30" src="https://avatars.githubusercontent.com/u/24939410?s=280&v=4"> |
 ---- |
 Fastify 
 
