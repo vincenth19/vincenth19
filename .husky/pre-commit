@@ -1,0 +1,41 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Check Prettier standards
+npm run check-format ||
+(
+  echo 'Failed Prettier check. Run npm run format';
+  false;
+)
+
+# Check ESLint Standards
+npm run lint ||
+(
+  echo "Failed NextJS lint.";
+  false;
+)
+
+# Check tsconfig standards
+npm run check-types ||
+(
+  echo 'Failed types checking.'
+  false;
+)
+
+#Run Playwright 
+npm run test || 
+(
+  echo "Failed e2e testing. Fix failed testing."
+) 
+
+# If everything passes... Now we can commit
+#echo 'Passed lint and type checking. Trying to build...'
+
+# npm run build ||
+# (
+#   echo 'Next build failed: View the errors above to see why. '
+#   false;
+# )
+
+# If everything passes... Now we can commit
+echo '✅ passed everything'
