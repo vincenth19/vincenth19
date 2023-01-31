@@ -41,7 +41,9 @@ const Navbar: FC = () => {
 				</button>
 				<span className="hidden gap-4 lg:flex">
 					{menus.map((menu) => (
-						<Link href={menu.url}>{menu.label}</Link>
+						<Link key={menu.url} href={menu.url}>
+							{menu.label}
+						</Link>
 					))}
 				</span>
 				<button className="flex justify-end lg:w-1/5">
