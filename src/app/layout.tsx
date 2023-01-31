@@ -1,4 +1,9 @@
+import Navbar from '@/components/navbar';
+import { Lexend } from '@next/font/google';
 import './globals.css';
+import 'tailwindcss/tailwind.css';
+
+const lexend = Lexend({ subsets: ['latin'] });
 
 export default function RootLayout({
 	children,
@@ -12,7 +17,10 @@ export default function RootLayout({
         head.tsx. Find out more at https://beta.nextjs.org/docs/api-reference/file-conventions/head
       */}
 			<head />
-			<body>{children}</body>
+			<body className={lexend.className}>
+				<Navbar />
+				{children}
+			</body>
 		</html>
 	);
 }
