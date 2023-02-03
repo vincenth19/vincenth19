@@ -27,11 +27,12 @@ const Navbar: FC = () => {
 		<header className="flex justify-center bg-white shadow-md">
 			<div className="flex max-w-4xl flex-1 items-center justify-between p-6">
 				<h4
-					className={`${inriaSerifBold.className} hidden lg:block lg:w-1/5 lg:text-xl`}
+					data-test-id="myName"
+					className={`${inriaSerifBold.className} hidden md:block md:w-1/5 md:text-xl`}
 				>
 					Vincent Haryadi
 				</h4>
-				<button className="lg:hidden">
+				<button data-test-id="hamburgerMenu" className="block md:hidden">
 					<Image
 						src={'./icons/menu.svg'}
 						width={20}
@@ -39,14 +40,17 @@ const Navbar: FC = () => {
 						alt="moon icon"
 					/>
 				</button>
-				<span className="hidden gap-4 lg:flex">
+				<span data-test-id="menuList" className="hidden gap-4 md:flex">
 					{menus.map((menu) => (
 						<Link key={menu.url} href={menu.url}>
 							{menu.label}
 						</Link>
 					))}
 				</span>
-				<button className="flex justify-end lg:w-1/5">
+				<button
+					data-test-id="themeSwitcher"
+					className="flex justify-end md:w-1/5"
+				>
 					<Image
 						src={'./icons/moon.svg'}
 						width={20}
