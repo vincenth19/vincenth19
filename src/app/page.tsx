@@ -157,7 +157,14 @@ const Header: FC = () => {
 			<text className="text-neutral-500">Jakarta, Indonesia</text>
 			<span className="mt-4 flex gap-x-4">
 				{EXTERNAL_LINKS.map((link) => {
-					return <BtnLink url={link.url} label={link.label} icon={link.icon} />;
+					return (
+						<BtnLink
+							key={link.label}
+							url={link.url}
+							label={link.label}
+							icon={link.icon}
+						/>
+					);
 				})}
 			</span>
 			<Link
@@ -206,7 +213,7 @@ const Experiences: FC<PropsExperiences> = ({ experiencesData }) => {
 					Experience
 				</h2>
 			</span>
-			<div className="py-4">
+			<div className="py-4" data-test-id="experiences">
 				{experiencesData.map((experience) => {
 					return (
 						<div key={experience.companyName} className="py-4">
