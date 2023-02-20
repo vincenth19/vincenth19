@@ -4,7 +4,7 @@ export default function Head() {
 			<title>Vincent Haryadi</title>
 			<meta content="width=device-width, initial-scale=1" name="viewport" />
 			<meta name="description" content="Vincent Haryadi's personal website" />
-			<link rel="icon" href="/favicon.ico" />
+			<link rel="icon" href="/MyPic.ico" />
 		</>
 	);
 }
