@@ -1,8 +1,10 @@
-import BtnLink, { btnLinkProps } from '@/components/BtnLink';
+import { FC } from 'react';
+
 import { Inria_Serif } from '@next/font/google';
 import Image from 'next/image';
 import Link from 'next/link';
-import { FC } from 'react';
+
+import BtnLink, { btnLinkProps } from '@/components/BtnLink';
 
 const inriaSerifBold = Inria_Serif({ subsets: ['latin'], weight: '700' });
 
@@ -155,7 +157,7 @@ const Header: FC = () => {
 				Front-end developer lead - IFG Life
 			</text>
 			<text className="text-neutral-500">Jakarta, Indonesia</text>
-			<span className="mt-4 flex gap-x-4">
+			<span className="mt-4 flex gap-x-2">
 				{EXTERNAL_LINKS.map((link) => {
 					return (
 						<BtnLink
