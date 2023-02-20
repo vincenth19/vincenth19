@@ -1,38 +1,24 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# [Your friendly neighbourhood front-end dev!](https://vincenth19.pages.dev/)
 
-## Getting Started
+My name is Vincent Haryadi and I come from Indonesia :indonesia:!
+<br/>
+I am currently a lead frontend developer at IFG Life Indonesia. I have more than 3 years of professional experience in frontend development (ReactJS, Typescript, React Native, NextJS), project management (Jira, Miro, YouTrack, Lucidchart), and UI/UX design (Figma).
+<br/><br/>
+Contact me at my email at [`vincenthary19@gmail.com`](mailto:vincenthary19@gmail.com)
 
-First, run the development server:
+## 🛠️ Tech Stack Experience
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-```
+| <img height="30" src="https://upload.wikimedia.org/wikipedia/commons/a/a7/React-icon.svg"> | <img height="30" src="https://res.cloudinary.com/dg3gyk0gu/image/upload/v1669674284/tags/next.png"> | <img height="30" src="https://upload.wikimedia.org/wikipedia/commons/3/33/Figma-logo.svg"> |
+| ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| ReactJS/TS                                                                                 | NextJS                                                                                              | Figma                                                                                      |
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## :books: Currently Learning
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| <img height="30" src="https://avatars.githubusercontent.com/u/24939410?s=280&v=4"> |
+| ---------------------------------------------------------------------------------- |
 
-[API routes](https://nextjs.org/docs/api-routes/introduction) can be accessed on [http://localhost:3000/api/hello](http://localhost:3000/api/hello). This endpoint can be edited in `pages/api/hello.ts`.
+Fastify
 
-The `pages/api` directory is mapped to `/api/*`. Files in this directory are treated as [API routes](https://nextjs.org/docs/api-routes/introduction) instead of React pages.
+You can check my personal website and projects at https://vincenth19.pages.dev/
 
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+Have a good day and God bless you!

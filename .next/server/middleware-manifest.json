@@ -1,0 +1,71 @@
+{
+  "sortedMiddleware": [],
+  "middleware": {},
+  "functions": {
+    "/projects/page": {
+      "env": [
+        "NODE_DEBUG",
+        "NEXT_PRIVATE_MINIMAL_MODE"
+      ],
+      "files": [
+        "server/flight-manifest.js",
+        "server/flight-server-css-manifest.js",
+        "server/middleware-build-manifest.js",
+        "server/middleware-react-loadable-manifest.js",
+        "server/font-loader-manifest.js",
+        "server/edge-runtime-webpack.js",
+        "server/app/projects/page.js"
+      ],
+      "name": "app/projects/page",
+      "page": "/projects/page",
+      "matchers": [
+        {
+          "regexp": "^/projects$"
+        }
+      ],
+      "wasm": [],
+      "assets": []
+    },
+    "/page": {
+      "env": [
+        "NODE_DEBUG",
+        "NEXT_PRIVATE_MINIMAL_MODE"
+      ],
+      "files": [
+        "server/flight-manifest.js",
+        "server/flight-server-css-manifest.js",
+        "server/middleware-build-manifest.js",
+        "server/middleware-react-loadable-manifest.js",
+        "server/font-loader-manifest.js",
+        "server/edge-runtime-webpack.js",
+        "server/app/page.js"
+      ],
+      "name": "app/page",
+      "page": "/page",
+      "matchers": [
+        {
+          "regexp": "^/$"
+        }
+      ],
+      "wasm": [],
+      "assets": []
+    },
+    "/api/hello": {
+      "env": [],
+      "files": [
+        "server/edge-runtime-webpack.js",
+        "server/pages/api/hello.js"
+      ],
+      "name": "pages/api/hello",
+      "page": "/api/hello",
+      "matchers": [
+        {
+          "regexp": "^/api/hello$"
+        }
+      ],
+      "wasm": [],
+      "assets": []
+    }
+  },
+  "version": 2
+}
