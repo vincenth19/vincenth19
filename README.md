@@ -1,4 +1,4 @@
-# [Your friendly neighbourhood front-end dev!](https://vincenth19.pages.dev/)
+# [Your friendly neighbourhood front-end dev!](https://vincenth19.vercel.app)
 
 My name is Vincent Haryadi and I come from Indonesia :indonesia:!
 <br/>
@@ -19,6 +19,6 @@ Contact me at my email at [`vincenthary19@gmail.com`](mailto:vincenthary19@gmail
 
 Fastify
 
-You can check my personal website and projects at https://vincenth19.pages.dev/
+You can check my personal website and projects at https://vincenth19.vercel.app
 
 Have a good day and God bless you!
