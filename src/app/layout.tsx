@@ -1,4 +1,5 @@
 import { Lexend } from '@next/font/google';
+
 import './globals.css';
 import 'tailwindcss/tailwind.css';
 
