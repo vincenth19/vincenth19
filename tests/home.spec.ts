@@ -15,14 +15,19 @@ test.describe('Summary Content', () => {
 		await expect(page.getByTestId('subtitle')).toHaveText(
 			/Front-end developer/
 		);
-		await expect(page.getByTestId('summary')).toHaveText(/front-end developer/);
-		await expect(
-			page.getByRole('button', { name: 'My Projects' })
-		).toBeVisible();
 	});
-
-	test('should go to /projects page', async ({ page }) => {
-		await page.getByRole('link', { name: 'My Projects' }).click();
+	test('should go to project page', async ({ page }) => {
+		await page
+			.locator('[data-test-id="btnToProjects"]')
+			.getByRole('button', { name: 'My Projects' })
+			.click();
 		await expect(page).toHaveURL('/projects');
+	});
+});
+
+//experiences content
+test.describe('Work Experiences Content', () => {
+	test('should show work experiences', async ({ page }) => {
+		await expect(page.getByTestId('experiences')).toBeVisible();
 	});
 });

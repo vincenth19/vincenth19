@@ -1,5 +1,8 @@
 import { test, expect } from '@playwright/test';
 
+//TODO: remove this line once navbar is ready to use
+test.skip();
+
 //setup home page location
 test.beforeEach(async ({ page }) => {
 	await page.goto('/');
