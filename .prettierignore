@@ -1,0 +1,10 @@
+#Ignore
+build
+**/.next
+**/.git
+**/.svn
+**/.hg
+**/node_modules
+**/playwright-report
+**/.github
+package-lock.json
