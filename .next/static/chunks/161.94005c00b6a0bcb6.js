@@ -1,1 +1,0 @@
-(self.webpackChunk_N_E=self.webpackChunk_N_E||[]).push([[161],{2161:function(_){_.exports={style:{fontFamily:"'__Lexend_4bc04a', '__Lexend_Fallback_4bc04a'",fontStyle:"normal"},className:"__className_4bc04a"}}}]);

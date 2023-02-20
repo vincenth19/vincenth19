@@ -1,1 +1,0 @@
-(self.webpackChunk_N_E=self.webpackChunk_N_E||[]).push([[762],{762:function(_){_.exports={style:{fontFamily:"'__Inria_Serif_37d990', '__Inria_Serif_Fallback_37d990'",fontWeight:700,fontStyle:"normal"},className:"__className_37d990"}}}]);
