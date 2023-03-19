@@ -16,6 +16,9 @@ test.describe('Summary Content', () => {
 			/Front-end developer/
 		);
 	});
+
+	//TODO: remove this when ready
+	test.skip();
 	test('should go to project page', async ({ page }) => {
 		await page
 			.locator('[data-test-id="btnToProjects"]')

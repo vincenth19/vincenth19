@@ -1,4 +1,4 @@
-import { FC } from 'react';
+import { FC, ReactNode } from 'react';
 
 import { Inria_Serif } from '@next/font/google';
 import Image from 'next/image';
@@ -8,85 +8,13 @@ import BtnLink, { btnLinkProps } from '@/components/BtnLink';
 
 const inriaSerifBold = Inria_Serif({ subsets: ['latin'], weight: '700' });
 
-const MY_EXPERIENCES: TExperience[] = [
-	{
-		jobTitle: 'Front-end Developer Lead',
-		companyName: 'IFG Life',
-		companyCountryISOCode: 'ID',
-		dateStart: {
-			month: 'January',
-			year: 2023,
-		},
-		dateEnd: 'Present',
-		jobDescription: [
-			'Lead and distributed tasks to multiple frontend developers to develop new cross platform mobile app (React Native) project for insurance agents',
-			'Collaborated directly under product owner and tribe leader to align project timeline, task management, review project documents, and improve UI/UX of the app',
-			'Reviewed frontend developers code and guided developers to improve component structure in the project',
-			'Managed project repository and application deployment in App Center, Google Play Store, and Apple App Store',
-			'Collaborated with front-end developers and quality assurance team to test, debug, and addressed issues within the same day',
-		],
-	},
-	{
-		jobTitle: 'Project Manager',
-		companyName: 'Moduit Digital Indonesia',
-		companyCountryISOCode: 'ID',
-		dateStart: {
-			month: 'May',
-			year: 2022,
-		},
-		dateEnd: {
-			month: 'Dec',
-			year: 2022,
-		},
-		jobDescription: [
-			'Delivered early phase revamped robo advisor feature to help user invest easily and increase asset under management from retail users',
-			'Assisting head of product to identify project requirements, analyze business requirements, and enhanced UI/UX of application features',
-			'Lead daily scrum a team of 12 developers and managed 2 projects simultaneously to develop web and mobile application projects (NextJS/React Typescript & React Native)',
-			'Continued and finished rebranded landing page with IT and marketing team',
-			'Initiated project and product documentation',
-			'Experienced with project management tool such as Jira, YouTrack, Miro, and LucidChart',
-		],
-	},
-	{
-		jobTitle: 'Aigens',
-		companyName: 'Software Engineer',
-		companyCountryISOCode: 'HK',
-		dateStart: {
-			month: 'May',
-			year: 2022,
-		},
-		dateEnd: {
-			month: 'Dec',
-			year: 2022,
-		},
-		jobDescription: [
-			'Created and prototype console UI that is use by internal and external user for application across multiple countries in Asia',
-			'Conduct business requirement gathering while working under project managers and reporting to product manager in Hong Kong ',
-			'Styled multiple components for web, web responsive, and mobile app (Angular, CSS, SCSS)',
-			'Designed and created prototypes for internal application (Figma)',
-			'Experienced with project management tool such as Jira, YouTrack, Miro, and LucidChart',
-		],
-	},
-	{
-		jobTitle: 'Dell Technologies',
-		companyName: 'Software Engineer',
-		companyCountryISOCode: 'MY',
-		dateStart: {
-			month: 'Jan',
-			year: 2020,
-		},
-		dateEnd: {
-			month: 'Oct',
-			year: 2021,
-		},
-		jobDescription: [
-			'Designed, prototyped, developed, and integrated UI for internal automation application that helps reducing manual labour by more than 50% with intuitive and easy-to-use user interface. (ReactJS, Figma)',
-			'Worked with clients, directors, and business analysts to determine software requirements and system impacts',
-			'Onboarded, trained, and managed front-end development developers within the same team',
-			'Planned and developed on ongoing feature development and product maintenance',
-		],
-	},
-];
+type TProjects = {
+	title: string;
+	technologies: string[];
+	description: string;
+	icon: ReactNode;
+	link: string;
+};
 
 const EXTERNAL_LINKS: btnLinkProps[] = [
 	{
@@ -126,6 +54,8 @@ const EXTERNAL_LINKS: btnLinkProps[] = [
 		),
 	},
 ];
+
+const PROJECTS: TProjects[] = [];
 
 export default function Home() {
 	return (
@@ -169,16 +99,19 @@ const Header: FC = () => {
 					);
 				})}
 			</span>
-			<Link
-				href="/projects"
-				passHref
-				className="w-full"
-				data-test-id="btnToProjects"
-			>
-				<button className="mt-5 w-full rounded-md bg-green-700 py-2 px-4 text-white transition ease-in-out hover:bg-green-900 sm:w-max">
-					My Projects
-				</button>
-			</Link>
+
+			{PROJECTS.length > 0 && (
+				<Link
+					href="/projects"
+					passHref
+					className="w-full"
+					data-test-id="btnToProjects"
+				>
+					<button className="mt-5 w-full rounded-md bg-green-700 py-2 px-4 text-white transition ease-in-out hover:bg-green-900 sm:w-max">
+						My Projects
+					</button>
+				</Link>
+			)}
 		</section>
 	);
 };
@@ -200,6 +133,85 @@ type TExperience = {
 interface PropsExperiences {
 	experiencesData: TExperience[];
 }
+
+const MY_EXPERIENCES: TExperience[] = [
+	{
+		jobTitle: 'Front-end Developer Lead',
+		companyName: 'IFG Life',
+		companyCountryISOCode: 'ID',
+		dateStart: {
+			month: 'January',
+			year: 2023,
+		},
+		dateEnd: 'Present',
+		jobDescription: [
+			'Led and distributed tasks to multiple frontend developers to develop a new cross-platform mobile app (React Native) project for insurance agents',
+			'Collaborated directly under product owner and tribe leader to align project timeline, task management, review project documents, and improve UI/UX of the app',
+			'Reviewed frontend developers code and guided developers to improve component structure in the project',
+			'Managed project repository and application deployment in App Center, Google Play Store, and Apple App Store',
+			'Collaborated with front-end developers and quality assurance team to test, debug, and addressed issues within the same day',
+		],
+	},
+	{
+		jobTitle: 'Project Manager',
+		companyName: 'Moduit Digital Indonesia',
+		companyCountryISOCode: 'ID',
+		dateStart: {
+			month: 'May',
+			year: 2022,
+		},
+		dateEnd: {
+			month: 'Dec',
+			year: 2022,
+		},
+		jobDescription: [
+			'Delivered early phase revamped robo-advisor feature to help users invest easily and increase assets under management from retail users',
+			'Assisted head of product to identify project requirements, analyzing business requirements, and enhancing UI/UX of application features',
+			'Led daily scrum a team of 12 developers and managed 2 projects simultaneously to develop web and mobile application projects (NextJS/React Typescript & React Native)',
+			'Completed rebranded landing page with IT and marketing team',
+			'Initiated project and product documentation',
+			'Experienced with project management tool such as Jira, YouTrack, Miro, and LucidChart',
+		],
+	},
+	{
+		jobTitle: 'Aigens',
+		companyName: 'Software Engineer',
+		companyCountryISOCode: 'HK',
+		dateStart: {
+			month: 'May',
+			year: 2022,
+		},
+		dateEnd: {
+			month: 'Dec',
+			year: 2022,
+		},
+		jobDescription: [
+			'Created and prototype console UI that is use by internal and external user for application across multiple countries in Asia',
+			'Conduct business requirement gathering while working under project managers and reporting to product manager in Hong Kong ',
+			'Styled multiple components for web, web responsive, and mobile app (Angular, CSS, SCSS)',
+			'Designed and created prototypes for internal application (Figma)',
+		],
+	},
+	{
+		jobTitle: 'Dell Technologies',
+		companyName: 'Software Engineer',
+		companyCountryISOCode: 'MY',
+		dateStart: {
+			month: 'Jan',
+			year: 2020,
+		},
+		dateEnd: {
+			month: 'Oct',
+			year: 2021,
+		},
+		jobDescription: [
+			'Designed, prototyped, developed, and integrated UI for internal automation application that helps reducing manual labour by more than 50% with intuitive and easy-to-use user interface. (ReactJS, Figma)',
+			'Worked with clients, directors, and business analysts to determine software requirements and system impacts',
+			'Onboarded, trained, and managed front-end development developers within the same team',
+			'Planned and developed on ongoing feature development and product maintenance',
+		],
+	},
+];
 
 const Experiences: FC<PropsExperiences> = ({ experiencesData }) => {
 	return (
