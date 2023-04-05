@@ -174,8 +174,8 @@ const MY_EXPERIENCES: TExperience[] = [
 		],
 	},
 	{
-		jobTitle: 'Aigens',
-		companyName: 'Software Engineer',
+		jobTitle: 'Software Engineer',
+		companyName: 'Aigens Technology',
 		companyCountryISOCode: 'HK',
 		dateStart: {
 			month: 'May',
