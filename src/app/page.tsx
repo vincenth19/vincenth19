@@ -178,11 +178,11 @@ const MY_EXPERIENCES: TExperience[] = [
 		companyName: 'Aigens Technology',
 		companyCountryISOCode: 'HK',
 		dateStart: {
-			month: 'May',
-			year: 2022,
+			month: 'October',
+			year: 2021,
 		},
 		dateEnd: {
-			month: 'Dec',
+			month: 'April',
 			year: 2022,
 		},
 		jobDescription: [
@@ -193,8 +193,8 @@ const MY_EXPERIENCES: TExperience[] = [
 		],
 	},
 	{
-		jobTitle: 'Dell Technologies',
-		companyName: 'Software Engineer',
+		jobTitle: 'Software Engineer',
+		companyName: 'Dell Technologies',
 		companyCountryISOCode: 'MY',
 		dateStart: {
 			month: 'Jan',
@@ -243,7 +243,7 @@ const Experiences: FC<PropsExperiences> = ({ experiencesData }) => {
 							</span>
 							<ul className="my-4 list-disc pl-4">
 								{experience.jobDescription.map((desc, i) => {
-									return <li key={i}>{desc}</li>;
+									return <li key={`job-desc-${i}`}>{desc}</li>;
 								})}
 							</ul>
 						</div>
