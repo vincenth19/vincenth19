@@ -1,5 +1,5 @@
 import { FC } from 'react';
-import { Inria_Serif } from '@next/font/google';
+import { Inria_Serif } from "next/font/google";
 import Image from 'next/image';
 import Link from 'next/link';
 

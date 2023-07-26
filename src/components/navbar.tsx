@@ -1,4 +1,4 @@
-import { Inria_Serif } from '@next/font/google';
+import { Inria_Serif } from "next/font/google";
 import Image from 'next/image';
 import Link from 'next/link';
 import { FC } from 'react';
@@ -32,7 +32,7 @@ const Navbar: FC = () => {
 				>
 					Vincent Haryadi
 				</h4>
-				<button data-test-id="hamburgerMenu" className="block md:hidden">
+				<button type='button' data-test-id="hamburgerMenu" className="block md:hidden">
 					<Image
 						src={'./icons/menu.svg'}
 						width={20}
@@ -48,6 +48,7 @@ const Navbar: FC = () => {
 					))}
 				</span>
 				<button
+					type="button"
 					data-test-id="themeSwitcher"
 					className="flex justify-end md:w-1/5"
 				>

@@ -1,4 +1,5 @@
-import { Lexend } from '@next/font/google';
+import { Lexend } from 'next/font/google';
+import type { Metadata } from 'next';
 
 import './globals.css';
 import 'tailwindcss/tailwind.css';
@@ -8,6 +9,16 @@ import 'tailwindcss/tailwind.css';
 
 const lexend = Lexend({ subsets: ['latin'] });
 
+export const metadata: Metadata = {
+	title: 'Vincent Haryadi',
+	description:
+		'Personal website of Vincent Haryadi, a full-stack developer from Indonesia. Open to work remotely.',
+	viewport: {
+		width: 'device-width',
+		initialScale: 1,
+	},
+};
+
 export default function RootLayout({
 	children,
 }: {
@@ -15,7 +26,6 @@ export default function RootLayout({
 }) {
 	return (
 		<html lang="en">
-			<head />
 			<body className={lexend.className}>
 				{/* TODO: Uncomment when navbar is used*/}
 				{/* <Navbar /> */}
