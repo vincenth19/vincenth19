@@ -17,6 +17,9 @@ export const metadata: Metadata = {
 		width: 'device-width',
 		initialScale: 1,
 	},
+	icons: {
+		icon: '/MyPic.ico',
+	},
 };
 
 export default function RootLayout({
