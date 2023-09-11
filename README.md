@@ -18,6 +18,6 @@ Contact me at my email at [`vincenthary19@gmail.com`](mailto:vincenthary19@gmail
 | ------------------------------------------------------------------------------------------------------------------------------------ |
 | NestJS                                                                                                                               |
 
-You can check my personal website and projects at https://vincenth19.vercel.app
+You can check my personal website and projects at https://vincenth19.com
 
 Have a good day and God bless you!
