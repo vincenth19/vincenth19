@@ -2,7 +2,9 @@
 
 My name is Vincent Haryadi and I come from Indonesia :indonesia:!
 <br/>
-I am currently a lead frontend developer at IFG Life Indonesia. I have more than 3 years of professional experience in frontend development (ReactJS, Typescript, React Native, NextJS), project management (Jira, Miro, YouTrack, Lucidchart), and UI/UX design (Figma).
+I am currently undertaking master in applied IT at Victoria University, Brisbane. In addition, I am working part-time as a software engineer at Alpha Curve Ltd. 
+<br/>
+I have more than 3 years of professional experience in frontend development (ReactJS, Typescript, React Native, NextJS), project management (Jira, Miro, YouTrack, Lucidchart), and UI/UX design (Figma).
 <br/><br/>
 Contact me at my email at [`vincenthary19@gmail.com`](mailto:vincenthary19@gmail.com)
 
