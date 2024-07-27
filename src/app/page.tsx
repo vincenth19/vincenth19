@@ -1,6 +1,6 @@
 import { FC, ReactNode } from 'react';
 
-import { Inria_Serif } from "next/font/google";
+import { Inria_Serif } from 'next/font/google';
 import Image from 'next/image';
 import Link from 'next/link';
 
@@ -81,12 +81,12 @@ const Header: FC = () => {
 				Vincent Haryadi
 			</h1>
 			<text data-test-id="subtitle" className="text-neutral-500">
-				Front-end developer at heart
+				Full Stack Software Engineer | Exploring Generative AI
 			</text>
-			<text className="py-2 text-neutral-500">
-				Front-end developer lead - IFG Life
+			<text className="py-2 px-3 text-green-700 bg-green-50 my-2 rounded-lg">
+				<strong>Currently:</strong> Software Engineer - Alpha Curve Pty Ltd
 			</text>
-			<text className="text-neutral-500">Jakarta, Indonesia</text>
+			<text className="text-neutral-500">Brisbane, Australia</text>
 			<span className="mt-4 flex gap-x-2">
 				{EXTERNAL_LINKS.map((link) => {
 					return (
@@ -107,7 +107,10 @@ const Header: FC = () => {
 					className="w-full"
 					data-test-id="btnToProjects"
 				>
-					<button type="button" className="mt-5 w-full rounded-md bg-green-700 py-2 px-4 text-white transition ease-in-out hover:bg-green-900 sm:w-max">
+					<button
+						type="button"
+						className="mt-5 w-full rounded-md bg-green-700 py-2 px-4 text-white transition ease-in-out hover:bg-green-900 sm:w-max"
+					>
 						My Projects
 					</button>
 				</Link>
@@ -136,6 +139,21 @@ interface PropsExperiences {
 
 const MY_EXPERIENCES: TExperience[] = [
 	{
+		jobTitle: 'Software Engineer',
+		companyName: 'Alpha Curve Pty Ltd',
+		companyCountryISOCode: 'AU',
+		dateStart: {
+			month: 'April',
+			year: 2024,
+		},
+		dateEnd: 'Present',
+		jobDescription: [
+			'Developed and maintained front-end components using HTML, CSS, and JavaScript; integrated APIs with AI capabilities using Flask and FastAPI.',
+			'Authored comprehensive technical documentation for project workflows and processes.',
+			'Independently managed tasks and supervised colleagues to ensure progress and project milestones were met.',
+		],
+	},
+	{
 		jobTitle: 'Front-end Developer Lead',
 		companyName: 'IFG Life',
 		companyCountryISOCode: 'ID',
@@ -143,13 +161,14 @@ const MY_EXPERIENCES: TExperience[] = [
 			month: 'January',
 			year: 2023,
 		},
-		dateEnd: 'Present',
+		dateEnd: {
+			month: 'Oct',
+			year: 2023,
+		},
 		jobDescription: [
-			'Led and distributed tasks to multiple frontend developers to develop a new cross-platform mobile app (React Native) project for insurance agents',
-			'Collaborated directly under product owner and tribe leader to align project timeline, task management, review project documents, and improve UI/UX of the app',
-			'Reviewed frontend developers code and guided developers to improve component structure in the project',
-			'Managed project repository and application deployment in App Center, Google Play Store, and Apple App Store',
-			'Collaborated with front-end developers and quality assurance team to test, debug, and addressed issues within the same day',
+			'Led a team to build a new mobile app for insurance agents, using React Native and Redux.',
+			'Worked with product leaders to keep the project on track, manage tasks, and improve app experience.',
+			'Handled app deployment to App Center, Google Play Store, and Apple App Store.',
 		],
 	},
 	{
@@ -165,18 +184,15 @@ const MY_EXPERIENCES: TExperience[] = [
 			year: 2022,
 		},
 		jobDescription: [
-			'Delivered early phase revamped robo-advisor feature to help users invest easily and increase assets under management from retail users',
-			'Assisted head of product to identify project requirements, analyzing business requirements, and enhancing UI/UX of application features',
-			'Led daily scrum a team of 12 developers and managed 2 projects simultaneously to develop web and mobile application projects (NextJS/React Typescript & React Native)',
-			'Completed rebranded landing page with IT and marketing team',
-			'Initiated project and product documentation',
-			'Experienced with project management tool such as Jira, YouTrack, Miro, and LucidChart',
+			'Delivered a revamped robo-advisor feature, making investing more accessible and significantly boosting user investments.',
+			'Led the development of a new landing page with IT and marketing teams, increasing site traffic and user engagement.',
+			'Partnered with the head of product to refine requirements, improve UI/UX, and manage multiple web and mobile projects.',
 		],
 	},
 	{
 		jobTitle: 'Software Engineer',
 		companyName: 'Aigens Technology',
-		companyCountryISOCode: 'HK',
+		companyCountryISOCode: 'HK, ID Branch',
 		dateStart: {
 			month: 'October',
 			year: 2021,
@@ -186,10 +202,9 @@ const MY_EXPERIENCES: TExperience[] = [
 			year: 2022,
 		},
 		jobDescription: [
-			'Created and prototype console UI that is use by internal and external user for application across multiple countries in Asia',
-			'Conduct business requirement gathering while working under project managers and reporting to product manager in Hong Kong ',
-			'Styled multiple components for web, web responsive, and mobile app (Angular, CSS, SCSS)',
-			'Designed and created prototypes for internal application (Figma)',
+			'Developed UI components for a CRM used across Asia, enhancing user experience and efficiency (Angular, RxJS).',
+			'Gathered requirements with project managers to align with business goals and ensure timely completion.',
+			'Reported directly to the product manager, delivering high-quality software solutions.',
 		],
 	},
 	{
@@ -205,10 +220,9 @@ const MY_EXPERIENCES: TExperience[] = [
 			year: 2021,
 		},
 		jobDescription: [
-			'Designed, prototyped, developed, and integrated UI for internal automation application that helps reducing manual labour by more than 50% with intuitive and easy-to-use user interface. (ReactJS, Figma)',
-			'Worked with clients, directors, and business analysts to determine software requirements and system impacts',
-			'Onboarded, trained, and managed front-end development developers within the same team',
-			'Planned and developed on ongoing feature development and product maintenance',
+			'Designed and implemented dell.com maintenance automation app and website health dashboard which reduced manual labor by over 50% (React, Figma).',
+			'Collaborated with clients, directors, and analysts to accurately define software requirements and track project success.',
+			'Mentored and managed interns and other developers, driving continuous improvement and ensuring successful feature development and maintenance.',
 		],
 	},
 ];
