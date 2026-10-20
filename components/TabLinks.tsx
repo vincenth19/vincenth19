@@ -18,7 +18,7 @@ export type Tab = {
 /** The tab links; the client part of Tabs, because the current tab follows the URL. */
 export function TabLinks({ label, tabs }: { label: string; tabs: Tab[] }) {
 	const pathname = usePathname();
-	const { cancelPeel } = useDesk();
+	const { navigate } = useDesk();
 	return (
 		<nav className="tabs" aria-label={label}>
 			{tabs.map((t) => (
@@ -31,8 +31,10 @@ export function TabLinks({ label, tabs }: { label: string; tabs: Tab[] }) {
 					// scroll-to-top would also undo the re-stuck sticker, which the
 					// Projects tab scrolls to the middle when it leaves a project.
 					scroll={false}
-					// a tab clicked while a sticker peels wins over the sticker's project
-					onNavigate={cancelPeel}
+					// Leaving a project runs as a view transition (the Projects tab flies
+					// its sticker back onto the page), and a tab clicked while a sticker
+					// lifts wins over the sticker's project.
+					onNavigate={(e) => navigate(e, t.href)}
 				>
 					{t.icon}
 					<span>{t.label}</span>

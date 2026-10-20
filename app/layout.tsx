@@ -17,6 +17,7 @@ import '@/styles/projects.css';
 import '@/styles/detail.css';
 import '@/styles/writing.css';
 import '@/styles/resume.css';
+import '@/styles/transitions.css';
 
 export const metadata: Metadata = {
 	metadataBase: new URL(site.url),
@@ -37,10 +38,11 @@ export const viewport: Viewport = {
 };
 
 /**
- * The desk and masthead stay mounted across navigations, so the header can slap a
- * peeled sticker on when a project opens. Below them the (book) route group puts
- * the book, whose pages only swap the leaf; Super Space's product page puts its
- * own stage there instead (app/(product)).
+ * The desk and masthead stay mounted across navigations, so the header can take
+ * a project's sticker when it opens (DeskProvider flies it there in a view
+ * transition). Below them the (book) route group puts the book, whose pages only
+ * swap the leaf; Super Space's product page puts its own stage there instead
+ * (app/(product)).
  */
 export default function RootLayout({ children }: { children: ReactNode }) {
 	return (

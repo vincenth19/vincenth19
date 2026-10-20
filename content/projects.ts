@@ -149,7 +149,7 @@ export function getSheetProject(slug: string): SheetProject | undefined {
 	return sheetProjects.find((p) => p.slug === slug);
 }
 
-/** What the masthead needs to slap a sticker on the header (kept small for the client). */
+/** What the masthead needs to put a sticker in the header (kept small for the client). */
 export type HeaderSticker = Pick<Project, 'slug' | 'key' | 'sticker'>;
 
 export const headerStickers: HeaderSticker[] = projects.map(

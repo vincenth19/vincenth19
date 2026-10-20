@@ -1,9 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { type MouseEvent, useLayoutEffect, useRef, useState } from 'react';
+import { type MouseEvent, useLayoutEffect, useRef } from 'react';
 import type { Project } from '@/content/projects';
-import { keepScroll, prefersReducedMotion, useDesk } from './DeskProvider';
+import { canAnimate, keepScroll, stickerName, useDesk } from './DeskProvider';
 
 type Props = Pick<Project, 'sticker'> & {
 	href: string;
@@ -12,15 +12,16 @@ type Props = Pick<Project, 'sticker'> & {
 	/**
 	 * False for a project with its own product page: prefetching that route
 	 * would make this page preload the product page's fonts and stylesheet. The
-	 * peel fetches it instead, while it plays.
+	 * click fetches it instead, while the sticker lifts.
 	 */
 	prefetch?: boolean;
 };
 
 /**
- * A sticker on the Projects page. A plain click peels it off the page, then opens
- * the project, where the header slaps it back down. Coming back from that project
- * re-sticks it here.
+ * A sticker on the Projects page. A plain click lifts it off the page, then
+ * opens the project in a view transition that flies it into the header (it
+ * shares its view-transition-name with the header sticker). Coming back from
+ * that project flies it back down onto this spot.
  */
 export function StickerLink({
 	href,
@@ -31,56 +32,51 @@ export function StickerLink({
 }: Props) {
 	const desk = useDesk();
 	const ref = useRef<HTMLAnchorElement>(null);
-	const peeling = desk.peeling === href;
-	const [restick, setRestick] = useState(false);
+	const returning = desk.from === href;
+	// Only the sticker that flies is named: one that is not would leave the page
+	// in a transition of its own and drift apart from the book.
+	const flies = desk.flight ? desk.flight.href === href : returning;
+	const lifting = desk.flight?.href === href && desk.flight.lift;
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: runs once, when the page mounts after Back
+	// biome-ignore lint/correctness/useExhaustiveDependencies: runs once, when the page mounts after leaving a project
 	useLayoutEffect(() => {
 		const el = ref.current;
-		if (desk.from !== href || !el) return;
-		// Back from this sticker's project: bring it into view and focus it. Scroll first,
-		// without smoothing and before the re-stick starts (its first frame is lifted
-		// 44px), so the sticker lands centred and the whole re-stick plays in view.
+		if (!returning || !el) return;
+		// Back from this sticker's project: bring it into view and focus it, before
+		// the transition captures the page, so the sticker lands centred.
 		el.scrollIntoView({ block: 'center' });
 		keepScroll();
 		el.focus({ preventScroll: true });
-		// an update from a layout effect renders before the browser paints
-		if (!prefersReducedMotion()) setRestick(true);
 	}, []);
 
 	function onClick(e: MouseEvent<HTMLAnchorElement>) {
 		if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
 			return; // new tab, new window, download: let the browser do it
 		}
-		if (prefersReducedMotion()) return; // no peel: the link navigates straight away
+		if (!canAnimate()) return; // no transition: the link navigates straight away
 		e.preventDefault();
-		setRestick(false);
-		desk.peel(href);
+		desk.open(href);
 	}
-
-	let className = `stk stk--${stickerKey}`;
-	if (peeling) className += ' is-peeling';
-	else if (restick) className += ' is-restick';
 
 	return (
 		<Link
 			ref={ref}
-			className={className}
+			className={`stk stk--${stickerKey}${lifting ? ' is-lifting' : ''}`}
+			style={
+				flies ? { viewTransitionName: stickerName(stickerKey) } : undefined
+			}
 			href={href}
 			prefetch={prefetch}
 			scroll={false}
 			aria-label={label}
 			onClick={onClick}
-			onAnimationEnd={(e) => {
-				if (e.animationName === 'restick') setRestick(false);
-			}}
 		>
 			<span className="stk-body">
 				<span className="stk-face">
 					<img src={sticker.src} alt="" />
 				</span>
 				<span className="stk-flapwrap">
-					{/* only seen on hover or peel; lazy keeps it out of the page's preloads */}
+					{/* only seen on hover or lift; lazy keeps it out of the page's preloads */}
 					<img className="stk-flap" src={sticker.back} alt="" loading="lazy" />
 				</span>
 			</span>

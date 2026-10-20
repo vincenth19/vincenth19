@@ -104,82 +104,14 @@
 	border-radius: 4px;
 }
 
-/* peel → fly (click) */
-.stk.is-peeling {
-	animation: peel 0.42s cubic-bezier(0.5, 0, 0.7, 0.4) forwards;
-}
-@keyframes peel {
-	0% {
-		translate: 0 -2px;
-	}
-	45% {
-		--peel: 0.22;
-		translate: 0 -10px;
-		scale: 1.02;
-		opacity: 1;
-	}
-	100% {
-		--peel: 0.32;
-		translate: 0 -260px;
-		scale: 1.18;
-		rotate: -16deg;
-		opacity: 0;
-	}
-}
-/* slap onto the header (plays when the header sticker mounts) */
-.slap-stk {
-	animation: slap 0.5s cubic-bezier(0.25, 0.9, 0.3, 1) both;
-}
-@keyframes slap {
-	0% {
-		/* not 0: Chrome skips fully transparent elements when it measures Largest
-		   Contentful Paint, so a project page opened from a link would report its
-		   header sticker seconds late. 0.01 looks the same. */
-		opacity: 0.01;
-		translate: 0 340px;
-		scale: 0.62;
-		rotate: -16deg;
-	}
-	55% {
-		opacity: 1;
-		translate: 0 -12px;
-		scale: 1.08;
-		rotate: -1.5deg;
-	}
-	78% {
-		translate: 0 0;
-		scale: 0.97;
-		rotate: -4deg;
-	}
-	100% {
-		translate: 0 0;
-		scale: 1;
-		rotate: -3.5deg;
-	}
-}
-/* re-stick: back on the page after Back */
-.stk.is-restick {
-	animation: restick 0.6s cubic-bezier(0.25, 0.9, 0.3, 1) both;
-}
-@keyframes restick {
-	0% {
-		opacity: 0;
-		translate: 0 -44px;
-		scale: 1.1;
-		--peel: 0.3;
-	}
-	50% {
-		opacity: 1;
-		translate: 0 3px;
-		scale: 0.98;
-		--peel: 0.03;
-	}
-	76% {
-		translate: 0 0;
-		scale: 1.01;
-	}
-	100% {
-		translate: 0 0;
-		scale: 1;
-	}
+/* lift (click): the sticker comes off the page, corner first, before the view
+   transition flies it into the header (styles/transitions.css) */
+.stk.is-lifting {
+	--peel: 0.24;
+	translate: 0 -10px;
+	scale: 1.03;
+	transition:
+		--peel 0.1s var(--ease-out),
+		translate 0.1s var(--ease-out),
+		scale 0.1s var(--ease-out);
 }
