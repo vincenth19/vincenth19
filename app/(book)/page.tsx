@@ -23,7 +23,7 @@ export default function ProjectsPage() {
 							stickerKey={p.key}
 							sticker={p.sticker}
 							label={`${p.name}${p.year ? `, ${p.year}` : ''}. ${open}`}
-							// a product page has its own fonts: fetched on the peel, not ahead
+							// a product page has its own fonts: fetched on the click, not ahead
 							prefetch={'productPage' in p ? false : undefined}
 						/>
 						<div className="cap">

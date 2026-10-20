@@ -30,9 +30,9 @@ export const metadata: Metadata = {
 };
 
 /**
- * Super Space's product page. The desk and the masthead (with the sticker slapped
- * on) come from the root layout; below them, instead of the book, a dark stage in
- * Super Space's own identity. Everything on it is in content/superspace.ts.
+ * Super Space's product page. The desk and the masthead (with the sticker as its
+ * header) come from the root layout; below them, instead of the book, a dark stage
+ * in Super Space's own identity. Everything on it is in content/superspace.ts.
  */
 export default function SuperSpacePage() {
 	return (

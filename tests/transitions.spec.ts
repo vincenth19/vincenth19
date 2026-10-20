@@ -145,6 +145,62 @@ test('open, history.back() and history.forward() each morph and land in place', 
 	expect(problems).toEqual([]);
 });
 
+test('Super Space: the launcher works between Back and Forward, and the header sticker still flies', async ({
+	page,
+}) => {
+	const problems: string[] = [];
+	page.on('console', (m) => {
+		if (m.type() === 'error' || m.type() === 'warning') problems.push(m.text());
+	});
+	page.on('pageerror', (e) => problems.push(e.message));
+	const vts = await recordTransitions(page);
+	await page.goto('/');
+	const sticker = page.getByRole('link', {
+		name: 'Super Space, 2026. Open project',
+	});
+	const header = page.locator('header.mast .slap-stk');
+	const launcher = page.locator('.ssl');
+	const field = launcher.getByRole('combobox', {
+		name: 'Search the demo files',
+	});
+
+	await sticker.click();
+	await expect(page).toHaveURL(at('/projects/super-space'));
+	await expect(header).toHaveCSS('view-transition-name', 'stk-superspace');
+	await vts.settled();
+
+	// type into the launcher, deep down the page
+	await launcher.scrollIntoViewIfNeeded();
+	await expect(launcher).toHaveAttribute('data-ready', '');
+	await field.fill('2+2*3');
+	await expect(launcher.locator('.ssl-answer')).toContainText('2+2*3→8');
+
+	// the browser's Back from there flies the sticker home
+	await page.evaluate(() => history.back());
+	await expect(page).toHaveURL(at('/'));
+	await expect(sticker).toBeFocused();
+	await vts.settled();
+
+	// Forward flies it back into the header, and the launcher runs again
+	await page.evaluate(() => history.forward());
+	await expect(page).toHaveURL(at('/projects/super-space'));
+	await expect(header).toHaveCSS('view-transition-name', 'stk-superspace');
+	await vts.settled();
+	await launcher.scrollIntoViewIfNeeded();
+	await expect(launcher).toHaveAttribute('data-ready', '');
+	await field.fill('anjing');
+	await expect(launcher.getByRole('option').first()).toBeVisible();
+
+	const runs = await vts.take();
+	expect(runs.map((v) => v.direction)).toEqual(['open', 'close', 'open']);
+	for (const run of runs) {
+		expect(run.pairs).toContain('stk-superspace');
+		// the book gives way to the stage, or the stage to the book
+		expect(run.names).toEqual(expect.arrayContaining(['book', 'stage']));
+	}
+	expect(problems).toEqual([]);
+});
+
 test('a page turn that does not open or leave a project stays instant', async ({
 	page,
 }) => {

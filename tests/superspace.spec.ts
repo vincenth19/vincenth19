@@ -593,7 +593,6 @@ test.describe('Super Space product page', () => {
 		}) => {
 			await page.goto(path);
 			await page.evaluate(() => document.fonts.ready);
-			await page.waitForTimeout(600); // the header slap
 			const { scrollWidth, clientWidth } = await page.evaluate(() => ({
 				scrollWidth: document.documentElement.scrollWidth,
 				clientWidth: document.documentElement.clientWidth,

@@ -9,9 +9,9 @@
 	padding-bottom: 0;
 }
 
-/* On this page the slapped sticker is a smaller header than on the other
-   projects, so the product's own hero (headline, install command) is on the
-   first screen. It scales with the screen's height; the slap plays as anywhere. */
+/* On this page the header sticker is smaller than on the other projects, so
+   the product's own hero (headline, install command) is on the first screen.
+   It scales with the screen's height; it flies in from the book as anywhere. */
 .desk:has(> .ss) .mast[data-open] {
 	padding-top: 16px;
 }
