@@ -1,0 +1,144 @@
+/* ═════════ projects collage ═════════ */
+.collage {
+	display: grid;
+	grid-template-columns: repeat(12, minmax(0, 1fr));
+	column-gap: 20px;
+	row-gap: 30px;
+	align-items: start;
+}
+/* one quiet hint above the stickers */
+.collage-hint {
+	grid-column: 1 / -1;
+	justify-self: end;
+	margin-bottom: -6px;
+}
+.slot {
+	display: flex;
+	flex-direction: column;
+	gap: 18px;
+}
+.slot--superspace {
+	grid-column: 1 / 7;
+	padding-left: 3%;
+}
+.slot--basilica {
+	grid-column: 7 / 13;
+	padding: 22px 0 0 10%;
+}
+/* lower row: the sticker and its caption as one pair, centred under the two above */
+.slot--covid {
+	grid-column: 1 / -1;
+	flex-direction: row;
+	justify-content: center;
+	align-items: center;
+	gap: 50px;
+	padding: 0 2% 0 6%;
+}
+.slot--superspace .stk {
+	--sh: 300px;
+	--tilt: -5deg;
+}
+.slot--basilica .stk {
+	--sh: 296px;
+	--tilt: 4deg;
+}
+.slot--covid .stk {
+	--sh: 326px;
+	--tilt: -2.5deg;
+}
+
+.cap {
+	max-width: 17em;
+}
+.cap-name {
+	margin: 0;
+	font-family: var(--sans);
+	font-weight: 700;
+	font-size: 21px;
+	line-height: 1.2;
+	letter-spacing: -0.005em;
+	color: var(--ink);
+}
+.cap-desc {
+	margin: 4px 0 0;
+	font-family: var(--display);
+	font-style: italic;
+	font-weight: 420;
+	font-size: 19px;
+	line-height: 1.3;
+	font-variation-settings:
+		'SOFT' 100,
+		'WONK' 0,
+		'opsz' 36;
+	color: var(--ink-2);
+	text-wrap: balance;
+}
+.slot--covid .cap {
+	max-width: 15em;
+}
+.slot--covid .cap-name {
+	font-size: 23px;
+}
+.slot--covid .cap-desc {
+	font-size: 21px;
+}
+
+@media (max-width: 760px) {
+	.collage {
+		grid-template-columns: minmax(0, 1fr);
+		row-gap: 22px;
+	}
+	.collage-hint {
+		justify-self: start;
+		font-size: 14.5px;
+		margin-bottom: 0;
+	}
+	.slot {
+		gap: 14px;
+	}
+	.slot--superspace,
+	.slot--basilica,
+	.slot--covid {
+		grid-column: 1 / -1;
+		padding: 0;
+	}
+	.slot--superspace {
+		align-items: flex-start;
+	}
+	.slot--basilica {
+		align-items: flex-end;
+		text-align: right;
+		margin-top: -6px;
+	}
+	.slot--basilica .cap {
+		padding-right: 6px;
+	}
+	.slot--covid {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 14px;
+	}
+	.slot--covid .cap {
+		padding-left: 6%;
+	}
+	.slot--superspace .stk {
+		--sh: 214px;
+	}
+	.slot--basilica .stk {
+		--sh: 222px;
+		margin-right: 6px;
+	}
+	.slot--covid .stk {
+		--sh: 226px;
+		margin-left: 6%;
+	}
+	.cap-name,
+	.slot--covid .cap-name {
+		font-size: 19px;
+	}
+	.cap-desc,
+	.slot--covid .cap-desc {
+		font-size: 17.5px;
+	}
+}

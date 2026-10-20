@@ -1,0 +1,48 @@
+/* ═════════ sheets ═════════ */
+.sheet-head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-end;
+	justify-content: space-between;
+	gap: 14px 32px;
+	margin-bottom: 34px;
+}
+.sheet-title {
+	margin: 0;
+	font-family: var(--display);
+	font-style: italic;
+	font-weight: 560;
+	font-size: clamp(34px, 4vw, 46px);
+	line-height: 1;
+	font-variation-settings:
+		'SOFT' 100,
+		'WONK' 1,
+		'opsz' 96;
+	color: var(--ink);
+}
+.sheet-note {
+	margin: 10px 0 0;
+	color: var(--ink-3);
+	font-size: 16px;
+}
+.hint {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	margin: 0;
+	font-size: 15px;
+	line-height: 1.4;
+	color: var(--ink-3);
+	text-wrap: balance;
+}
+.hint .ic {
+	width: 17px;
+	height: 17px;
+	color: var(--mustard);
+}
+
+@media (max-width: 760px) {
+	.sheet-head {
+		margin-bottom: 26px;
+	}
+}

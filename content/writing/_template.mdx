@@ -1,0 +1,32 @@
+{/*
+  Template for a new post. Files whose names start with "_" are never published.
+  Copy this file to content/writing/<slug>.mdx (the slug becomes /writing/<slug>),
+  then fill in the metadata and write. See README.md in this folder.
+  Keep this file: the build needs at least one .mdx file in this folder.
+*/}
+
+export const metadata = {
+	title: 'Post title',
+	date: '2027-01-15',
+	summary: 'One sentence that says what the post is about.',
+};
+
+The first paragraph sits right under the summary. Write in plain Markdown:
+**bold**, _italic_, [links](https://vincenth19.com) and `inline code`.
+
+## A section heading
+
+Use `##` for sections and `###` for the smaller headings inside them.
+
+- Lists get mustard markers.
+- Keep items short.
+
+> A pull quote, set in the display italic.
+
+| Tables | work too |
+| --- | --- |
+| ~~Strikethrough~~ | and task lists: `- [x] done` |
+
+```sh
+bun run dev
+```

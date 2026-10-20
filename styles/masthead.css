@@ -1,0 +1,332 @@
+/* ═════════ masthead ═════════ */
+.mast {
+	position: relative;
+	max-width: 1080px;
+	margin: 0 auto;
+	padding-top: 48px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	text-align: center;
+}
+.mast-id {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+}
+.name {
+	margin: 0 0 30px;
+	font-family: var(--display);
+	font-style: italic;
+	font-weight: 820;
+	font-size: clamp(60px, 9.4vw, 132px);
+	line-height: 0.9;
+	letter-spacing: -0.012em;
+	font-variation-settings:
+		'SOFT' 100,
+		'WONK' 1,
+		'opsz' 144;
+	color: var(--ink);
+	text-shadow:
+		0 2px 0 rgba(0, 0, 0, 0.35),
+		0 14px 30px rgba(0, 0, 0, 0.55);
+}
+/* subtitle: three commands, verbs on one axis */
+.tagline {
+	display: grid;
+	grid-template-columns: auto auto;
+	justify-content: center;
+	align-items: baseline;
+	column-gap: 0.34em;
+	margin: 0;
+	font-size: clamp(17px, 1.55vw, 20px);
+	line-height: 1.9;
+	color: var(--ink-2);
+	text-align: left;
+}
+.cl {
+	display: contents;
+}
+.verb {
+	justify-self: end;
+	font-family: var(--display);
+	font-style: italic;
+	font-weight: 680;
+	font-size: 1.2em;
+	line-height: 1;
+	letter-spacing: 0.004em;
+	font-variation-settings:
+		'SOFT' 100,
+		'WONK' 1,
+		'opsz' 48;
+	color: var(--ink);
+}
+/* keyword chip: a flat ink disc with its icon, then the word. The text sets the
+   baseline (align-items: baseline) and the disc centres itself in the pill. */
+.kw {
+	display: inline-flex;
+	align-items: baseline;
+	gap: 0.36em;
+	padding: 0.12em 0.62em 0.12em 0.14em;
+	margin: 0 0.04em;
+	border-radius: 999px;
+	font-weight: 650;
+	line-height: 1.4;
+	color: #fdf6e8;
+	white-space: nowrap;
+	vertical-align: baseline;
+	background: color-mix(in oklab, var(--c) 28%, #1c130c);
+	box-shadow:
+		inset 0 0 0 1px color-mix(in oklab, var(--c) 58%, transparent),
+		0 2px 6px rgba(0, 0, 0, 0.28);
+}
+.kw .dot {
+	align-self: center;
+	display: grid;
+	place-items: center;
+	flex: none;
+	width: 1.34em;
+	height: 1.34em;
+	margin: 0;
+	border-radius: 50%;
+	color: #1a120a;
+	background: var(--c);
+}
+.kw .dot .ic {
+	width: 0.86em;
+	height: 0.86em;
+}
+.kw--web {
+	--c: var(--k-web);
+}
+.kw--mobile {
+	--c: var(--k-mobile);
+}
+.kw--ui {
+	--c: var(--k-ui);
+}
+.kw--place {
+	--c: var(--k-place);
+}
+/* the same chip, small, as the label above a project caption or title */
+.tag {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 4px 9px;
+}
+.tag .kw {
+	font-size: 14px;
+	margin: 0;
+}
+.tag-year {
+	font-size: 14px;
+	font-weight: 600;
+	color: var(--ink-3);
+	font-variant-numeric: lining-nums;
+}
+
+.socials {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: 4px;
+	margin: 24px 0 0;
+	padding: 0;
+	list-style: none;
+}
+.socials a {
+	display: grid;
+	place-items: center;
+	width: 46px;
+	height: 46px;
+	border-radius: 50%;
+	color: var(--ink-3);
+	transition:
+		color 0.2s ease,
+		background-color 0.2s ease,
+		transform 0.2s var(--ease-out);
+}
+.socials a:hover {
+	color: var(--ink);
+	background: rgba(242, 233, 216, 0.07);
+	transform: translateY(-2px);
+}
+.socials .ic {
+	width: 23px;
+	height: 23px;
+}
+
+/* ── open state (/projects/*): the peeled sticker IS the header ── */
+.slap {
+	display: none;
+}
+.mast[data-open] {
+	padding-top: 40px;
+}
+.mast[data-open] .name {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
+}
+.mast[data-open] .tagline {
+	display: none;
+}
+.mast[data-open] .slap {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+	align-items: center;
+	width: 100%;
+	padding: 14px 0 8px;
+}
+.mast[data-open] .socials {
+	margin-top: 22px;
+}
+.slap-stk {
+	position: relative;
+	z-index: 6;
+	grid-column: 2;
+	grid-row: 1;
+	margin: 0;
+	rotate: -3.5deg;
+}
+.slap .stk--superspace .stk-body {
+	--sh: 400px;
+}
+.slap .stk--basilica .stk-body,
+.slap .stk--covid .stk-body {
+	--sh: 420px;
+}
+.slap .stk-face {
+	/* tight contact shadow + a wide, soft ambient one falling away from the lamp */
+	filter: drop-shadow(0 -0.5px 0 rgba(255, 244, 225, 0.3))
+		drop-shadow(0 1.5px 1.5px rgba(0, 0, 0, 0.62))
+		drop-shadow(9px 20px 24px rgba(0, 0, 0, 0.42));
+}
+.back {
+	grid-column: 1;
+	grid-row: 1;
+	justify-self: end;
+	margin-right: 44px;
+	display: grid;
+	place-items: center;
+	width: 60px;
+	height: 60px;
+	border-radius: 50%;
+	color: var(--ink);
+	text-decoration: none;
+	background: rgba(242, 233, 216, 0.06);
+	box-shadow:
+		inset 0 0 0 1.5px rgba(242, 233, 216, 0.24),
+		0 6px 14px rgba(0, 0, 0, 0.3);
+	transition:
+		background-color 0.2s ease,
+		transform 0.25s var(--ease-out);
+}
+.back .ic {
+	width: 28px;
+	height: 28px;
+}
+.back:hover {
+	background: rgba(242, 233, 216, 0.13);
+	transform: translateX(-3px);
+}
+
+@media (max-width: 760px) {
+	.mast {
+		padding-top: 44px;
+	}
+	.name {
+		font-size: 64px;
+		line-height: 0.92;
+		margin-bottom: 26px;
+	}
+	.name .w {
+		display: block;
+	}
+	/* keep the desktop grid: verbs stay on one right-aligned axis, and a command that
+     wraps hangs under its own first word instead of re-centring */
+	.tagline {
+		grid-template-columns: auto minmax(0, auto);
+		column-gap: 0.3em;
+		font-size: 16px;
+		line-height: 1.95;
+	}
+	.verb {
+		font-size: 1.16em;
+	}
+	.socials {
+		gap: 0;
+		margin-top: 24px;
+	}
+	.socials a {
+		width: 44px;
+		height: 44px;
+	}
+	.socials .ic {
+		width: 22px;
+		height: 22px;
+	}
+	.mast[data-open] {
+		padding-top: 16px;
+	}
+	.mast[data-open] .slap {
+		grid-template-columns: minmax(0, 1fr);
+		justify-items: center;
+		padding: 0;
+	}
+	.back {
+		grid-column: 1;
+		grid-row: 1;
+		justify-self: start;
+		margin: 0 0 12px;
+		width: 52px;
+		height: 52px;
+	}
+	.back .ic {
+		width: 25px;
+		height: 25px;
+	}
+	.slap-stk {
+		grid-column: 1;
+		grid-row: 2;
+	}
+	.slap .stk--superspace .stk-body {
+		--sh: min(286px, calc(100vw - 96px));
+	}
+	.slap .stk--basilica .stk-body,
+	.slap .stk--covid .stk-body {
+		--sh: min(304px, calc((100vw - 110px) * 1.2));
+	}
+	.mast[data-open] .socials {
+		margin-top: 18px;
+	}
+}
+
+/* phones: a command may have to wrap. Drop the verb axis and centre each command
+   like the name, so a wrapped command breaks symmetrically under its first line */
+@media (max-width: 440px) {
+	.tagline {
+		display: block;
+		text-align: center;
+		line-height: 1.9;
+	}
+	.cl {
+		display: block;
+	}
+	.cl + .cl {
+		margin-top: 2px;
+	}
+}
+
+/* Under 340px the seven socials no longer fit one row. Split them 4 + 3 rather
+   than leave YouTube alone on a second row. */
+@media (max-width: 339px) {
+	.socials {
+		max-width: calc(4 * 44px);
+	}
+}

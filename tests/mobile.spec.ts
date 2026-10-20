@@ -1,0 +1,29 @@
+import { expect, test } from '@playwright/test';
+
+const routes = [
+	'/',
+	'/projects/super-space',
+	'/projects/basilica',
+	'/projects/covidtracker',
+	'/writing',
+	'/resume',
+	'/projects/not-a-project',
+];
+
+test.describe('at 390px wide', () => {
+	test.use({ viewport: { width: 390, height: 844 } });
+
+	for (const route of routes) {
+		test(`${route} does not scroll sideways`, async ({ page }) => {
+			await page.goto(route);
+			await page.evaluate(() => document.fonts.ready);
+			// let the header slap finish: it starts scaled and rotated
+			await page.waitForTimeout(600);
+			const { scrollWidth, clientWidth } = await page.evaluate(() => ({
+				scrollWidth: document.documentElement.scrollWidth,
+				clientWidth: document.documentElement.clientWidth,
+			}));
+			expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
+		});
+	}
+});

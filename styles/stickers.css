@@ -1,0 +1,185 @@
+/* ═════════ stickers (shared) ═════════
+   Each sticker is one <img> (the art) plus its flat backing silhouette, shown
+   mirrored when a corner peels. Per-sticker props:
+     --ratio  height / width of the art's viewBox
+     --d0     how far in from the bottom-right box corner the die-cut outline
+              starts, along the 45° diagonal, as a fraction of the width.
+              The peel line is x + y = --k.
+     --rest   peel at rest (0 = flat)      --hover  peel on hover / focus     */
+.stk-body {
+	--w: calc(var(--sh) / var(--ratio));
+	--k: calc(var(--w) + var(--sh) - var(--w) * (var(--d0) + var(--peel)));
+	position: relative;
+	display: block;
+	width: var(--w);
+	height: var(--sh);
+}
+.stk--superspace {
+	--ratio: 1;
+	--d0: 0.217;
+	--hover: 0.085;
+} /* 260 × 260 */
+.stk--basilica {
+	--ratio: 1.2143;
+	--d0: 0.033;
+	--hover: 0.2;
+} /* 224 × 272 */
+.stk--covid {
+	--ratio: 1.25;
+	--d0: 0.077;
+	--hover: 0.2;
+	--rest: 0.065;
+} /* 240 × 300 */
+
+.stk-face {
+	position: absolute;
+	inset: 0;
+	filter: drop-shadow(0 -0.5px 0 rgba(255, 244, 225, 0.32))
+		drop-shadow(0 1.5px 1px rgba(0, 0, 0, 0.7))
+		drop-shadow(3px 7px 8px rgba(0, 0, 0, 0.36));
+}
+.stk-face img {
+	width: 100%;
+	height: 100%;
+	/* everything on the near side of the peel line stays stuck down */
+	clip-path: polygon(
+		-60px -60px,
+		calc(100% + 60px) -60px,
+		calc(100% + 60px) calc(var(--k) - var(--w) - 60px),
+		calc(var(--k) - var(--sh) - 60px) calc(100% + 60px),
+		-60px calc(100% + 60px)
+	);
+}
+.stk-flapwrap {
+	position: absolute;
+	inset: 0;
+	overflow: hidden;
+	pointer-events: none;
+	/* the lifted flap throws its own shadow onto the sticker and the page */
+	filter: drop-shadow(0 0.5px 0.5px rgba(0, 0, 0, 0.35))
+		drop-shadow(2px 6px 6px rgba(0, 0, 0, 0.42));
+}
+.stk-flap {
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: var(--w);
+	height: var(--sh);
+	transform-origin: 0 0;
+	/* mirror the backing across the line x + y = k */
+	transform: translate(var(--k), var(--k)) matrix(0, -1, -1, 0, 0, 0);
+	clip-path: polygon(
+		100% calc(var(--k) - var(--w)),
+		100% 100%,
+		calc(var(--k) - var(--sh)) 100%
+	);
+}
+
+/* the sticker as a link on the Projects page */
+.stk {
+	--peel: var(--rest, 0);
+	display: block;
+	width: max-content;
+	text-decoration: none;
+	cursor: pointer;
+	rotate: var(--tilt, 0deg);
+	transition:
+		--peel 0.35s var(--ease-out),
+		translate 0.3s var(--ease-out);
+	-webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) and (pointer: fine) {
+	.stk:hover {
+		--peel: var(--hover);
+		translate: 0 -2px;
+	}
+}
+.stk:focus-visible {
+	--peel: var(--hover);
+	outline: none;
+}
+.stk:focus-visible .stk-face {
+	outline: 2px dashed var(--ink);
+	outline-offset: 10px;
+	border-radius: 4px;
+}
+
+/* peel → fly (click) */
+.stk.is-peeling {
+	animation: peel 0.42s cubic-bezier(0.5, 0, 0.7, 0.4) forwards;
+}
+@keyframes peel {
+	0% {
+		translate: 0 -2px;
+	}
+	45% {
+		--peel: 0.22;
+		translate: 0 -10px;
+		scale: 1.02;
+		opacity: 1;
+	}
+	100% {
+		--peel: 0.32;
+		translate: 0 -260px;
+		scale: 1.18;
+		rotate: -16deg;
+		opacity: 0;
+	}
+}
+/* slap onto the header (plays when the header sticker mounts) */
+.slap-stk {
+	animation: slap 0.5s cubic-bezier(0.25, 0.9, 0.3, 1) both;
+}
+@keyframes slap {
+	0% {
+		/* not 0: Chrome skips fully transparent elements when it measures Largest
+		   Contentful Paint, so a project page opened from a link would report its
+		   header sticker seconds late. 0.01 looks the same. */
+		opacity: 0.01;
+		translate: 0 340px;
+		scale: 0.62;
+		rotate: -16deg;
+	}
+	55% {
+		opacity: 1;
+		translate: 0 -12px;
+		scale: 1.08;
+		rotate: -1.5deg;
+	}
+	78% {
+		translate: 0 0;
+		scale: 0.97;
+		rotate: -4deg;
+	}
+	100% {
+		translate: 0 0;
+		scale: 1;
+		rotate: -3.5deg;
+	}
+}
+/* re-stick: back on the page after Back */
+.stk.is-restick {
+	animation: restick 0.6s cubic-bezier(0.25, 0.9, 0.3, 1) both;
+}
+@keyframes restick {
+	0% {
+		opacity: 0;
+		translate: 0 -44px;
+		scale: 1.1;
+		--peel: 0.3;
+	}
+	50% {
+		opacity: 1;
+		translate: 0 3px;
+		scale: 0.98;
+		--peel: 0.03;
+	}
+	76% {
+		translate: 0 0;
+		scale: 1.01;
+	}
+	100% {
+		translate: 0 0;
+		scale: 1;
+	}
+}

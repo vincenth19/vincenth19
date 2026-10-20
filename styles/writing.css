@@ -1,0 +1,323 @@
+/* ═════════ writing ═════════ */
+.posts {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	border-top: 1px solid var(--rule);
+}
+.post-link {
+	display: grid;
+	grid-template-columns: 8.5em minmax(0, 1fr);
+	gap: 4px 24px;
+	padding: 18px 0;
+	border-bottom: 1px solid var(--rule);
+	text-decoration: none;
+}
+.post-date {
+	grid-row: span 2;
+	font-family: var(--display);
+	font-style: italic;
+	font-size: 19px;
+	color: var(--mustard);
+	font-variation-settings:
+		'SOFT' 100,
+		'WONK' 1,
+		'opsz' 48;
+}
+.post-title {
+	font-weight: 650;
+	font-size: 19px;
+	color: var(--ink);
+}
+.post-sum {
+	color: var(--ink-3);
+}
+.post-link:hover .post-title {
+	text-decoration: underline;
+	text-underline-offset: 4px;
+}
+/* empty state: a plain card held in photo corners */
+.soon {
+	display: grid;
+	justify-items: center;
+	padding: 18px 0 8px;
+}
+.soon-card {
+	position: relative;
+	width: min(440px, 100%);
+	padding: 28px 34px 30px;
+	rotate: -1deg;
+	background: radial-gradient(ellipse 100% 90% at 40% 30%, #f1ebde, #e4dccb);
+	color: #4a3f33;
+	box-shadow:
+		0 1px 1px rgba(0, 0, 0, 0.6),
+		0 12px 22px -8px rgba(0, 0, 0, 0.7);
+}
+.soon-card > .ic {
+	width: 26px;
+	height: 26px;
+	color: #8b6526;
+}
+.soon-card .corner {
+	width: 30px;
+	height: 30px;
+}
+.soon-title {
+	margin: 10px 0 0;
+	font-family: var(--display);
+	font-style: italic;
+	font-weight: 600;
+	font-size: 30px;
+	line-height: 1.1;
+	color: #221911;
+	font-variation-settings:
+		'SOFT' 100,
+		'WONK' 1,
+		'opsz' 72;
+}
+
+/* ── one post: long-form reading on the leaf ── */
+.article {
+	max-width: 40rem;
+}
+.article-back {
+	margin: 0 0 26px;
+}
+.article-back a {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	text-decoration: none;
+}
+.article-back a:hover span {
+	text-decoration: underline;
+	text-underline-offset: 4px;
+}
+.article-date {
+	display: block;
+	margin: 0 0 12px;
+	font-family: var(--display);
+	font-style: italic;
+	font-size: 19px;
+	line-height: 1.3;
+	color: var(--mustard);
+	font-variation-settings:
+		'SOFT' 100,
+		'WONK' 1,
+		'opsz' 48;
+}
+.article-title {
+	margin: 0;
+	font-family: var(--display);
+	font-style: italic;
+	font-weight: 620;
+	font-size: clamp(38px, 4.4vw, 54px);
+	line-height: 1.04;
+	font-variation-settings:
+		'SOFT' 100,
+		'WONK' 1,
+		'opsz' 144;
+	color: var(--ink);
+	text-wrap: balance;
+}
+/* focused when a post opens from the list, like a project's title */
+.article-title:focus,
+.article-title:focus-visible {
+	outline: none;
+}
+.article-head {
+	padding-bottom: 26px;
+	margin-bottom: 30px;
+	border-bottom: 1px solid var(--rule);
+}
+
+.prose {
+	font-size: 18px;
+	line-height: 1.7;
+	color: var(--ink-2);
+}
+.prose > :first-child {
+	margin-top: 0;
+}
+.prose p,
+.prose ul,
+.prose ol,
+.prose pre,
+.prose blockquote,
+.prose figure {
+	margin: 0 0 1.15em;
+}
+/* MDX headings move down a level under the post title: ## → h3, ### → h4 */
+.prose h2,
+.prose h3,
+.prose h4,
+.prose h5 {
+	color: var(--ink);
+	text-wrap: balance;
+}
+.prose h2,
+.prose h3 {
+	margin: 1.9em 0 0.55em;
+	font-family: var(--display);
+	font-style: italic;
+	font-weight: 600;
+	font-size: clamp(27px, 2.8vw, 32px);
+	line-height: 1.12;
+	font-variation-settings:
+		'SOFT' 100,
+		'WONK' 1,
+		'opsz' 72;
+}
+.prose h4,
+.prose h5 {
+	margin: 1.7em 0 0.45em;
+	font-family: var(--sans);
+	font-weight: 700;
+	font-size: 21px;
+	line-height: 1.25;
+	letter-spacing: -0.005em;
+}
+.prose strong {
+	color: var(--ink);
+	font-weight: 650;
+}
+.prose a {
+	color: var(--ink);
+	text-decoration-color: color-mix(in oklab, var(--mustard) 75%, transparent);
+	text-decoration-thickness: 1.5px;
+	text-underline-offset: 4px;
+}
+.prose a:hover {
+	text-decoration-color: var(--mustard);
+}
+.prose ul,
+.prose ol {
+	padding-left: 1.3em;
+}
+.prose li + li {
+	margin-top: 0.35em;
+}
+.prose li::marker {
+	color: var(--mustard);
+}
+.prose blockquote {
+	padding: 2px 0 2px 1.1em;
+	border-left: 2px solid var(--mustard);
+	font-family: var(--display);
+	font-style: italic;
+	font-size: 1.12em;
+	line-height: 1.5;
+	font-variation-settings:
+		'SOFT' 100,
+		'WONK' 0,
+		'opsz' 36;
+	color: var(--ink);
+}
+.prose blockquote p {
+	margin: 0;
+}
+.prose code {
+	padding: 0.1em 0.38em;
+	border-radius: 5px;
+	font: 500 0.88em / 1.5 var(--sans);
+	color: var(--ink);
+	background: rgba(0, 0, 0, 0.36);
+	box-shadow: inset 0 0 0 1px rgba(242, 233, 216, 0.08);
+	-webkit-box-decoration-break: clone;
+	box-decoration-break: clone;
+}
+.prose pre {
+	overflow-x: auto;
+	padding: 14px 16px;
+	border-radius: 8px;
+	background: rgba(0, 0, 0, 0.36);
+	box-shadow:
+		inset 0 1px 2px rgba(0, 0, 0, 0.6),
+		0 1px 0 rgba(242, 233, 216, 0.06);
+}
+.prose pre code {
+	padding: 0;
+	font-size: 15px;
+	line-height: 1.6;
+	color: var(--ink-2);
+	background: none;
+	box-shadow: none;
+}
+.prose hr {
+	margin: 2.2em 0;
+	border: 0;
+	border-top: 1px solid var(--rule);
+}
+.prose img {
+	max-width: 100%;
+	height: auto;
+}
+/* GitHub-flavoured extras (remark-gfm): tables, strikethrough, task lists */
+.prose table {
+	display: block;
+	max-width: 100%;
+	overflow-x: auto;
+	margin: 0 0 1.15em;
+	border-collapse: collapse;
+	font-size: 16px;
+	line-height: 1.5;
+}
+.prose th,
+.prose td {
+	padding: 9px 18px 9px 0;
+	border-bottom: 1px solid var(--rule);
+	text-align: left;
+	vertical-align: top;
+}
+.prose th:last-child,
+.prose td:last-child {
+	padding-right: 0;
+}
+.prose th {
+	font: italic 500 17px / 1.3 var(--display);
+	font-variation-settings:
+		'SOFT' 100,
+		'WONK' 1,
+		'opsz' 24;
+	color: var(--mustard);
+	white-space: nowrap;
+}
+.prose del {
+	color: var(--ink-3);
+}
+.prose .contains-task-list {
+	padding-left: 0;
+	list-style: none;
+}
+.prose .task-list-item input {
+	margin: 0 0.5em 0 0;
+	accent-color: var(--mustard);
+}
+.prose figcaption {
+	margin-top: 10px;
+	font-size: 14px;
+	color: var(--ink-3);
+	text-align: center;
+}
+
+@media (max-width: 760px) {
+	.soon-card {
+		padding: 24px 24px 26px;
+	}
+	.soon-title {
+		font-size: 27px;
+	}
+	/* A deliberate change from the prototype, which never shows a post: its 8.5em
+	   date column would leave a post title about 110px wide at 390. On narrow
+	   screens the date sits above the title instead. */
+	.post-link {
+		grid-template-columns: minmax(0, 1fr);
+	}
+	.post-date {
+		grid-row: auto;
+		font-size: 17px;
+	}
+	.prose {
+		font-size: 17px;
+	}
+}

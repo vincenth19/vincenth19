@@ -1,0 +1,330 @@
+/* ═════════ the book ═════════ */
+.book {
+	position: relative;
+	isolation: isolate;
+	width: min(1080px, 100%);
+	margin: 60px auto 0;
+}
+.board {
+	position: relative;
+	padding: 20px 30px 34px 42px;
+	border-radius: 6px 14px 14px 6px;
+	background-color: var(--cloth);
+	background-image:
+		linear-gradient(
+			90deg,
+			rgba(0, 0, 0, 0.5) 0,
+			rgba(255, 214, 196, 0.07) 9px,
+			rgba(0, 0, 0, 0) 18px,
+			rgba(0, 0, 0, 0.18) 30px,
+			rgba(0, 0, 0, 0.55) 42px,
+			rgba(0, 0, 0, 0) 43px
+		),
+		radial-gradient(
+			ellipse 80% 60% at 52% 0%,
+			rgba(255, 210, 170, 0.1),
+			transparent 70%
+		),
+		linear-gradient(180deg, rgba(0, 0, 0, 0) 60%, rgba(0, 0, 0, 0.28)),
+		url(/img/cloth.svg);
+	background-size:
+		auto,
+		auto,
+		auto,
+		256px 256px;
+	background-blend-mode: normal, normal, normal, overlay;
+	box-shadow:
+		inset 0 1px 0 rgba(255, 222, 204, 0.2),
+		inset 1px 0 0 rgba(255, 222, 204, 0.08),
+		inset -1px 0 0 rgba(255, 222, 204, 0.08),
+		inset 0 -1px 0 rgba(0, 0, 0, 0.5),
+		0 2px 0 #2c0e11,
+		0 3px 0 #1d090b,
+		0 4px 2px rgba(0, 0, 0, 0.7),
+		0 26px 44px -10px rgba(0, 0, 0, 0.8),
+		0 70px 110px -30px rgba(0, 0, 0, 0.75);
+}
+.leaf {
+	position: relative;
+	z-index: 3;
+	min-height: 540px;
+	padding: 44px clamp(20px, 6vw, 76px) 64px clamp(30px, 7.5vw, 96px);
+	border-radius: 0 3px 3px 0;
+	background: var(--paper) url(/img/paper.svg);
+	background-size: 640px 640px;
+	/* only a hairline onto the page block; the block itself throws the shadow onto the board */
+	box-shadow:
+		0.5px 0.5px 0 rgba(0, 0, 0, 0.5),
+		1px 1.5px 2px rgba(0, 0, 0, 0.4);
+}
+.leaf::before {
+	content: '';
+	position: absolute;
+	inset: 0 auto 0 0;
+	width: 170px;
+	pointer-events: none;
+	background: linear-gradient(
+		90deg,
+		rgba(0, 0, 0, 0.9) 0,
+		rgba(0, 0, 0, 0.62) 7px,
+		rgba(0, 0, 0, 0.3) 20px,
+		rgba(0, 0, 0, 0.08) 34px,
+		rgba(255, 236, 210, 0.045) 46px,
+		rgba(255, 236, 210, 0.02) 70px,
+		rgba(0, 0, 0, 0.07) 104px,
+		rgba(0, 0, 0, 0) 170px
+	);
+}
+.leaf::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	border-radius: inherit;
+	background:
+		radial-gradient(
+			ellipse 70% 45% at 52% 0%,
+			rgba(255, 222, 178, 0.1),
+			transparent 78%
+		),
+		radial-gradient(
+			ellipse 115% 85% at 52% 28%,
+			transparent 48%,
+			rgba(0, 0, 0, 0.36)
+		),
+		linear-gradient(180deg, rgba(255, 236, 210, 0.03), transparent 3px);
+}
+
+/* the page block under the top leaf: one element, so the fore-edge (right) and the
+   tail (bottom) both run straight; the tail runs flush into the spine */
+.board::after {
+	content: '';
+	position: absolute;
+	z-index: 1;
+	top: 26px;
+	left: 42px;
+	right: 19px;
+	bottom: 23px;
+	border-radius: 0 3px 3px 0;
+	background:
+		linear-gradient(
+			90deg,
+			rgba(0, 0, 0, 0.7),
+			rgba(0, 0, 0, 0.25) 14px,
+			rgba(0, 0, 0, 0) 34px
+		)
+		bottom / 100% 11px no-repeat,
+		repeating-linear-gradient(90deg, #34312c 0 1px, #0f0e0d 1px 2px) right /
+		11px 100% no-repeat,
+		repeating-linear-gradient(180deg, #34312c 0 1px, #0f0e0d 1px 2px) bottom /
+		100% 11px no-repeat;
+	box-shadow: 1px 2px 5px rgba(0, 0, 0, 0.55);
+	pointer-events: none;
+}
+
+/* index tabs: card stock glued to the top edge of each page */
+.tabs {
+	position: absolute;
+	top: -30px;
+	left: clamp(72px, 10vw, 128px);
+	display: flex;
+	gap: 12px;
+}
+.tab {
+	position: relative;
+	z-index: 2;
+	display: flex;
+	align-items: flex-start;
+	justify-content: center;
+	gap: 7px;
+	width: 150px;
+	height: 68px;
+	padding-top: 13px;
+	border-radius: 10px 10px 2px 2px;
+	font-family: var(--sans);
+	font-weight: 700;
+	font-size: 17px;
+	line-height: 1.25;
+	font-variation-settings:
+		'wdth' 92,
+		'opsz' 20;
+	text-decoration: none;
+	color: var(--tab-ink);
+	background-color: var(--tc);
+	background-image:
+		linear-gradient(
+			180deg,
+			rgba(255, 250, 238, 0.24),
+			rgba(255, 250, 238, 0) 42%
+		),
+		url(/img/card.svg);
+	background-size:
+		auto,
+		200px 200px;
+	box-shadow:
+		inset 0 1.5px 0 rgba(255, 255, 255, 0.4),
+		inset -1px 0 0 rgba(0, 0, 0, 0.1),
+		1.5px 0 0 var(--tc-edge),
+		2.5px 0.5px 0 rgba(0, 0, 0, 0.3),
+		-5px 2px 9px -3px rgba(0, 0, 0, 0.5);
+	filter: brightness(0.94);
+	translate: 0 6px;
+	transition:
+		filter 0.2s ease,
+		translate 0.2s var(--ease-out);
+}
+.tab .ic {
+	width: 16px;
+	height: 16px;
+	margin-top: 2px;
+	opacity: 0.82;
+}
+/* the top page's edge throws a soft shadow across tabs of the pages beneath */
+.tab:not([aria-current])::after {
+	content: '';
+	position: absolute;
+	left: 0;
+	right: -1.5px;
+	bottom: 0;
+	height: 48px;
+	background: linear-gradient(
+		180deg,
+		rgba(0, 0, 0, 0),
+		rgba(0, 0, 0, 0.1) 14px,
+		rgba(0, 0, 0, 0.44) 26px
+	);
+	border-radius: 0 0 2px 2px;
+	pointer-events: none;
+}
+.tab:hover {
+	filter: none;
+	translate: 0 1px;
+}
+.tab[aria-current='page'] {
+	z-index: 4;
+	filter: none;
+	translate: none;
+	box-shadow:
+		inset 0 1.5px 0 rgba(255, 255, 255, 0.42),
+		inset -1px 0 0 rgba(0, 0, 0, 0.1),
+		1.5px 0 0 var(--tc-edge),
+		2.5px 0.5px 0 rgba(0, 0, 0, 0.3),
+		0 1px 1px rgba(0, 0, 0, 0.55),
+		0 7px 10px -4px rgba(0, 0, 0, 0.55);
+}
+/* the glued part, folded over the page edge: a soft crease, then a second plane */
+.tab[aria-current='page']::before {
+	content: '';
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	height: 18px;
+	border-radius: 0 0 2px 2px;
+	background: linear-gradient(
+		180deg,
+		rgba(255, 250, 236, 0.22) 0,
+		rgba(255, 250, 236, 0.06) 2px,
+		rgba(40, 24, 8, 0.07) 5px,
+		rgba(40, 24, 8, 0.12) 100%
+	);
+	pointer-events: none;
+}
+.tab--projects {
+	--tc: #d8a94b;
+	--tc-edge: #8a641f;
+}
+.tab--writing {
+	--tc: #adbf98;
+	--tc-edge: #5f6f49;
+}
+.tab--resume {
+	--tc: #e09c7d;
+	--tc-edge: #8a4b34;
+}
+
+@media (max-width: 760px) {
+	.book {
+		margin-top: 72px;
+	}
+	.board {
+		padding: 14px 14px 22px 24px;
+		border-radius: 4px 10px 10px 4px;
+		background-image:
+			linear-gradient(
+				90deg,
+				rgba(0, 0, 0, 0.5) 0,
+				rgba(255, 214, 196, 0.07) 6px,
+				rgba(0, 0, 0, 0) 11px,
+				rgba(0, 0, 0, 0.5) 24px,
+				rgba(0, 0, 0, 0) 25px
+			),
+			radial-gradient(
+				ellipse 80% 60% at 52% 0%,
+				rgba(255, 210, 170, 0.1),
+				transparent 70%
+			),
+			linear-gradient(180deg, rgba(0, 0, 0, 0) 60%, rgba(0, 0, 0, 0.28)),
+			url(/img/cloth.svg);
+	}
+	.leaf {
+		min-height: 0;
+		padding: 40px 18px 44px 30px;
+	}
+	.board::after {
+		top: 20px;
+		left: 24px;
+		right: 3px;
+		bottom: 11px;
+	}
+	.leaf::before {
+		width: 80px;
+	}
+	.tabs {
+		left: 30px;
+		right: 14px;
+		top: -36px;
+		gap: 6px;
+	}
+	.tab {
+		width: auto;
+		flex: 1 1 0;
+		max-width: 120px;
+		height: 64px;
+		gap: 5px;
+		padding-top: 12px;
+		font-size: 15.5px;
+	}
+	.tab .ic {
+		width: 14px;
+		height: 14px;
+	}
+	.tab:not([aria-current])::after {
+		height: 40px;
+		background: linear-gradient(
+			180deg,
+			rgba(0, 0, 0, 0),
+			rgba(0, 0, 0, 0.1) 8px,
+			rgba(0, 0, 0, 0.44) 20px
+		);
+	}
+	.tab[aria-current='page']::before {
+		height: 14px;
+	}
+}
+
+/* Under 360px (not in the design's 390 and 1440 frames) the labels would run into
+   the tab edges, so the tabs close up a little and their text and icons shrink. */
+@media (max-width: 359px) {
+	.tabs {
+		gap: 4px;
+	}
+	.tab {
+		gap: 4px;
+		font-size: 14px;
+	}
+	.tab .ic {
+		width: 12px;
+		height: 12px;
+	}
+}

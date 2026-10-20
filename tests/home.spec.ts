@@ -1,36 +1,71 @@
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
-//setup home page location
-test.beforeEach(async ({ page }) => {
-	await page.goto('/');
-	await expect(page).toHaveTitle(/Vincent Haryadi/);
-});
+test.describe('home (Projects)', () => {
+	test.beforeEach(async ({ page }) => {
+		await page.goto('/');
+	});
 
-//summary content
-test.describe('Summary Content', () => {
-	test('should show my illustration, subtitle, and summary', async ({
+	test('shows the name and the three stickers in order, with captions', async ({
 		page,
 	}) => {
-		await expect(page.getByTestId('illustration')).toBeVisible();
-		await expect(page.getByTestId('subtitle')).toHaveText(
-			/Front-end developer/
+		await expect(page).toHaveTitle('Vincent Haryadi');
+		await expect(
+			page.getByRole('heading', { level: 1, name: 'Vincent Haryadi' }),
+		).toBeVisible();
+
+		const stickers = page.locator('.collage').getByRole('link');
+		await expect(stickers).toHaveCount(3);
+		const expected = [
+			['Super Space, 2026. Open project', '/projects/super-space'],
+			['Basilica. Open project', '/projects/basilica'],
+			['CovidTracker, 2021. Open project', '/projects/covidtracker'],
+		];
+		for (const [i, [label, href]] of expected.entries()) {
+			await expect(stickers.nth(i)).toHaveAccessibleName(label);
+			await expect(stickers.nth(i)).toHaveAttribute('href', href);
+		}
+
+		await expect(page.locator('.cap-name')).toHaveText([
+			'Super Space',
+			'Basilica',
+			'CovidTracker',
+		]);
+		await expect(page.locator('.cap-desc')).toHaveText([
+			'Spotlight for Omarchy that gets what you mean.',
+			'A theme for the Omarchy desktop.',
+			'COVID-19 numbers for Indonesia, made readable.',
+		]);
+		await expect(
+			page.getByText('Peel a sticker to read about it.'),
+		).toHaveCount(1);
+	});
+
+	test('has all seven social links, labelled', async ({ page }) => {
+		const socials = page.locator('.socials a');
+		const expected = [
+			['GitHub', 'https://github.com/vincenth19'],
+			['LinkedIn', 'https://www.linkedin.com/in/vincenth19/'],
+			['X', 'https://x.com/vincenth19_'],
+			['Email', 'mailto:me@vincenth19.com'],
+			['TikTok', 'https://www.tiktok.com/@vincent.sprint'],
+			['Instagram', 'https://www.instagram.com/vincent.sprint/'],
+			['YouTube', 'https://www.youtube.com/@vincent.sprint'],
+		];
+		await expect(socials).toHaveCount(expected.length);
+		for (const [i, [label, href]] of expected.entries()) {
+			await expect(socials.nth(i)).toHaveAttribute('aria-label', label);
+			await expect(socials.nth(i)).toHaveAttribute('href', href);
+		}
+	});
+
+	test('marks the Projects tab as the current page', async ({ page }) => {
+		const tabs = page.getByRole('navigation', { name: 'Book sections' });
+		await expect(tabs.getByRole('link', { name: 'Projects' })).toHaveAttribute(
+			'aria-current',
+			'page',
 		);
-	});
-
-	//TODO: remove this when ready
-	test.skip();
-	test('should go to project page', async ({ page }) => {
-		await page
-			.locator('[data-test-id="btnToProjects"]')
-			.getByRole('button', { name: 'My Projects' })
-			.click();
-		await expect(page).toHaveURL('/projects');
-	});
-});
-
-//experiences content
-test.describe('Work Experiences Content', () => {
-	test('should show work experiences', async ({ page }) => {
-		await expect(page.getByTestId('experiences')).toBeVisible();
+		await expect(
+			tabs.getByRole('link', { name: 'Writing' }),
+		).not.toHaveAttribute('aria-current');
 	});
 });

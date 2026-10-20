@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 300" width="240" height="300">
+<linearGradient id="ct-pg-paper" gradientUnits="userSpaceOnUse" x1="245.5" y1="275.5" x2="171.1" y2="201.1"><stop offset="0" stop-color="#f8f5ee"/><stop offset="0.177" stop-color="#eee9df"/><stop offset="0.323" stop-color="#d3ccbf"/><stop offset="0.403" stop-color="#c4bcad"/><stop offset="1" stop-color="#b1a998"/></linearGradient>
+<path d="M29 2 H211 A27 27 0 0 1 238 29 V271 A27 27 0 0 1 211 298 H29 A27 27 0 0 1 2 271 V29 A27 27 0 0 1 29 2Z" fill="url(#ct-pg-paper)" stroke="url(#ct-pg-paper)" stroke-width="1.1" stroke-linejoin="round"/>
+</svg>
