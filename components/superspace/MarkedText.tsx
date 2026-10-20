@@ -10,3 +10,13 @@ export function MarkedText({ parts }: { parts: Marked[] }) {
 		return <code key={key}>{part.code}</code>;
 	});
 }
+
+/** The same run as plain text. */
+export function plain(parts: Marked[]): string {
+	return parts
+		.map((part) => {
+			if (typeof part === 'string') return part;
+			return 'mark' in part ? part.mark : part.code;
+		})
+		.join('');
+}

@@ -8,7 +8,7 @@ type Props = {
 	items: DemoItem[];
 	/** The last row's label: "Search the web for". */
 	web: string;
-	labels: { pause: string; play: string; show: string };
+	labels: { pause: string; play: string; show: string; chips: string };
 	/** Rendered on the server, like the rest of the site's icons. */
 	icons: Record<DemoIcon | 'search' | 'enter' | 'play' | 'pause', ReactNode>;
 };
@@ -43,6 +43,10 @@ export function LauncherDemo({ items, web, labels, icons }: Props) {
 	const [inView, setInView] = useState(false);
 	const [visible, setVisible] = useState(true);
 	const [paused, setPaused] = useState(false);
+	/** What a chip press says to screen readers: the panel itself is hidden from them. */
+	const [said, setSaid] = useState('');
+	const sayTimer = useRef<number | undefined>(undefined);
+	useEffect(() => () => window.clearTimeout(sayTimer.current), []);
 	const running = motion && inView && visible && !paused;
 
 	useEffect(() => {
@@ -97,6 +101,10 @@ export function LauncherDemo({ items, web, labels, icons }: Props) {
 	}, [running, state, items]);
 
 	function show(i: number) {
+		// empty the live region first, so pressing the same chip again is read again
+		setSaid('');
+		window.clearTimeout(sayTimer.current);
+		sayTimer.current = window.setTimeout(() => setSaid(items[i].said), 40);
 		setState(
 			motion && !paused ? { i, typed: 0, phase: 'typing' } : complete(items, i),
 		);
@@ -113,57 +121,62 @@ export function LauncherDemo({ items, web, labels, icons }: Props) {
 
 	return (
 		<div className="ss-launcher" ref={ref}>
-			<div className="ss-panel" data-phase={state.phase} aria-hidden="true">
-				<div className="ss-query">
-					{icons.search}
-					<span className="ss-q">
-						{item.query.slice(0, state.typed)}
-						<span className={typing ? 'ss-caret' : 'ss-caret is-idle'} />
-					</span>
-				</div>
-				<div className="ss-results">
-					<ul className="ss-rows">
-						{item.rows.map((row, j) => (
-							<li
-								// rows are static per search: the search and position identify them
-								key={`${item.query}-${j}`}
-								className={`ss-row ss-row--${row.icon}${j === 0 ? ' is-sel' : ''}`}
-							>
-								<span className="ss-tile">{icons[row.icon]}</span>
-								<span className="ss-row-text">
-									<span className="ss-head">
-										{row.moments
-											? row.moments.map((m) => (
+			{/* the slot keeps the panel's full height, so the page does not move */}
+			<div className="ss-slot">
+				<div className="ss-panel" data-phase={state.phase} aria-hidden="true">
+					<div className="ss-query">
+						{icons.search}
+						<span className="ss-q">
+							{item.query.slice(0, state.typed)}
+							<span className={typing ? 'ss-caret' : 'ss-caret is-idle'} />
+						</span>
+					</div>
+					<div className="ss-results">
+						<ul className="ss-rows">
+							{item.rows.map((row, j) => (
+								<li
+									key={`${row.icon} ${row.meta.join()}`}
+									className={`ss-row ss-row--${row.icon}${j === 0 ? ' is-sel' : ''}`}
+								>
+									<span className="ss-tile">{icons[row.icon]}</span>
+									<span className="ss-row-text">
+										<span className="ss-head">
+											{row.moments ? (
+												row.moments.map((m) => (
 													<span key={m} className="ss-moment">
 														{icons.play}
 														{m}
 													</span>
 												))
-											: <MarkedText parts={row.headline} />}
+											) : (
+												<MarkedText parts={row.headline} />
+											)}
+										</span>
+										<span className="ss-meta">{row.meta.join(' · ')}</span>
 									</span>
-									<span className="ss-meta">{row.meta.join(' · ')}</span>
+									{j === 0 && row.hint && (
+										<span className="ss-hint">
+											{icons.enter}
+											{row.hint}
+										</span>
+									)}
+								</li>
+							))}
+							<li className="ss-row ss-row--web">
+								<span className="ss-tile">{icons.web}</span>
+								<span className="ss-row-text">
+									<span className="ss-head">
+										{web} “{item.query}”
+									</span>
 								</span>
-								{j === 0 && row.hint && (
-									<span className="ss-hint">
-										{icons.enter}
-										{row.hint}
-									</span>
-								)}
 							</li>
-						))}
-						<li className="ss-row ss-row--web">
-							<span className="ss-tile">{icons.web}</span>
-							<span className="ss-row-text">
-								<span className="ss-head">
-									{web} “{item.query}”
-								</span>
-							</span>
-						</li>
-					</ul>
+						</ul>
+					</div>
 				</div>
 			</div>
+			{/* under the panel, so nothing that is not Super Space's sits inside it */}
 			<div className="ss-demo-controls">
-				<ul className="ss-chips">
+				<ul className="ss-chips" aria-label={labels.chips}>
 					{items.map((it, i) => (
 						<li key={it.query}>
 							<button
@@ -189,6 +202,9 @@ export function LauncherDemo({ items, web, labels, icons }: Props) {
 					</button>
 				)}
 			</div>
+			<p className="sr-only" aria-live="polite">
+				{said}
+			</p>
 		</div>
 	);
 }

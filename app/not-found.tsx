@@ -13,17 +13,17 @@ export default function NotFound() {
 	return (
 		<Book>
 			<section className="sheet" aria-labelledby="t-not-found">
-			<header className="sheet-head">
-				<div>
-					<h2 className="sheet-title" id="t-not-found">
-						{copy.heading}
-					</h2>
-					<p className="sheet-note">{copy.note}</p>
-				</div>
-			</header>
-			<Link className="btn" href="/">
-				<Icon name="arrow-left-long-line" /> {copy.back}
-			</Link>
+				<header className="sheet-head">
+					<div>
+						<h2 className="sheet-title" id="t-not-found">
+							{copy.heading}
+						</h2>
+						<p className="sheet-note">{copy.note}</p>
+					</div>
+				</header>
+				<Link className="btn" href="/">
+					<Icon name="arrow-left-long-line" /> {copy.back}
+				</Link>
 			</section>
 		</Book>
 	);

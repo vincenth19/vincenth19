@@ -16,6 +16,18 @@ const glyphs = {
 			<path d="M13.5 3.5v5h5M8.5 12.5h7M8.5 16h4.5" />
 		</>
 	),
+	sheet: (
+		<>
+			<rect x="4.5" y="4.5" width="15" height="15" rx="2" />
+			<path d="M4.5 9.5h15M4.5 14.5h15M10 9.5v10" />
+		</>
+	),
+	slide: (
+		<>
+			<rect x="3.5" y="5" width="17" height="11.5" rx="1.8" />
+			<path d="M12 16.5V20M8.5 20h7M7.5 9h6M7.5 12.2h4" />
+		</>
+	),
 	video: (
 		<>
 			<rect x="3.5" y="5.5" width="17" height="13" rx="2.5" />

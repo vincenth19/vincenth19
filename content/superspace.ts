@@ -35,19 +35,22 @@ export type DemoItem = {
 	said: string;
 };
 
-/** A query typed into Super Space and what it finds, as a small example line. */
-export type Example = {
-	query: string;
-	/** What it finds; leave out for a query shown on its own. */
-	result?: Marked[];
-};
-
 export type Stat = {
 	/** "about", when the measurement is approximate. */
 	about?: boolean;
 	value: string;
 	unit: string;
 	label: string;
+	/** A qualifier set right under the label, in Fragment Mono. */
+	detail?: string;
+};
+
+/** A group of measurements, with what they were measured on said first. */
+export type StatGroup = {
+	/** Shown above the numbers, so it frames them. */
+	on: string;
+	stats: Stat[];
+	note?: string;
 };
 
 export type Beat = {
@@ -56,21 +59,23 @@ export type Beat = {
 		| 'moments'
 		| 'speech'
 		| 'everything'
+		| 'scopes'
 		| 'private'
 		| 'agents'
 		| 'pi';
 	title: string;
-	copy: Copy;
-	examples?: Example[];
+	copy?: Copy;
 	/** A screenshot slot: shown only when the file is in public/projects/super-space/. */
 	shot?: { file: string; alt: string };
 };
 
 export type Faq = { q: string; a: Marked[] };
 
+const version = '0.1.4';
+
 export const superSpace = {
 	name: 'Super Space',
-	version: '0.1.4',
+	version,
 	headline: 'Search what you mean',
 	subhead:
 		'Super Space is a Super+Space launcher for Omarchy. It finds apps, files, photos, moments in videos, spoken words and songs by what is in them, entirely on your computer.',
@@ -80,7 +85,9 @@ export const superSpace = {
 		'omarchy plugin add https://github.com/vincenth19/omarchy-super-space --enable',
 	uninstall: 'superspace-setup uninstall',
 	/** The small line under the hero's actions. */
-	meta: ['v0.1.4', 'MIT', 'Omarchy 4'],
+	meta: [`v${version}`, 'MIT', 'Omarchy 4'],
+	/** Between the items of a one-line list. */
+	sep: ' · ',
 
 	ui: {
 		github: 'View on GitHub',
@@ -89,7 +96,6 @@ export const superSpace = {
 		copyFailed: 'Could not copy. The command is selected, copy it with Ctrl+C.',
 		copyInstall: 'install command',
 		copyUninstall: 'uninstall command',
-		logoAlt: 'Super Space logo: a space bar key wearing a red cape',
 		about: 'about',
 		backToProjects: 'All projects',
 		madeBy: 'Super Space is made by Vincent Haryadi.',
@@ -105,6 +111,8 @@ export const superSpace = {
 		pause: 'Pause the demo',
 		play: 'Play the demo',
 		show: 'Show the search for',
+		/** Names the chip row: the chips replay the panel above, which screen readers skip. */
+		chipsLabel: 'Replay a search in the demo',
 		items: [
 			{
 				query: 'apartment lease bond',
@@ -134,11 +142,13 @@ export const superSpace = {
 			{
 				query: 'anjing',
 				rows: [{ icon: 'emoji', headline: ['🐶'], meta: ['Emoji'] }],
-				said: '“anjing”, Indonesian for dog, finds the 🐶 emoji.',
+				said: '“anjing” finds the 🐶 emoji: emoji search works in any language.',
 			},
 			{
 				query: 'wifi connect',
-				rows: [{ icon: 'wifi', headline: ['Wi-Fi'], meta: ['Omarchy setting'] }],
+				rows: [
+					{ icon: 'wifi', headline: ['Wi-Fi'], meta: ['Omarchy setting'] },
+				],
 				said: '“wifi connect” finds the Omarchy Wi-Fi setting.',
 			},
 			{
@@ -147,28 +157,26 @@ export const superSpace = {
 					{
 						icon: 'time',
 						headline: [{ mark: '11:00 am' }, ' in Jakarta'],
-						meta: ['3:00 pm in Sydney'],
+						meta: ['3:00 pm in Sydney (AEDT)'],
 					},
 				],
-				said: '“3pm sydney in jakarta” answers 11:00 am in Jakarta.',
+				said: '“3pm sydney in jakarta” answers 11:00 am in Jakarta, with Sydney on summer time (AEDT).',
 			},
 		] satisfies DemoItem[],
 	},
 
+	/**
+	 * The feature beats, in order. The demo above them is the one place the
+	 * example searches appear; each beat shows a different moment of the product.
+	 */
 	beats: [
 		{
 			key: 'files',
 			title: 'Inside your files',
 			copy: {
-				lead: 'Text inside PDF, Word, Excel, PowerPoint, Markdown and text files.',
+				lead: 'The text inside your documents, by meaning.',
 				rest: 'It opens at the matching page, slide or sheet.',
 			},
-			examples: [
-				{
-					query: 'apartment lease bond',
-					result: ['the lease, page 3: “rental bond of $2,400”'],
-				},
-			],
 			shot: {
 				file: 'lease.webp',
 				alt: 'Super Space finding “rental bond of $2,400” on page 3 of a lease',
@@ -179,17 +187,7 @@ export const superSpace = {
 			title: 'Photos and video moments',
 			copy: {
 				lead: 'It finds what a picture shows, and which parts of a video match.',
-				rest: 'Enter plays the video there.',
 			},
-			examples: [
-				{
-					query: 'golden retriever video',
-					result: [
-						{ code: 'weekend-clips-oct-2026.mp4' },
-						' at 0:10–0:30 and 0:45–0:59',
-					],
-				},
-			],
 			shot: {
 				file: 'video.webp',
 				alt: 'Super Space finding the moments of a video that match “golden retriever video”',
@@ -202,7 +200,6 @@ export const superSpace = {
 				lead: 'Voice memos and the speech in videos are transcribed on the device, with whisper.cpp.',
 				rest: 'Songs are found by their lyrics.',
 			},
-			examples: [{ query: 'songs about a breakup' }],
 			shot: {
 				file: 'songs.webp',
 				alt: 'Super Space finding songs by their lyrics',
@@ -212,21 +209,21 @@ export const superSpace = {
 			key: 'everything',
 			title: 'One box for everything else',
 			copy: {
-				lead: 'Apps, Omarchy settings by meaning, emoji in any language, clipboard history with where each copy came from, browser history and folders by name.',
-				rest: 'Quick answers for maths, units, currency and time zones.',
+				lead: 'Apps, settings, emoji, clipboard and browser history, folders.',
+				rest: 'And quick answers: maths, units, currency, time zones.',
 			},
-			examples: [
-				{ query: 'wifi connect', result: ['the Omarchy Wi-Fi setting'] },
-				{ query: 'anjing', result: ['🐶'] },
-				{ query: '3pm sydney in jakarta', result: ['11:00 am in Jakarta'] },
-			],
+		},
+		{
+			key: 'scopes',
+			title: 'Narrow it down',
+			copy: { lead: 'Scope words narrow a search.' },
 		},
 		{
 			key: 'private',
 			title: 'Local and private',
 			copy: {
 				lead: 'The models run on your machine: Google’s EmbeddingGemma, through llama.cpp. After setup it works offline.',
-				rest: 'It only goes online for the daily currency rates, or when you pick the “search the web” row.',
+				rest: 'It only goes online for the daily ECB currency rates, or when you pick the “search the web” row.',
 			},
 		},
 		{
@@ -245,41 +242,60 @@ export const superSpace = {
 		},
 	] satisfies Beat[],
 
-	/** "One box for everything else": the small print under the examples. */
+	/** "Inside your files": the kinds of document it reads, each with its tile's glyph. */
+	formats: [
+		{ name: 'PDF', icon: 'doc' },
+		{ name: 'Word', icon: 'doc' },
+		{ name: 'Excel', icon: 'sheet' },
+		{ name: 'PowerPoint', icon: 'slide' },
+		{ name: 'Markdown', icon: 'doc' },
+		{ name: 'Text', icon: 'doc' },
+	] satisfies { name: string; icon: 'doc' | 'sheet' | 'slide' }[],
+
+	/** "Photos and video moments": what the Enter key does on a video. */
+	moments: { key: 'Enter', text: 'plays the video where it matched' },
+
+	/** "Spoken words and songs": a search for a song by its lyrics. */
+	speech: { query: 'songs about a breakup' },
+
+	/** "One box for everything else": the small print. */
 	everything: {
-		scopeLabel: 'Scope words narrow a search',
-		scopes: [
-			'apps firefox',
-			'settings wifi',
-			'photos beach',
-			'emoji money',
-			'camera folder',
-		],
-		notes: [
-			'Browser history from Chromium, Chrome, Brave, Edge, Firefox and Zen.',
-			'Currency uses daily ECB rates.',
-		],
+		note: 'Browser history from Chromium, Chrome, Brave, Edge, Firefox and Zen. Clipboard history keeps where each copy came from.',
 	},
+
+	/** "Narrow it down": the scope word in each search is marked. */
+	scopes: [
+		[{ mark: 'apps' }, ' firefox'],
+		[{ mark: 'settings' }, ' wifi'],
+		[{ mark: 'photos' }, ' beach'],
+		[{ mark: 'emoji' }, ' money'],
+		['camera ', { mark: 'folder' }],
+	] satisfies Marked[][],
 
 	/** "Local and private": what it leaves alone. */
 	private: [
 		{
 			title: 'Skips',
-			text: ['node_modules', '.git', 'dot folders', 'anything gitignored'],
+			text: [
+				{ code: 'node_modules' },
+				', ',
+				{ code: '.git' },
+				', dot folders and anything gitignored',
+			],
 		},
 		{
 			title: 'Never stores',
-			text: ['clipboard copies a password manager marks as secret'],
+			text: ['Clipboard copies a password manager marks as secret'],
 		},
-		{ title: 'Says', text: ['“nothing found”, honestly'] },
-		{ title: 'Web results', text: ['never on top'] },
-	],
+		{ title: 'Says', text: ['“Nothing found”, honestly'] },
+		{ title: 'Web results', text: ['Never on top'] },
+	] satisfies { title: string; text: Marked[] }[],
 
 	/** "Your AI agents can use it too": one measured run. */
 	agents: {
-		caption: 'In our test',
+		caption: 'In our test:',
 		setup:
-			'Claude Code answering 10 questions about the files on a Raspberry Pi 5.',
+			'Claude Code answered 10 questions about the files on a Raspberry Pi 5, with and without Super Space.',
 		columns: ['With Super Space', 'Without'],
 		rows: [
 			{ label: 'Correct answers', with: '10 of 10', without: '5 of 10' },
@@ -289,30 +305,35 @@ export const superSpace = {
 		note: 'Measured once. A small sample: 10 questions.',
 	},
 
-	/** "Runs on a Raspberry Pi 5". */
-	pi: {
-		indexing: [
-			{ about: true, value: '3', unit: 's', label: 'names searchable' },
-			{
-				about: true,
-				value: '1',
-				unit: 'min',
-				label: 'every document, by meaning',
-			},
-			{ about: true, value: '12', unit: 'min', label: 'everything' },
-		] satisfies Stat[],
-		indexingNote:
-			'Measured on the Pi with the demo home: about 80 documents, photos, songs and videos.',
-		speed: [
-			{ value: '2', unit: 'ms', label: 'first results, p95' },
-			{
-				value: '73',
-				unit: 'ms',
-				label: 'results by meaning, p95: about 50–75 ms of work after a 150 ms pause in typing',
-			},
-		] satisfies Stat[],
-		speedNote: 'Search speed measured on the Try Omarchy VM (Apple Silicon).',
-	},
+	/** "Runs on a Raspberry Pi 5": each group says what it was measured on first. */
+	pi: [
+		{
+			on: 'Indexing, measured on the Pi',
+			stats: [
+				{ about: true, value: '3', unit: 's', label: 'names searchable' },
+				{
+					about: true,
+					value: '1',
+					unit: 'min',
+					label: 'every document, by meaning',
+				},
+				{ about: true, value: '12', unit: 'min', label: 'everything' },
+			],
+			note: 'With the demo home: about 80 documents, photos, songs and videos.',
+		},
+		{
+			on: 'Search speed, measured on the Try Omarchy VM (Apple Silicon)',
+			stats: [
+				{ value: '2', unit: 'ms', label: 'first results, p95' },
+				{
+					value: '73',
+					unit: 'ms',
+					label: 'results by meaning, p95',
+					detail: 'about 50–75 ms of work, after a 150 ms pause in typing',
+				},
+			],
+		},
+	] satisfies StatGroup[],
 
 	installSection: {
 		eyebrow: 'Install',
@@ -328,16 +349,23 @@ export const superSpace = {
 		},
 		download: {
 			title: 'Download',
-			app: { label: 'The app', arm: '8.5 MB', x64: '9.0 MB' },
+			app: {
+				label: 'The app',
+				sizes: [
+					{ size: '8.5 MB', arch: 'arm64' },
+					{ size: '9.0 MB', arch: 'x64' },
+				],
+			},
 			setupLead:
 				'Setup also fetches the models and runtimes, about 1 GB in total:',
+			/** Each size is one unbreakable piece; a list of them wraps between pieces. */
 			parts: [
-				{ label: 'EmbeddingGemma', size: '310 MB' },
-				{ label: 'its image and audio part', size: '555 MB' },
-				{ label: 'whisper base', size: '82 MB' },
+				{ label: 'EmbeddingGemma', size: ['310 MB'] },
+				{ label: 'EmbeddingGemma image and audio part', size: ['555 MB'] },
+				{ label: 'whisper base', size: ['82 MB'] },
 				{
 					label: 'llama.cpp and whisper.cpp builds',
-					size: 'about 19 MB arm64, 28 MB x64',
+					size: ['about 19 MB arm64', '28 MB x64'],
 				},
 			],
 		},

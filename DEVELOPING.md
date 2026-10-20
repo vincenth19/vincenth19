@@ -33,10 +33,13 @@ next preview deploy passes.
 
 ## How the site is put together
 
-- `app/layout.tsx` renders the desk, the masthead and the book once. They stay mounted
-  across navigations; each route only swaps the leaf (the top page of the book).
-- Routes: `/` (Projects), `/projects/[slug]`, `/writing`, `/writing/[slug]`, `/resume`.
-  Everything is statically generated.
+- `app/layout.tsx` renders the desk and the masthead once, and `app/(book)/layout.tsx`
+  the book (`components/Book.tsx`). They stay mounted across navigations; each route
+  in the book only swaps the leaf (the top page of the book). The 404 page renders
+  outside the `(book)` group, so `app/not-found.tsx` opens its own `Book`.
+- Routes: `/` (Projects), `/projects/[slug]`, `/writing`, `/writing/[slug]`, `/resume`
+  in `app/(book)/`, and Super Space's product page, `/projects/super-space`, in
+  `app/(product)/`. Everything is statically generated.
 - `content/` holds every piece of copy as typed data: `site.ts` (name, tagline,
   socials, tab labels and the other interface text), `projects.ts`, `resume.ts`, and
   the posts in `writing/`.
@@ -56,6 +59,37 @@ next preview deploy passes.
 - Fonts (Fraunces and Bricolage Grotesque) load through `next/font/google` in
   `app/fonts.ts` and are exposed as `--display` and `--sans`.
 
+## The Super Space product page
+
+`/projects/super-space` is a product page in Super Space's own identity rather than a
+sheet in the book. The masthead still slaps the peeled sticker on (the root layout
+keeps it mounted); below it, in place of the book, a dark stage that the desk's lamp
+light fades into.
+
+- Copy, numbers and the launcher demo's searches are typed data in
+  `content/superspace.ts`. Keep each number exactly as measured, with its qualifier
+  ("in our test", "measured on the Pi", "on the Try Omarchy VM"), and mention nothing
+  that is not released.
+- The page is `app/(product)/projects/super-space/page.tsx`; its sections are in
+  `components/superspace/`. Two parts run in the browser: `CopyButton` and
+  `LauncherDemo` (the launcher in HTML, which types the example searches while it is
+  on screen, and stands still with reduced motion).
+- Its fonts, Gloock and Fragment Mono, load in that route's `fonts.ts`, for this page
+  only, and `styles/superspace.css` is imported by the page alone. Next keeps a
+  route's stylesheet after you leave it, so every rule there is scoped to `.ss`.
+- On purpose, the home page still fetches them early: the Super Space sticker is a
+  `next/link`, and prefetching its route brings the route's preloads (the two fonts,
+  about 15 KB and 17.5 KB, and the stylesheet, about 6 KB gzipped) once the home page
+  is idle. That keeps the sticker's peel-and-slap free of a font swap on arrival. If
+  home-page weight ever matters more, set `prefetch={false}` on that sticker's link.
+- Each example search appears once, in the launcher demo; the feature beats below it
+  show other moments of the product (the file tiles, the Enter key, a query line, the
+  scope words), so the page does not tell the same story twice.
+- Media slots: the screenshots and demo clip appear once their files are in
+  `public/projects/super-space/` (`demo.webm` and/or `demo.mp4` with `poster.webp`;
+  `lease.webp`, `video.webp`, `songs.webp`). The page checks at build time, so add the
+  files and rebuild; without them it leaves those slots out.
+
 ## Where the site differs from the design prototype
 
 On purpose, and nowhere visible in the design's 390px and 1440px frames:
@@ -72,7 +106,8 @@ One file: see [`content/writing/README.md`](content/writing/README.md).
 
 ## Add or edit a project
 
-Edit the entry in `content/projects.ts`. Leave out the optional fields you don't know
+Edit the entry in `content/projects.ts` (for Super Space, `content/superspace.ts`; its
+entry in `projects.ts` only holds the sticker and the caption). Leave out the optional fields you don't know
 yet (`year`, `body`, `tries`) and use an empty array for `links` or `facts` you don't
 have: the page simply omits what is missing. To show a real screenshot instead of the
 "Screenshot coming soon" print, put the image in `public/img/` and add

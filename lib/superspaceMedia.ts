@@ -41,7 +41,10 @@ function webpSize(file: string): { width: number; height: number } | undefined {
 		return { width: 1 + b.readUIntLE(24, 3), height: 1 + b.readUIntLE(27, 3) };
 	}
 	if (chunk === 'VP8 ') {
-		return { width: b.readUInt16LE(26) & 0x3fff, height: b.readUInt16LE(28) & 0x3fff };
+		return {
+			width: b.readUInt16LE(26) & 0x3fff,
+			height: b.readUInt16LE(28) & 0x3fff,
+		};
 	}
 	if (chunk === 'VP8L') {
 		const bits = b.readUInt32LE(21);
