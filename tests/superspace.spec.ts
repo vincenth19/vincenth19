@@ -1,4 +1,4 @@
-import { expect, type Page, test } from '@playwright/test';
+import { expect, type Locator, type Page, test } from '@playwright/test';
 import { overflowing } from './overflow';
 
 const path = '/projects/super-space';
@@ -6,6 +6,25 @@ const repo = 'https://github.com/vincenth19/omarchy-super-space';
 const install = `omarchy plugin add ${repo} --enable`;
 const subhead =
 	'Super Space is a Super+Space launcher for Omarchy. It finds apps, files, photos, moments in videos, spoken words and songs by what is in them, entirely on your computer.';
+
+/** The launcher, once it has loaded (it loads as it nears the screen). */
+async function openLauncher(page: Page): Promise<Locator> {
+	const launcher = page.locator('.ssl');
+	await launcher.scrollIntoViewIfNeeded();
+	await expect(launcher).toHaveAttribute('data-ready', '');
+	return launcher;
+}
+
+/** Types a search as a person would, then waits for typing to have paused. */
+async function search(field: Locator, q: string) {
+	await field.click();
+	await field.press('ControlOrMeta+a');
+	await field.press('Backspace');
+	await field.pressSequentially(q, { delay: 20 });
+	await expect(field).toHaveValue(q);
+	// the final phase lands 150 ms after the last key; the calm ends at 400 ms
+	await field.page().waitForTimeout(500);
+}
 
 /** All the text on the page, rendered or not (closed FAQ answers included), without scripts. */
 function pageText(page: Page) {
@@ -174,67 +193,197 @@ test.describe('Super Space product page', () => {
 		}
 	});
 
-	test('screen readers get the example searches as a list, not the animation', async ({
+	test('the launcher is a search field over a list of results, as screen readers need', async ({
 		page,
 	}) => {
 		await page.goto(path);
-		const list = page.getByRole('list', { name: 'Example searches' });
-		await expect(list.getByRole('listitem')).toHaveCount(5);
-		await expect(list).toContainText(
-			'finds the lease, page 3: “rental bond of $2,400”',
-		);
-		await expect(list).toContainText('weekend-clips-oct-2026.mp4');
-		await expect(list).toContainText('11:00 am in Jakarta');
-		await expect(page.locator('.ss-launcher .ss-panel')).toHaveAttribute(
-			'aria-hidden',
-			'true',
-		);
-	});
-
-	test('the demo types through the searches and can be paused', async ({
-		page,
-	}) => {
-		await page.goto(path);
-		await page.locator('.ss-launcher').scrollIntoViewIfNeeded();
-		const query = page.locator('.ss-launcher .ss-q');
-		await expect(query).toHaveText('apartment lease bond', {
-			timeout: 12_000,
+		const launcher = await openLauncher(page);
+		const field = launcher.getByRole('combobox', {
+			name: 'Search the demo files',
 		});
-		// the chip marks the search on screen, without a pressed state that would
-		// change by itself
-		const chip = page.getByRole('button', { name: /apartment lease bond/ });
-		await expect(chip).toHaveAttribute('aria-current', 'true');
-		await expect(chip).not.toHaveAttribute('aria-pressed');
-		await expect(page.locator('.ss-launcher .ss-panel')).toContainText(
-			'rental bond of $2,400',
+		await expect(field).toHaveValue('golden retriever video');
+		// it does not take the focus on its own
+		await expect(field).not.toBeFocused();
+		const list = launcher.getByRole('listbox', { name: 'Results' });
+		await expect(field).toHaveAttribute(
+			'aria-controls',
+			(await list.getAttribute('id')) ?? '',
 		);
-
-		await page.getByRole('button', { name: 'Pause the demo' }).click();
-		await expect(
-			page.getByRole('button', { name: 'Play the demo' }),
-		).toBeVisible();
-		await page.waitForTimeout(4500);
-		await expect(query).toHaveText('apartment lease bond');
-
-		await page.getByRole('button', { name: /wifi connect/ }).click();
-		await expect(query).toHaveText('wifi connect');
-		await expect(page.locator('.ss-launcher .ss-panel')).toContainText('Wi-Fi');
-		// the panel is hidden from screen readers, so a chip says what it shows
-		await expect(page.locator('.ss-launcher [aria-live="polite"]')).toHaveText(
-			'“wifi connect” finds the Omarchy Wi-Fi setting.',
+		await expect(list.getByRole('option')).toHaveCount(2);
+		// ↓ chooses a row: the field points at it
+		await field.focus();
+		await field.press('ArrowDown');
+		const first = list.getByRole('option').first();
+		await expect(field).toHaveAttribute(
+			'aria-activedescendant',
+			(await first.getAttribute('id')) ?? '',
 		);
-		// the pause control sits under the panel, not inside it
-		await expect(
-			page.locator('.ss-panel').getByRole('button', { name: /demo/ }),
-		).toHaveCount(0);
+		await expect(first).toHaveAttribute('aria-selected', 'true');
+		// what Enter would do is said politely
+		await field.press('Enter');
+		await expect(launcher.locator('.ssl-toast')).toHaveAttribute(
+			'aria-live',
+			'polite',
+		);
+		await expect(launcher.locator('.ssl-toast')).toHaveText(
+			'Would play weekend-clips-oct-2026.mp4 from 0:45 in mpv',
+		);
 	});
 
-	test('each feature shows its real result, without repeating the demo’s panel', async ({
+	test('typing searches the demo files, as the real launcher finds them', async ({
+		page,
+	}) => {
+		await page.goto(path);
+		const launcher = await openLauncher(page);
+		const field = launcher.getByRole('combobox');
+		const rows = launcher.getByRole('option');
+
+		// inside your files: the lease, at page 3, its bond in bold
+		await search(field, 'apartment lease bond document');
+		await expect(launcher.locator('.ssl-pill')).toHaveText('Text');
+		await expect(rows).toHaveCount(2);
+		await expect(rows.first()).toContainText(
+			'Rental bond The tenant must pay a rental bond of $2,400',
+		);
+		await expect(rows.first().locator('b').first()).toHaveText('bond');
+		await expect(rows.first()).toContainText(
+			'apartment-lease-new-farm-2026.pdf  ·  ~/Documents/Home',
+		);
+		await expect(rows.first().locator('.ssl-place')).toHaveText('p. 3');
+		await expect(rows.first().locator('.ssl-chip')).toHaveText([
+			'1',
+			'2',
+			'3',
+			'4',
+			'5',
+		]);
+		// the web row is always last
+		await expect(rows.last()).toContainText(
+			'Search the web for “apartment lease bond document”',
+		);
+		await expect(rows.last()).toContainText('DuckDuckGo');
+		await expect(launcher.locator('.ssl-hints')).toContainText('→ pages');
+		// → at the end of the text steps the pages; Enter opens there
+		await field.press('ArrowRight');
+		await expect(rows.first().locator('.ssl-place')).toHaveText('p. 4');
+		await field.press('Enter');
+		await expect(launcher.locator('.ssl-toast')).toHaveText(
+			'Would open apartment-lease-new-farm-2026.pdf at page 4',
+		);
+
+		// video moments, on the video's timeline
+		await search(field, 'golden retriever video');
+		await expect(launcher.locator('.ssl-pill')).toHaveText('Videos');
+		await expect(rows.first()).toContainText('dog swimming');
+		await expect(rows.first().locator('.ssl-place')).toHaveText('0:45–0:59');
+		await expect(rows.first().locator('.ssl-times')).toContainText('0:10–0:30');
+		// Tab lists the sections
+		await field.press('Tab');
+		await expect(rows.first().locator('.ssl-part')).toHaveCount(2);
+		await expect(field).toBeFocused();
+
+		// songs by their lyrics
+		await search(field, 'songs about a breakup');
+		await expect(launcher.locator('.ssl-pill')).toHaveText('Audio');
+		await expect(rows).toHaveCount(3);
+		await expect(rows.nth(0)).toContainText('Keys on the Counter');
+		await expect(rows.nth(0)).toContainText('Song · Kitchen Radio · 0:50');
+		await expect(rows.nth(1)).toContainText('Empty Side of the Bed');
+
+		// settings by meaning, emoji in Indonesian, scope words
+		await search(field, 'wifi connect');
+		await expect(rows.first()).toContainText(
+			'Network' + 'Wi-Fi list and connection state',
+		);
+		await search(field, 'anjing');
+		await expect(rows.first().locator('.ssl-emoji').first()).toHaveText('🐶');
+		await expect(launcher.locator('.ssl-list')).toContainText('IMG_2041.jpg');
+		await search(field, 'apps firefox');
+		await expect(launcher.locator('.ssl-pill')).toHaveText('Apps');
+		await expect(rows.first()).toContainText('Firefox');
+		await search(field, 'camera folder');
+		await expect(launcher.locator('.ssl-pill')).toHaveText('Folders');
+		await expect(rows.first()).toContainText('Camera~/Pictures');
+	});
+
+	test('quick answers are worked out in the page, and currency says it needs the rates', async ({
+		page,
+	}) => {
+		await page.goto(path);
+		const launcher = await openLauncher(page);
+		const field = launcher.getByRole('combobox');
+		const card = launcher.locator('.ssl-answer');
+		await search(field, '2+2*3');
+		await expect(card).toContainText('2+2*3→8');
+		await search(field, '5\'11" in cm');
+		await expect(card).toContainText('180.34 cm');
+		await search(field, '3pm sydney in jakarta');
+		await expect(card).toContainText('3:00 PM');
+		await expect(card).toContainText('11:00 AM');
+		await expect(card).toContainText('Jakarta is 4 h behind Sydney');
+		await search(field, '100k idr in usd');
+		await expect(card).toContainText(
+			'Currency uses daily ECB rates, so try it on your machine',
+		);
+		await expect(card).not.toContainText(/\d+\.\d\d USD/);
+	});
+
+	test('it says when nothing matches, and Esc clears the field', async ({
+		page,
+	}) => {
+		await page.goto(path);
+		const launcher = await openLauncher(page);
+		const field = launcher.getByRole('combobox');
+		await search(field, 'zzzz');
+		await expect(launcher.locator('.ssl-notice')).toHaveText(
+			'Nothing on this computer matches',
+		);
+		await expect(launcher.getByRole('option')).toHaveCount(1);
+		await expect(launcher.getByRole('status').last()).toHaveText(
+			'Nothing on this computer matches',
+		);
+		await field.press('Escape');
+		await expect(field).toHaveValue('');
+		await expect(launcher.getByRole('option')).toHaveCount(0);
+	});
+
+	test('the example searches under it run in the launcher', async ({
+		page,
+	}) => {
+		await page.goto(path);
+		const launcher = await openLauncher(page);
+		const examples = page.getByRole('list', { name: 'Example searches' });
+		await expect(examples.getByRole('button')).toHaveCount(6);
+		const chip = examples.getByRole('button', { name: 'wifi connect' });
+		await chip.click();
+		await expect(chip).toHaveAttribute('aria-current', 'true');
+		await expect(launcher.getByRole('combobox')).toHaveValue('wifi connect');
+		await expect(launcher.getByRole('option').first()).toContainText('Network');
+		await expect(page.locator('.ssl-caption')).toHaveText(
+			'A copy of the launcher running in your browser, over the demo files. The real one runs a model on your computer.',
+		);
+	});
+
+	test('before it loads, the page already draws its first frame', async ({
+		browser,
+	}) => {
+		const context = await browser.newContext({ javaScriptEnabled: false });
+		const page = await context.newPage();
+		await page.goto(path);
+		const frame = page.locator('.ssl-screen');
+		await expect(frame).toHaveAttribute('inert', '');
+		await expect(frame.locator('.ssl-q')).toHaveValue('golden retriever video');
+		await expect(frame).toContainText('dog swimming');
+		await expect(frame).toContainText('0:45–0:59');
+		await context.close();
+	});
+
+	test('each feature shows its real result, without repeating the launcher', async ({
 		page,
 	}) => {
 		await page.goto(path);
 		// the launcher's panel is the demo's alone: the beats set the result in type
-		await expect(page.locator('.ss-panel')).toHaveCount(1);
+		await expect(page.locator('.ssl-card')).toHaveCount(1);
 		const files = page.locator('.ss-beat--files .ss-find');
 		await expect(files).toBeVisible();
 		await expect(files).toContainText('apartment lease bond');
@@ -245,7 +394,7 @@ test.describe('Super Space product page', () => {
 		await expect(moments).toContainText('0:10–0:30');
 		await expect(moments).toContainText('0:45–0:59');
 		await expect(moments).toContainText('weekend-clips-oct-2026.mp4');
-		// screen readers already have these searches, in the demo's list
+		// screen readers can run these searches in the launcher itself
 		for (const find of [files, moments]) {
 			await expect(find).toHaveAttribute('aria-hidden', 'true');
 		}
@@ -267,17 +416,46 @@ test.describe('Super Space product page', () => {
 		// the song search is an example, not a search box with nothing found
 		const speech = page.locator('.ss-beat--speech');
 		await expect(speech.getByText('songs about a breakup')).toBeVisible();
-		await expect(speech.locator('.ss-panel')).toHaveCount(0);
+		await expect(speech.locator('.ssl-card')).toHaveCount(0);
 	});
 
-	test('the demo’s first search is not the one the next beat sets out', async ({
+	test('the launcher’s first search is not the one the next beat sets out', async ({
 		page,
 	}) => {
 		await page.goto(path);
-		const first = await page.locator('.ss-launcher .ss-q').textContent();
+		const first = await page.locator('.ssl .ssl-q').inputValue();
 		const next = await page.locator('.ss-beat--files .ss-find-q').textContent();
-		expect(first?.trim()).toBe('golden retriever video');
+		expect(first).toBe('golden retriever video');
 		expect(next?.trim()).toBe('apartment lease bond');
+	});
+
+	test('the Pi is the beat: its photo, its numbers over it, and the photo’s credit', async ({
+		page,
+	}) => {
+		await page.goto(path);
+		const band = page.locator('.ss-beat--pi');
+		const photo = band.getByRole('img', {
+			name: 'A Raspberry Pi 5 board, seen from above',
+		});
+		await expect(photo).toBeVisible();
+		await expect(band.locator('.ss-stat-num')).toHaveText([
+			'about 3 s',
+			'about 1 min',
+			'about 12 min',
+		]);
+		await expect(band).toContainText(
+			'With the demo home: about 80 documents, photos, songs and videos.',
+		);
+		const credit = band.locator('.ss-credit');
+		await expect(credit).toHaveText(
+			'Raspberry Pi 5 photo: Simon Waldherr, CC BY-SA 4.0, via Wikimedia Commons (cropped)',
+		);
+		await expect(
+			credit.getByRole('link', { name: 'CC BY-SA 4.0' }),
+		).toHaveAttribute(
+			'href',
+			'https://creativecommons.org/licenses/by-sa/4.0/',
+		);
 	});
 
 	test('the headline and the install command are on the first screen', async ({
@@ -331,7 +509,9 @@ test.describe('Super Space product page', () => {
 		await page.goto(path);
 		// measured on the VM, not the Pi: out of the Pi's band, in a beat of its own
 		const band = page.locator('.ss-beat--pi');
-		await expect(band).toContainText('Indexing, measured on the Pi');
+		await expect(band).toContainText(
+			'Indexing at idle priority, measured on the Pi',
+		);
 		await expect(band).not.toContainText(/\bms\b/);
 		await expect(band).not.toContainText('Try Omarchy VM');
 		const beat = page.locator('.ss-beat--speed');
@@ -348,96 +528,61 @@ test.describe('Super Space product page', () => {
 		expect(l && n && l.y + l.height <= n.y).toBe(true);
 	});
 
-	test('the demo waits while it is off screen', async ({ page }) => {
-		await page.goto(path);
-		await page.waitForTimeout(5000); // longer than one search is held
-		await expect(page.locator('.ss-launcher .ss-q')).toHaveText(
-			'golden retriever video',
-		);
-	});
-
-	test('the example chips and Pause are one row, at every width', async ({
-		page,
-	}) => {
-		for (const width of [390, 768, 820, 1024, 1180, 1440]) {
-			await page.setViewportSize({ width, height: 900 });
-			await page.goto(path);
-			await page.evaluate(() => document.fonts.ready);
-			const pause = page.getByRole('button', { name: 'Pause the demo' });
-			await expect(pause).toBeVisible();
-			const tops = await page
-				.locator('.ss-demo-controls :is(.ss-chip, .ss-pause)')
-				.evaluateAll((els) =>
-					els.map((el) => Math.round(el.getBoundingClientRect().top)),
-				);
-			expect(tops, `${width}`).toHaveLength(6);
-			expect(new Set(tops).size, `${width}`).toBe(1);
-		}
-	});
-
 	test.describe('with reduced motion', () => {
 		test.use({ reducedMotion: 'reduce' });
 
-		test('the demo is still and complete', async ({ page }) => {
+		test('nothing in the launcher moves', async ({ page }) => {
 			await page.goto(path);
-			const panel = page.locator('.ss-launcher .ss-panel');
-			await panel.scrollIntoViewIfNeeded();
-			const query = page.locator('.ss-launcher .ss-q');
-			await expect(query).toHaveText('golden retriever video');
-			await expect(panel).toContainText('0:10–0:30');
-			await expect(panel).toContainText('0:45–0:59');
-			await expect(panel).toContainText('weekend-clips-oct-2026.mp4');
-			await expect(panel).toHaveAttribute('data-phase', 'shown');
-			// nothing moves, so there is nothing to pause
-			await expect(
-				page.getByRole('button', { name: 'Pause the demo' }),
-			).toHaveCount(0);
-			await page.waitForTimeout(4500);
-			await expect(query).toHaveText('golden retriever video');
+			const launcher = await openLauncher(page);
+			await search(launcher.getByRole('combobox'), 'apartment lease bond');
+			await launcher.getByRole('combobox').press('Enter');
+			await expect(launcher.locator('.ssl-toast')).toHaveText(
+				'Would open apartment-lease-new-farm-2026.pdf at page 3',
+			);
 			expect(
-				await panel.evaluate(
+				await launcher.evaluate(
 					(el) => el.getAnimations({ subtree: true }).length,
 				),
 			).toBe(0);
-
-			// a chip shows its search at once
-			await page.getByRole('button', { name: /3pm sydney in jakarta/ }).click();
-			await expect(query).toHaveText('3pm sydney in jakarta');
-			await expect(panel).toContainText('11:00 am in Jakarta');
 		});
+	});
 
-		// No result is ever cut short: not the passage, a moment, a file name or
-		// the query. Only the web row, which repeats the query, may end in "…".
-		test('the launcher shows every result whole, from phones to laptops', async ({
-			page,
-		}) => {
-			for (const width of [320, 360, 390, 768, 901, 960, 1024, 1100, 1440]) {
-				await page.setViewportSize({ width, height: 900 });
-				await page.goto(path);
-				await page.evaluate(() => document.fonts.ready);
-				const chips = page.locator('.ss-chip');
-				for (let i = 0; i < 5; i++) {
-					await chips.nth(i).click();
-					const cut = await page
-						.locator('.ss-launcher')
-						.evaluate((launcher) =>
-							[
-								...launcher.querySelectorAll(
-									'.ss-q, .ss-row:not(.ss-row--web) :is(.ss-head-text, .ss-moment, .ss-meta)',
-								),
-							]
-								.filter((el) => el.scrollWidth > el.clientWidth + 1)
-								.map((el) => el.textContent),
-						);
-					expect(cut, `${width}px, search ${i + 1}`).toEqual([]);
+	// No result sticks out of its row, and the screen never out of the page.
+	test('the launcher fits, from phones to laptops', async ({ page }) => {
+		test.setTimeout(90_000);
+		for (const width of [320, 360, 390, 768, 1024, 1440]) {
+			await page.setViewportSize({ width, height: 900 });
+			await page.goto(path);
+			await page.evaluate(() => document.fonts.ready);
+			const launcher = await openLauncher(page);
+			for (const q of [
+				'golden retriever video',
+				'apartment lease bond',
+				'songs about a breakup',
+				'anjing',
+				'3pm sydney in jakarta',
+			]) {
+				// pasted rather than typed: the size is what is tested here
+				await launcher.getByRole('combobox').fill(q);
+				await page.waitForTimeout(450);
+				await expect(launcher.getByRole('combobox')).toHaveValue(q);
+				const cut = await launcher.evaluate((el) =>
+					[...el.querySelectorAll('.ssl-row, .ssl-answer')]
+						.filter((row) => row.scrollWidth > row.clientWidth + 1)
+						.map((row) => row.textContent),
+				);
+				expect(cut, `${width}px, ${q}`).toEqual([]);
+				// from a phone's width up, the query fits its field whole
+				if (width >= 390) {
+					const field = launcher.getByRole('combobox');
+					expect(
+						await field.evaluate((el) => el.scrollWidth <= el.clientWidth + 1),
+						`${width}px, ${q}`,
+					).toBe(true);
 				}
-				const panel = page.locator('.ss-launcher .ss-panel');
-				await chips.nth(1).click();
-				await expect(panel).toContainText('rental bond of $2,400');
-				// and nothing on the stage sticks out past the screen's edges
-				expect(await overflowing(page, '.ss'), `${width}px`).toEqual([]);
 			}
-		});
+			expect(await overflowing(page, '.ss'), `${width}px`).toEqual([]);
+		}
 	});
 
 	test.describe('at 390px wide', () => {
@@ -467,8 +612,8 @@ test.describe('Super Space product page', () => {
 				expect(code.x + code.width).toBeLessThanOrEqual(box.x + box.width);
 			}
 
-			// the launcher fits the screen
-			const panel = await page.locator('.ss-launcher .ss-panel').boundingBox();
+			// the launcher's screen fits the screen
+			const panel = await page.locator('.ssl-screen').boundingBox();
 			expect(panel).toBeTruthy();
 			if (panel) {
 				expect(panel.x).toBeGreaterThanOrEqual(0);

@@ -22,6 +22,7 @@
 	--k-mobile: #4fb57c; /* health-card green */
 	--k-ui: #ebb53a; /* seal yellow */
 	--k-place: #ee6550; /* seal red */
+	--k-ai: #c47edc; /* orchid: the hue between the indigo and the red, as light */
 	/* --font-fraunces and --font-bricolage come from next/font (app/fonts.ts) */
 	--display: var(--font-fraunces), 'Iowan Old Style', Georgia, serif;
 	--sans:

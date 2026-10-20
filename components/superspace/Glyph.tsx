@@ -22,31 +22,6 @@ const glyphs = {
 			<path d="M10.5 9.6v4.8l4-2.4z" fill="currentColor" />
 		</>
 	),
-	emoji: (
-		<>
-			<circle cx="12" cy="12" r="8.5" />
-			<path d="M8.6 14c.8 1.3 2 2 3.4 2s2.6-.7 3.4-2" />
-			<path d="M9.2 9.6v.6M14.8 9.6v.6" strokeWidth="2" />
-		</>
-	),
-	wifi: (
-		<>
-			<path d="M3.8 9.4a11.6 11.6 0 0 1 16.4 0M6.8 12.6a7.4 7.4 0 0 1 10.4 0M9.8 15.8a3.1 3.1 0 0 1 4.4 0" />
-			<circle cx="12" cy="19" r="1.1" fill="currentColor" stroke="none" />
-		</>
-	),
-	time: (
-		<>
-			<circle cx="12" cy="12" r="8.5" />
-			<path d="M12 7.5V12l3 2" />
-		</>
-	),
-	web: (
-		<>
-			<circle cx="12" cy="12" r="8.5" />
-			<path d="M3.5 12h17M12 3.5c2.2 2.4 3.4 5.2 3.4 8.5s-1.2 6.1-3.4 8.5c-2.2-2.4-3.4-5.2-3.4-8.5S9.8 5.9 12 3.5z" />
-		</>
-	),
 	copy: (
 		<>
 			<rect x="8.5" y="8.5" width="11" height="11" rx="2" />
@@ -55,9 +30,7 @@ const glyphs = {
 	),
 	check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
 	arrow: <path d="M5 12h14m-6-6 6 6-6 6" />,
-	enter: <path d="M18.5 5.5v6A2.5 2.5 0 0 1 16 14H6m3.5-3.5L6 14l3.5 3.5" />,
 	play: <path d="M8 5.8v12.4L18 12z" fill="currentColor" />,
-	pause: <path d="M8.5 5.5v13m7-13v13" strokeWidth="2.4" />,
 } as const;
 
 export type GlyphName = keyof typeof glyphs;

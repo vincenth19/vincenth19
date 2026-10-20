@@ -1,7 +1,10 @@
 import type { IconName } from '@/components/Icon';
 
-/** Keyword chip colours, taken from the sticker inks (see --k-* in styles/base.css). */
-export type ChipKind = 'web' | 'mobile' | 'ui' | 'place';
+/**
+ * Keyword chip colours, taken from the sticker inks: each is the --k-<kind> token
+ * in styles/base.css (stamp indigo, health-card green, seal yellow, seal red, orchid).
+ */
+export type ChipKind = 'web' | 'mobile' | 'ui' | 'place' | 'ai';
 
 export type Chip = { chip: string; kind: ChipKind; icon: IconName };
 
@@ -64,39 +67,57 @@ export const site: Site = {
 	name: 'Vincent Haryadi',
 	url: 'https://vincenth19.com',
 	description:
-		'Vincent Haryadi, full-stack software engineer and designer in Brisbane. Projects, writing and resume.',
-	/** The masthead subtitle: three commands, verbs on one axis. */
+		'Vincent Haryadi, full-stack web, mobile and AI engineer in Brisbane, product- and design-minded. Projects, writing and resume.',
+	/**
+	 * The masthead subtitle: three commands, verbs on one axis. The `nw` runs are
+	 * where a line may not break, so a command that wraps on a phone breaks at a
+	 * phrase ("front to back.", "think like a product owner.").
+	 */
 	tagline: [
 		{
 			verb: 'Build',
 			rest: [
-				' full-stack apps ',
+				' ',
+				{ chip: 'web', kind: 'web', icon: 'computer-fill' },
+				' and ',
 				{
 					nw: [
-						'for ',
-						{ chip: 'web', kind: 'web', icon: 'computer-fill' },
-						' and ',
 						{ chip: 'mobile', kind: 'mobile', icon: 'smartphone-fill' },
-						'.',
+						' apps,',
 					],
 				},
-			],
-		},
-		{
-			verb: 'Design',
-			rest: [
-				' the ',
-				{ chip: 'interface', kind: 'ui', icon: 'palette-fill' },
 				' ',
-				{ nw: ['before the API.'] },
+				{ nw: ['front to back.'] },
 			],
 		},
 		{
 			verb: 'Ship',
 			rest: [
-				' it from ',
-				{ chip: 'Brisbane', kind: 'place', icon: 'map-pin-2-fill' },
-				'.',
+				' ',
+				{ chip: 'AI', kind: 'ai', icon: 'sparkling-2-fill' },
+				' ',
+				{ nw: ['people actually use.'] },
+			],
+		},
+		{
+			verb: 'Design',
+			rest: [
+				' ',
+				{
+					nw: [
+						'with ',
+						{ chip: 'taste', kind: 'ui', icon: 'palette-fill' },
+						',',
+					],
+				},
+				' ',
+				{
+					nw: [
+						'think like a ',
+						{ chip: 'product', kind: 'place', icon: 'rocket-2-fill' },
+						' owner.',
+					],
+				},
 			],
 		},
 	],

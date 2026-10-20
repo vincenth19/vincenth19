@@ -1,0 +1,1042 @@
+/* ═════════ The launcher, on the Super Space page (components/superspace/launcher) ═════════
+   A copy of Super Space's panel (SuperSpace.qml, ui/ResultRow.qml, ui/AnswerCard.qml)
+   on a screen of its own. The real launcher takes the user's Omarchy theme; this is
+   the dark warm theme of its screenshots, and its sizes are theirs (a panel 737px
+   wide at 1x). Its font is the system's UI sans (Adwaita Sans on Omarchy): Inter,
+   the closest Google font, loaded for this page. Every rule is scoped to .ss, as
+   the rest of the page's styles are. */
+
+.ss .ssl {
+	position: relative;
+	width: min(100%, 1180px);
+	margin: 56px auto 0;
+}
+
+/* ── the screen: a dark wallpaper, Omarchy's bar, the panel at 18% of its height ── */
+.ss .ssl-screen {
+	/* fixed, so typing never moves the page */
+	--s-h: clamp(560px, 46vw, 620px);
+	position: relative;
+	container: screen / inline-size;
+	height: var(--s-h);
+	overflow: hidden;
+	border-radius: 14px;
+	font-family: var(--font-inter), 'Adwaita Sans', system-ui, sans-serif;
+	text-align: left;
+	color: #ebe1cc;
+	background:
+		radial-gradient(
+			ellipse 34% 42% at 16% 82%,
+			rgba(150, 104, 58, 0.34),
+			transparent 72%
+		),
+		radial-gradient(
+			ellipse 26% 34% at 86% 18%,
+			rgba(176, 128, 78, 0.26),
+			transparent 72%
+		),
+		radial-gradient(
+			ellipse 30% 26% at 72% 86%,
+			rgba(110, 72, 40, 0.3),
+			transparent 70%
+		),
+		radial-gradient(
+			ellipse 22% 30% at 36% 30%,
+			rgba(96, 66, 42, 0.32),
+			transparent 72%
+		),
+		radial-gradient(ellipse 120% 90% at 50% 40%, #241a12, #0f0b08 78%);
+	box-shadow:
+		0 0 0 1px rgba(236, 232, 225, 0.09),
+		0 60px 120px -50px #000,
+		0 26px 54px -30px rgba(0, 0, 0, 0.85);
+	-webkit-font-smoothing: antialiased;
+}
+/* the menu's scrim over the desktop, and a little grain so the wallpaper reads as paint */
+.ss .ssl-screen::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	background:
+		linear-gradient(rgba(10, 8, 6, 0.32), rgba(10, 8, 6, 0.32)),
+		repeating-linear-gradient(
+			115deg,
+			rgba(255, 236, 210, 0.012) 0 2px,
+			transparent 2px 5px
+		);
+}
+.ss .ssl-screen[inert] {
+	cursor: progress;
+}
+
+.ss .ssl-bar-top {
+	position: relative;
+	z-index: 1;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	height: 26px;
+	padding: 0 12px;
+	font:
+		500 11.5px / 1 var(--font-inter),
+		system-ui,
+		sans-serif;
+	font-variant-numeric: tabular-nums;
+	color: rgba(235, 225, 204, 0.78);
+	background: rgba(14, 11, 8, 0.6);
+}
+.ss .ssl-ws {
+	display: flex;
+	gap: 10px;
+}
+.ss .ssl-ws span {
+	opacity: 0.5;
+}
+.ss .ssl-ws .is-on {
+	opacity: 1;
+	color: #c9a466;
+}
+.ss .ssl-clock {
+	position: absolute;
+	left: 50%;
+	transform: translateX(-50%);
+}
+.ss .ssl-tray {
+	display: flex;
+	gap: 10px;
+}
+.ss .ssl-tray svg {
+	width: 13px;
+	height: 13px;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.4;
+	stroke-linecap: round;
+}
+.ss .ssl-tray circle {
+	fill: currentColor;
+	stroke: none;
+}
+
+.ss .ssl-stage {
+	position: absolute;
+	inset: 0;
+}
+
+/* ── the panel ── */
+.ss .ssl-card {
+	/* Omarchy's theme: menu colours, the accent, and Style's sizes at 1x */
+	--ink: #ebe1cc;
+	--sel-bg: #2d2822;
+	--sel-ink: #f6eedf;
+	--accent: #c9a466;
+	--other: #8e7955;
+	--fill: rgba(235, 225, 204, 0.053);
+	--fs-display: 26px;
+	--fs-heading: 17px;
+	--fs-small: 12px;
+	--fs-caption: 11px;
+	--fs-title: 15px;
+	--fs-emoji: 32px;
+	--pad: 22px;
+	--rowx: 13px;
+	--icol: 39px;
+	--icon: 30px;
+	--photo: 61px;
+	--gapx: 14px;
+	--lg: 8.5px;
+	--gap: 9px;
+	--xs: 3.5px;
+	--xxs: 2px;
+	--sm: 4.5px;
+	--radius: 10px;
+	--thumb: 87px;
+	--tile: 47.7px;
+	position: absolute;
+	top: calc(var(--s-h) * 0.18);
+	left: 50%;
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap);
+	width: min(737px, 100% - 24px);
+	padding: var(--pad);
+	border-radius: var(--radius);
+	color: var(--ink);
+	background: rgba(28, 24, 19, 0.985);
+	box-shadow: 0 28px 70px -24px rgba(0, 0, 0, 0.75);
+	transform: translateX(-50%);
+	transition: box-shadow 0.2s ease;
+}
+/* the field has the keyboard: the panel says so, as a page must */
+.ss .ssl-card:has(.ssl-q:focus-visible) {
+	box-shadow:
+		0 0 0 1px rgba(201, 164, 102, 0.3),
+		0 28px 70px -24px rgba(0, 0, 0, 0.75);
+}
+
+.ss .ssl-field {
+	display: flex;
+	align-items: center;
+	padding: 0 var(--rowx);
+}
+.ss .ssl-mark {
+	display: grid;
+	flex: none;
+	place-items: center;
+	width: var(--icol);
+	margin-right: var(--gapx);
+	opacity: 0.52;
+}
+.ss .ssl-field.has-text .ssl-mark {
+	opacity: 1;
+}
+.ss .ssl-mark-svg {
+	width: var(--fs-display);
+	height: var(--fs-display);
+}
+.ss .ssl-q {
+	flex: 1;
+	min-width: 0;
+	height: calc(var(--fs-display) * 1.21);
+	margin: 0;
+	padding: 0;
+	border: 0;
+	border-radius: 0;
+	outline: none;
+	font:
+		400 var(--fs-display) / 1.21 var(--font-inter),
+		'Adwaita Sans',
+		system-ui,
+		sans-serif;
+	color: var(--ink);
+	caret-color: var(--ink);
+	background: transparent;
+	appearance: none;
+}
+.ss .ssl-q::placeholder {
+	color: var(--ink);
+	opacity: 0.58;
+}
+.ss .ssl-q::selection {
+	color: var(--ink);
+	background: rgba(201, 164, 102, 0.34);
+}
+/* the kinds the query's own words limit it to */
+.ss .ssl-pill {
+	flex: none;
+	margin-left: var(--gap);
+	padding: 0 9.5px;
+	border-radius: 10px;
+	font-size: var(--fs-small);
+	line-height: 20.5px;
+	white-space: nowrap;
+	background: rgba(201, 164, 102, 0.17);
+}
+
+/* ── the rows ── */
+.ss .ssl-list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--xs);
+	/* the panel's list is at most 60% of the screen, less what the panel holds besides */
+	max-height: calc(var(--s-h) * 0.82 - 190px);
+	margin: 0;
+	padding: 0;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	list-style: none;
+	scrollbar-width: thin;
+	scrollbar-color: rgba(235, 225, 204, 0.2) transparent;
+}
+.ss .ssl-list[hidden] {
+	display: none;
+}
+.ss .ssl-row {
+	display: flex;
+	align-items: flex-start;
+	padding: var(--lg) var(--rowx);
+	border-radius: var(--radius);
+	cursor: pointer;
+}
+.ss .ssl-row.is-sel {
+	color: var(--sel-ink);
+	background: var(--sel-bg);
+}
+/* ↓/↑ are in the rows: the selected row is solid */
+.ss .ssl-row.is-solid {
+	box-shadow: inset 0 0 0 1px rgba(201, 164, 102, 0.3);
+}
+@media (hover: hover) {
+	.ss .ssl-row:not(.is-sel):hover {
+		background: rgba(235, 225, 204, 0.025);
+	}
+}
+
+.ss .ssl-icon {
+	display: grid;
+	flex: none;
+	place-items: center;
+	width: var(--icol);
+	height: var(--icon);
+	margin-right: var(--gapx);
+}
+.ss .ssl-icon > svg {
+	width: var(--icon);
+	height: var(--icon);
+	overflow: visible;
+}
+.ss .ssl-row.is-photo .ssl-icon {
+	width: var(--photo);
+	height: var(--photo);
+}
+.ss .ssl-icon .ssl-scene {
+	width: var(--photo);
+	height: var(--photo);
+	border-radius: 2px;
+}
+
+.ss .ssl-body {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	gap: var(--xxs);
+	min-width: 0;
+}
+/* the headline: what matched, never more than two lines (cut between them, as the panel does) */
+.ss .ssl-head {
+	max-height: calc(var(--fs-heading) * 1.24 * 2);
+	margin: 0;
+	overflow: hidden;
+	font:
+		500 var(--fs-heading) / 1.24 var(--font-inter),
+		'Adwaita Sans',
+		system-ui,
+		sans-serif;
+	overflow-wrap: break-word;
+}
+.ss .ssl-head.is-said {
+	font-weight: 400;
+}
+.ss .ssl-head.is-tall {
+	min-height: calc(var(--fs-heading) * 1.24 * 2);
+}
+.ss .ssl-head b {
+	font-weight: 700;
+}
+.ss .ssl-sub {
+	margin: 0;
+	overflow: hidden;
+	font-size: var(--fs-small);
+	line-height: 1.3;
+	white-space: pre;
+	text-overflow: ellipsis;
+	opacity: 0.52;
+}
+
+/* a video's or recording's whole length, each section on it, the picked one raised */
+.ss .ssl-timeline {
+	padding-top: var(--sm);
+	cursor: pointer;
+	touch-action: pan-y;
+}
+.ss .ssl-bar {
+	position: relative;
+	height: 12px;
+}
+.ss .ssl-track,
+.ss .ssl-seg {
+	position: absolute;
+	top: 4px;
+	height: 4px;
+	border-radius: 2px;
+}
+.ss .ssl-track {
+	right: 0;
+	left: 0;
+	background: var(--ink);
+	opacity: 0.2;
+}
+.ss .ssl-seg {
+	background: var(--accent);
+}
+.ss .ssl-seg.is-other {
+	background: var(--other);
+}
+.ss .ssl-seg.is-picked {
+	top: 0;
+	height: 12px;
+	border-radius: 6px;
+}
+.ss .ssl-pointer {
+	position: absolute;
+	top: 0;
+	width: 2px;
+	height: 12px;
+	margin-left: -1px;
+	background: currentColor;
+}
+.ss .ssl-times {
+	position: relative;
+	height: calc(var(--fs-caption) * 1.21);
+	margin-top: var(--xs);
+	font-size: var(--fs-caption);
+	line-height: 1.21;
+	font-variant-numeric: tabular-nums;
+}
+.ss .ssl-times span {
+	position: absolute;
+	top: 0;
+	white-space: nowrap;
+	opacity: 0.52;
+}
+.ss .ssl-times .is-picked {
+	font-weight: 600;
+	opacity: 1;
+}
+
+/* pages, slides, lines and sheets as numbered chips; the picked one outlined */
+.ss .ssl-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 5px;
+	padding-top: var(--xs);
+}
+.ss .ssl-chip {
+	display: grid;
+	place-items: center;
+	min-width: 29px;
+	height: 25px;
+	padding: 0 9px;
+	border-radius: 6px;
+	font-size: var(--fs-small);
+	font-variant-numeric: tabular-nums;
+	color: color-mix(in srgb, currentColor 80%, transparent);
+	background: var(--fill);
+	cursor: pointer;
+}
+.ss .ssl-chip.is-picked {
+	font-weight: 600;
+	color: inherit;
+	box-shadow: inset 0 0 0 2px var(--accent);
+}
+/* Tab: every part, with its text */
+.ss .ssl-part {
+	margin: 0;
+	overflow: hidden;
+	font-size: calc(var(--fs-small) + 1px);
+	line-height: 1.3;
+	white-space: pre;
+	text-overflow: ellipsis;
+	opacity: 0.8;
+}
+.ss .ssl-part.is-picked {
+	font-weight: 600;
+	color: var(--accent);
+	opacity: 1;
+}
+
+/* an emoji strip: the emoji, large, the picked one outlined, named under them */
+.ss .ssl-strip {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--xs);
+}
+.ss .ssl-emoji {
+	display: grid;
+	place-items: center;
+	width: var(--tile);
+	height: var(--tile);
+	border-radius: 6px;
+	font-family:
+		'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+	font-size: var(--fs-emoji);
+	line-height: 1;
+	cursor: pointer;
+}
+.ss .ssl-emoji.is-picked {
+	background: var(--fill);
+	box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+/* where Enter lands, large on the selected row, or the kind; under it the picked part's frame */
+.ss .ssl-side {
+	display: grid;
+	flex: none;
+	align-content: start;
+	justify-items: end;
+	max-width: 33%;
+	margin-left: var(--gap);
+}
+.ss .ssl-place {
+	height: calc(var(--fs-caption) * 1.21);
+	overflow: hidden;
+	font-size: var(--fs-caption);
+	line-height: 1.21;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	opacity: 0.52;
+}
+.ss .ssl-place.is-figure {
+	height: calc(var(--fs-display) * 1.21);
+}
+.ss .ssl-place.is-loud {
+	font-size: var(--fs-display);
+	opacity: 1;
+}
+.ss .ssl-sizers {
+	display: grid;
+	height: 0;
+	overflow: hidden;
+	visibility: hidden;
+	font-size: var(--fs-display);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+.ss .ssl-frame {
+	display: block;
+	width: var(--thumb);
+	height: calc(var(--thumb) * 9 / 16);
+	margin-top: var(--sm);
+}
+
+/* the empty notice, above the web row */
+.ss .ssl-notice {
+	margin: 0 0 var(--xs);
+	padding: var(--sm) var(--rowx) 0;
+	font-size: var(--fs-title);
+	opacity: 0.7;
+}
+
+/* an instant answer: what you typed → the result, one detail line under */
+.ss .ssl-answer {
+	padding: 16px var(--rowx);
+	border-radius: var(--radius);
+	text-align: center;
+	background: var(--fill);
+	cursor: pointer;
+}
+.ss .ssl-answer.is-sel {
+	color: var(--sel-ink);
+	background: var(--sel-bg);
+}
+.ss .ssl-answer-sides {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 43px minmax(0, 1fr);
+	row-gap: var(--xs);
+	align-items: baseline;
+}
+.ss .ssl-answer-big {
+	overflow: hidden;
+	font-size: var(--fs-display);
+	font-weight: 500;
+	line-height: 1.21;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+.ss .ssl-answer-arrow {
+	font-size: var(--fs-display);
+	line-height: 1.21;
+	opacity: 0.52;
+}
+.ss .ssl-answer-label,
+.ss .ssl-answer-detail {
+	overflow: hidden;
+	font-size: var(--fs-caption);
+	line-height: 1.21;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	opacity: 0.52;
+}
+.ss .ssl-answer-detail {
+	margin: 0;
+	padding-top: var(--sm);
+	white-space: normal;
+}
+
+/* the key hints, for the mode and the selected row */
+.ss .ssl-hints {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 0 13px;
+	margin: 0;
+	padding-right: var(--rowx);
+	font-size: var(--fs-caption);
+	line-height: 1.21;
+	white-space: nowrap;
+	opacity: 0.52;
+}
+
+/* what Enter would have done, in the corner, as Omarchy's notifications show */
+.ss .ssl-toast {
+	position: absolute;
+	z-index: 2;
+	top: 38px;
+	right: 14px;
+	max-width: min(380px, 100% - 28px);
+	margin: 0;
+	padding: 11px 15px;
+	border-radius: 8px;
+	font-size: 13px;
+	line-height: 1.4;
+	color: #ebe1cc;
+	background: rgba(28, 24, 19, 0.97);
+	box-shadow:
+		inset 0 0 0 1px rgba(201, 164, 102, 0.55),
+		0 18px 40px -16px rgba(0, 0, 0, 0.8);
+	opacity: 0;
+	pointer-events: none;
+	transform: translateY(-6px);
+	transition:
+		opacity 0.2s ease,
+		transform 0.2s ease;
+}
+.ss .ssl-toast[data-shown] {
+	opacity: 1;
+	transform: none;
+}
+.ss .ssl-toast:empty {
+	padding: 0;
+}
+
+/* under the screen: what it is, then searches to try */
+.ss .ssl-caption {
+	max-width: 46em;
+	margin: 20px auto 0;
+	font: 400 13px / 1.6 var(--ss-mono);
+	color: var(--ss-dim);
+	text-wrap: balance;
+}
+.ss .ssl-try {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	margin: 22px 0 0;
+	padding: 0;
+	list-style: none;
+}
+.ss .ssl-try-label {
+	margin-right: 4px;
+	font: 400 13px / 1 var(--ss-mono);
+	color: var(--ss-dim);
+}
+.ss .ssl-try-chip {
+	min-height: 44px;
+	padding: 0 14px;
+	border: 0;
+	border-radius: 999px;
+	font: 400 13px / 1 var(--ss-mono);
+	white-space: nowrap;
+	color: var(--ss-dim);
+	background: transparent;
+	box-shadow: inset 0 0 0 1px var(--ss-line);
+	cursor: pointer;
+	transition:
+		color 0.2s ease,
+		background-color 0.2s ease,
+		box-shadow 0.2s ease;
+}
+.ss .ssl-try-chip:hover,
+.ss .ssl-try-chip[aria-current='true'] {
+	color: var(--ss-ink);
+	background: var(--ss-raise);
+}
+.ss .ssl-try-chip[aria-current='true'] {
+	box-shadow: inset 0 0 0 1px rgba(236, 232, 225, 0.42);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.ss .ssl-card,
+	.ss .ssl-toast,
+	.ss .ssl-try-chip {
+		transition: none;
+	}
+}
+
+/* ── phones and narrow tablets: the same panel, its type and spacing a step down ── */
+@media (max-width: 760px) {
+	.ss .ssl {
+		margin-top: 40px;
+	}
+	.ss .ssl-screen {
+		--s-h: 560px;
+		/* out to the screen's edges, less the gutter the page keeps */
+		border-radius: 12px;
+	}
+	.ss .ssl-try {
+		gap: 8px;
+	}
+	.ss .ssl-try-chip {
+		padding: 0 14px;
+		font-size: 13px;
+	}
+}
+@container screen (max-width: 600px) {
+	.ss .ssl-card {
+		--fs-display: 18px;
+		--fs-heading: 15px;
+		--fs-small: 11.5px;
+		--fs-caption: 10.5px;
+		--fs-title: 13.5px;
+		--fs-emoji: 26px;
+		--pad: 10px;
+		--rowx: 8px;
+		--icol: 28px;
+		--icon: 24px;
+		--photo: 44px;
+		--gapx: 10px;
+		--lg: 8px;
+		--gap: 8px;
+		--thumb: 64px;
+		--tile: 38px;
+		top: 42px;
+		width: calc(100% - 16px);
+	}
+	.ss .ssl-place.is-loud {
+		font-size: calc(var(--fs-display) * 0.9);
+	}
+	.ss .ssl-sizers {
+		font-size: calc(var(--fs-display) * 0.9);
+	}
+	.ss .ssl-place.is-figure {
+		height: calc(var(--fs-display) * 1.1);
+	}
+	.ss .ssl-pill {
+		padding: 0 7px;
+		line-height: 19px;
+	}
+	.ss .ssl-hints {
+		gap: 0 10px;
+	}
+	/* a phone has no Tab or Ctrl to press */
+	.ss .ssl-hints .is-keys {
+		display: none;
+	}
+	.ss .ssl-bar-top {
+		font-size: 10.5px;
+	}
+	.ss .ssl-clock {
+		display: none;
+	}
+	.ss .ssl-toast {
+		top: 34px;
+		right: 8px;
+		max-width: calc(100% - 16px);
+	}
+}
+
+/* ── the drawn scenes standing in for the demo's photos and video frames ── */
+.ss .ssl-scene {
+	position: relative;
+	display: block;
+	overflow: hidden;
+	background-color: #3a332b;
+}
+/* the animal in it: soft, as a small photo is */
+.ss .ssl-fig {
+	position: absolute;
+	bottom: var(--fig-y, 0);
+	left: var(--fig-x, 8%);
+	width: 84%;
+	height: 84%;
+	fill: var(--fig, #d9a35a);
+	filter: blur(0.4px);
+}
+.ss .ssl-fig .ssl-fig-2 {
+	fill: var(--fig-2, rgba(0, 0, 0, 0.25));
+}
+.ss .ssl-scene--retriever-market {
+	--fig: #dcaa62;
+	--fig-2: #b07a38;
+	background:
+		radial-gradient(ellipse 30% 20% at 80% 22%, #b8443a, transparent 70%),
+		radial-gradient(ellipse 26% 18% at 18% 20%, #6a8a3e, transparent 72%),
+		radial-gradient(ellipse 40% 14% at 60% 32%, #c9a15a, transparent 74%),
+		linear-gradient(170deg, #6d5b4a, #3e342b);
+}
+.ss .ssl-scene--retriever-grass {
+	--fig: #e2b16b;
+	--fig-2: #b98443;
+	background: linear-gradient(180deg, #9cb57a 0 40%, #4f7a33 40%);
+}
+.ss .ssl-scene--retriever-stick {
+	--fig: #d9a45a;
+	--fig-2: #a8743c;
+	background:
+		linear-gradient(28deg, transparent 47%, #6b4a2a 47% 53%, transparent 53%) 0
+		26% / 100% 100% no-repeat,
+		linear-gradient(180deg, #7f9a5f, #3f6428);
+}
+.ss .ssl-scene--puppy {
+	--fig: #ecc489;
+	--fig-2: #c99252;
+	background: linear-gradient(180deg, #e8e1d4, #cbbfa9);
+}
+.ss .ssl-scene--puppy-blanket {
+	--fig: #edc68c;
+	--fig-2: #c99252;
+	background: linear-gradient(160deg, #6f8fb3, #3e5a7c);
+}
+.ss .ssl-scene--retriever-field {
+	--fig: #dca45a;
+	--fig-2: #a8743c;
+	background: linear-gradient(180deg, #a9c6e3 0 34%, #7da350 34% 70%, #5b8a35);
+}
+.ss .ssl-scene--beagle {
+	--fig: #b5793d;
+	--fig-2: #f2ede4;
+	background: linear-gradient(180deg, #8c8378, #5d554c);
+}
+.ss .ssl-scene--collie {
+	--fig: #1d1a18;
+	--fig-2: #f2efe8;
+	background: linear-gradient(180deg, #8e9aa4, #56606a);
+}
+.ss .ssl-scene--dachshund-beach {
+	--fig: #7a4220;
+	--fig-2: #5c3016;
+	background: linear-gradient(
+		180deg,
+		#a8c3d8 0 30%,
+		#5d8fae 30% 46%,
+		#dccaa6 46%
+	);
+}
+.ss .ssl-scene--terrier-beach {
+	--fig: #f1ece2;
+	--fig-2: #a8692e;
+	background: linear-gradient(
+		180deg,
+		#b7cfe0 0 32%,
+		#6c9bb8 32% 48%,
+		#e0cfac 48%
+	);
+}
+.ss .ssl-scene--cat-bench {
+	--fig: #8c7a63;
+	--fig-2: #5b4c3c;
+	background: linear-gradient(
+		180deg,
+		#9fa39d 0 58%,
+		#6e716c 58% 70%,
+		#8a8d86 70%
+	);
+}
+.ss .ssl-scene--black-cat {
+	--fig: #161412;
+	--fig-2: #2e2925;
+	background: linear-gradient(180deg, #e2c9a0, #b78f5a);
+}
+.ss .ssl-scene--cat-sleeping {
+	--fig: #d48a42;
+	--fig-2: #b06624;
+	background: linear-gradient(180deg, #e9ddc9, #c9b79a);
+}
+.ss .ssl-scene--tabby {
+	--fig: #9b8366;
+	background: linear-gradient(180deg, #6e8f4f, #3c5a2a);
+}
+.ss .ssl-scene--beach-winter {
+	background: linear-gradient(
+		180deg,
+		#b9bec4 0 44%,
+		#6f7c86 44% 58%,
+		#c8bda8 58%
+	);
+}
+.ss .ssl-scene--pizza {
+	background:
+		radial-gradient(circle at 42% 44%, #f4ecd8 0 5%, transparent 6%),
+		radial-gradient(circle at 60% 58%, #f4ecd8 0 5%, transparent 6%),
+		radial-gradient(circle at 56% 38%, #3f7a2e 0 3%, transparent 4%),
+		radial-gradient(
+			circle at 50% 50%,
+			#c2412a 0 30%,
+			#d9a45c 31% 36%,
+			transparent 37%
+		),
+		radial-gradient(circle at 50% 50%, #f3f1ec 0 44%, transparent 45%),
+		linear-gradient(180deg, #4b3424, #2b1e15);
+}
+.ss .ssl-scene--sushi {
+	background:
+		radial-gradient(ellipse 12% 8% at 34% 46%, #f08a63 0 60%, transparent 70%),
+		radial-gradient(ellipse 12% 8% at 58% 40%, #c9303c 0 60%, transparent 70%),
+		radial-gradient(
+			circle at 44% 64%,
+			#1f2a1d 0 9%,
+			#f2efe8 10% 13%,
+			transparent 14%
+		),
+		radial-gradient(
+			circle at 66% 62%,
+			#1f2a1d 0 9%,
+			#f2efe8 10% 13%,
+			transparent 14%
+		),
+		radial-gradient(ellipse 44% 36% at 50% 54%, #2b2b2c 0 60%, transparent 62%),
+		linear-gradient(180deg, #6a4d33, #3d2b1d);
+}
+.ss .ssl-scene--nasi-goreng {
+	background:
+		radial-gradient(
+			circle at 56% 46%,
+			#f6c437 0 7%,
+			#fbf6ea 8% 16%,
+			transparent 17%
+		),
+		radial-gradient(circle at 46% 56%, #9a5a2c 0 26%, transparent 34%),
+		radial-gradient(circle at 50% 52%, #f5f3ee 0 40%, transparent 41%),
+		linear-gradient(180deg, #5c7a3a, #34502a);
+}
+.ss .ssl-scene--flat-white {
+	background:
+		radial-gradient(ellipse 12% 14% at 50% 50%, #f6ead4 0 50%, transparent 70%),
+		radial-gradient(
+			circle at 50% 50%,
+			#b77d48 0 22%,
+			#f5f1ea 23% 29%,
+			transparent 30%
+		),
+		radial-gradient(circle at 50% 50%, #ebe7e0 0 38%, transparent 39%),
+		linear-gradient(180deg, #5a3f2a, #2f2117);
+}
+.ss .ssl-scene--pavlova {
+	background:
+		radial-gradient(circle at 42% 42%, #d1263a 0 5%, transparent 6%),
+		radial-gradient(circle at 58% 40%, #6aa53a 0 4%, transparent 5%),
+		radial-gradient(circle at 52% 34%, #e4b83a 0 4%, transparent 5%),
+		radial-gradient(ellipse 34% 26% at 50% 50%, #fbf7ef 0 60%, transparent 72%),
+		linear-gradient(180deg, #8aa1b6, #50677c);
+}
+.ss .ssl-scene--whiteboard {
+	background:
+		linear-gradient(#f7d64a, #f7d64a) 20% 26% / 18% 16% no-repeat,
+		linear-gradient(#f39ab0, #f39ab0) 50% 30% / 18% 16% no-repeat,
+		linear-gradient(#7fd0f0, #7fd0f0) 78% 24% / 18% 16% no-repeat,
+		linear-gradient(#a6e08a, #a6e08a) 32% 64% / 18% 16% no-repeat,
+		linear-gradient(#f7d64a, #f7d64a) 66% 68% / 18% 16% no-repeat,
+		linear-gradient(180deg, #f2f3f1, #d9dbd8);
+}
+.ss .ssl-scene--receipt {
+	background:
+		repeating-linear-gradient(
+			180deg,
+			transparent 0 5px,
+			rgba(40, 40, 40, 0.35) 5px 6px
+		)
+		50% 50% / 46% 64% no-repeat,
+		linear-gradient(#f6f4ee, #f6f4ee) 50% 50% / 56% 84% no-repeat,
+		linear-gradient(180deg, #6d5c4b, #3f342b);
+}
+.ss .ssl-scene--wineglass-bay {
+	background:
+		radial-gradient(ellipse 60% 30% at 50% 74%, #f1ead6 0 42%, transparent 46%),
+		radial-gradient(ellipse 70% 40% at 50% 76%, #1f8bb0 0 60%, transparent 62%),
+		linear-gradient(180deg, #b8d6ea 0 26%, #3d6a3b 26% 50%, #2f7fa5 50%);
+}
+.ss .ssl-scene--cradle-mountain {
+	background:
+		linear-gradient(#5a3a24, #5a3a24) 30% 62% / 16% 12% no-repeat,
+		conic-gradient(
+			from 150deg at 62% 18%,
+			transparent 0deg,
+			#3d4247 0deg 60deg,
+			transparent 60deg
+		)
+		0 0 / 100% 56% no-repeat,
+		linear-gradient(180deg, #c3d4e0 0 30%, #4d5a4a 30% 56%, #50728c 56%);
+}
+.ss .ssl-scene--bali-sunset {
+	background:
+		radial-gradient(circle at 54% 52%, #ffe08a 0 6%, transparent 7%),
+		linear-gradient(
+			180deg,
+			#e8813e 0 28%,
+			#f3a54b 28% 52%,
+			#3b2b2f 52% 70%,
+			#6b4b38 70%
+		);
+}
+.ss .ssl-scene--scan {
+	background:
+		repeating-linear-gradient(
+			180deg,
+			transparent 0 4px,
+			rgba(30, 30, 30, 0.3) 4px 5px
+		)
+		50% 52% / 50% 60% no-repeat,
+		linear-gradient(#f6f4ec, #f6f4ec) 50% 50% / 64% 80% no-repeat,
+		linear-gradient(180deg, #4a3c32, #2f261f);
+}
+.ss .ssl-scene--terminal {
+	background:
+		repeating-linear-gradient(
+			180deg,
+			transparent 0 6px,
+			rgba(220, 220, 210, 0.55) 6px 7px
+		)
+		20% 40% / 70% 50% no-repeat,
+		linear-gradient(180deg, #1c1e22, #18191d);
+}
+.ss .ssl-scene--dog-swimming {
+	--fig: #e2b46a;
+	--fig-2: #a8743c;
+	--fig-x: 34%;
+	--fig-y: -26%;
+	background:
+		radial-gradient(ellipse 7% 12% at 92% 66%, #d8343a 0 60%, transparent 72%),
+		radial-gradient(
+			ellipse 30% 10% at 76% 82%,
+			rgba(255, 255, 255, 0.3),
+			transparent 70%
+		),
+		linear-gradient(180deg, #34c0ad, #22a593 55%, #1a8f7e);
+}
+.ss .ssl-scene--waves {
+	background:
+		repeating-linear-gradient(
+			176deg,
+			rgba(255, 255, 255, 0.55) 0 3px,
+			transparent 3px 14px
+		),
+		linear-gradient(180deg, #9db3c4 0 30%, #4d6f86 30%);
+}
+.ss .ssl-scene--traffic {
+	background:
+		radial-gradient(ellipse 10% 6% at 30% 70%, #c33 0 60%, transparent 70%),
+		radial-gradient(ellipse 12% 7% at 62% 66%, #e7e7e2 0 60%, transparent 70%),
+		linear-gradient(180deg, #8a9097 0 46%, #50555b 46%);
+}
+.ss .ssl-scene--cat-laser {
+	--fig: #8d7356;
+	background:
+		radial-gradient(circle at 82% 78%, #ff2a2a 0 3%, transparent 4%),
+		linear-gradient(180deg, #d6cbb8 0 50%, #a88b66 50%);
+}
+.ss .ssl-scene--milk-pot {
+	background:
+		radial-gradient(
+			circle at 50% 50%,
+			#f7f4ec 0 20%,
+			#9aa0a6 21% 32%,
+			transparent 33%
+		),
+		linear-gradient(180deg, #2a2a2c, #151516);
+}
+.ss .ssl-scene--cat-play {
+	--fig: #c79a63;
+	background:
+		radial-gradient(circle at 84% 76%, #e05a7a 0 6%, transparent 7%),
+		linear-gradient(180deg, #8a6f8f, #5a4660);
+}
+.ss .ssl-scene--title-card {
+	background:
+		linear-gradient(#e9e9ef, #e9e9ef) 50% 50% / 50% 12% no-repeat,
+		linear-gradient(180deg, #2b3a66, #1d2747);
+}

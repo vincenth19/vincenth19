@@ -1,10 +1,17 @@
+import type { CSSProperties } from 'react';
 import type { Chip as ChipData, Inline } from '@/content/site';
 import { Icon } from './Icon';
 
-/** A keyword pill: an ink disc with its icon, then the word. */
+/**
+ * A keyword pill: an ink disc with its icon, then the word. Its ink is the
+ * --k-<kind> token in styles/base.css, set here so a new kind needs only a token.
+ */
 export function Chip({ chip, kind, icon }: ChipData) {
 	return (
-		<span className={`kw kw--${kind}`}>
+		<span
+			className={`kw kw--${kind}`}
+			style={{ '--c': `var(--k-${kind})` } as CSSProperties}
+		>
 			<span className="dot">
 				<Icon name={icon} />
 			</span>

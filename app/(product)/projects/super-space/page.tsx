@@ -10,9 +10,10 @@ import {
 import { superSpace } from '@/content/superspace';
 import { baseOpenGraph } from '@/lib/metadata';
 import { getFilm } from '@/lib/superspaceMedia';
-import { fragmentMono, gloock } from './fonts';
+import { fragmentMono, gloock, inter } from './fonts';
 // scoped to .ss: Next keeps a route's stylesheet after you leave it
 import '@/styles/superspace.css';
+import '@/styles/superspace-launcher.css';
 
 const path = '/projects/super-space';
 
@@ -36,7 +37,7 @@ export const metadata: Metadata = {
 export default function SuperSpacePage() {
 	return (
 		<main
-			className={`ss ${gloock.variable} ${fragmentMono.variable}`}
+			className={`ss ${gloock.variable} ${fragmentMono.variable} ${inter.variable}`}
 			id="content"
 		>
 			<Hero />

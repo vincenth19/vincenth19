@@ -40,6 +40,52 @@ test.describe('home (Projects)', () => {
 		).toHaveCount(1);
 	});
 
+	test('says what Vincent does: three commands, verbs on one axis', async ({
+		page,
+	}) => {
+		const lines = page.locator('.tagline .cl');
+		await expect(lines).toHaveText([
+			'Build web and mobile apps, front to back.',
+			'Ship AI people actually use.',
+			'Design with taste, think like a product owner.',
+		]);
+		await expect(page.locator('.tagline .kw')).toHaveText([
+			'web',
+			'mobile',
+			'AI',
+			'taste',
+			'product',
+		]);
+		await expect(page.locator('meta[name="description"]')).toHaveAttribute(
+			'content',
+			'Vincent Haryadi, full-stack web, mobile and AI engineer in Brisbane, product- and design-minded. Projects, writing and resume.',
+		);
+	});
+
+	test('the tagline wraps at its phrases on a phone', async ({ page }) => {
+		for (const width of [390, 320]) {
+			await page.setViewportSize({ width, height: 844 });
+			await page.goto('/');
+			await page.evaluate(() => document.fonts.ready);
+			// a chip never breaks from the words it belongs with, nor sticks out
+			const right = await page.evaluate(() =>
+				Math.max(
+					...[...document.querySelectorAll('.tagline .kw')].map(
+						(el) => el.getBoundingClientRect().right,
+					),
+				),
+			);
+			expect(right, `${width}px`).toBeLessThanOrEqual(width);
+			const nw = await page
+				.locator('.tagline .nw')
+				.evaluateAll((els) => els.map((el) => el.getClientRects().length));
+			expect(
+				nw.every((n) => n === 1),
+				`${width}px`,
+			).toBe(true);
+		}
+	});
+
 	test('has all seven social links, labelled', async ({ page }) => {
 		const socials = page.locator('.socials a');
 		const expected = [

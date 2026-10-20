@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { FocusTitle } from '@/components/FocusTitle';
@@ -13,32 +14,13 @@ import {
 import { type Film, getShot } from '@/lib/superspaceMedia';
 import { CommandBox } from './CommandBox';
 import { Glyph } from './Glyph';
-import { LauncherDemo } from './LauncherDemo';
+import { LauncherFrame } from './LauncherFrame';
+import { LauncherIsland } from './LauncherIsland';
 import { Logo } from './Logo';
 import { MarkedText, plain } from './MarkedText';
-import type { PanelIcons } from './Panel';
+import piPhoto from './raspberry-pi-5.webp';
 
 const s = superSpace;
-
-/** The launcher's glyphs, rendered here on the server for the demo. */
-const icons: PanelIcons = {
-	search: <Glyph name="search" />,
-	doc: <Glyph name="doc" />,
-	video: <Glyph name="video" />,
-	emoji: <Glyph name="emoji" />,
-	wifi: <Glyph name="wifi" />,
-	time: <Glyph name="time" />,
-	web: <Glyph name="web" />,
-	enter: <Glyph name="enter" />,
-	play: <Glyph name="play" />,
-};
-
-/** One of the demo's searches, by its query. */
-function example(query: string): DemoItem {
-	const item = s.demo.items.find((it) => it.query === query);
-	if (!item) throw new Error(`No demo search for “${query}”`);
-	return item;
-}
 
 /**
  * A one-line list, its items joined by " · ". The dot is not read out; the
@@ -122,27 +104,23 @@ export function Hero() {
 	);
 }
 
+/**
+ * The launcher itself, in the page: a copy that runs in the browser over the
+ * demo home, on a screen of its own. Its first frame is drawn here; the
+ * launcher loads as it nears the screen (LauncherIsland).
+ */
 export function Demo({ film }: { film?: Film }) {
 	const d = s.demo;
 	return (
 		<section className="ss-beat ss-demo" aria-labelledby="ss-demo-title">
 			<Line id="ss-demo-title" text={d.title} size="lg" />
-			<ul className="sr-only" aria-label={d.listLabel}>
-				{d.items.map((item) => (
-					<li key={item.query}>{item.said}</li>
-				))}
-			</ul>
-			<LauncherDemo
-				items={d.items}
-				web={d.web}
-				labels={{
-					pause: d.pause,
-					play: d.play,
-					show: d.show,
-					chips: d.chipsLabel,
-				}}
-				icons={{ ...icons, pause: <Glyph name="pause" /> }}
-			/>
+			<LauncherIsland
+				initial={d.initial}
+				examples={d.examples}
+				labels={{ caption: d.caption, try: d.try, show: d.show }}
+			>
+				<LauncherFrame q={d.initial} label={d.field} />
+			</LauncherIsland>
 			{film && (
 				<figure className="ss-film">
 					{/* biome-ignore lint/a11y/useMediaCaption: the demo clip has no speech */}
@@ -206,11 +184,10 @@ function Shot({ beat }: { beat: Beat }) {
 
 /**
  * One search's result, set large in type rather than in the launcher's panel,
- * so the demo's panel is not shown twice: what was typed, small, then what it
- * found. Hidden from screen readers, who get the same search in the demo's list.
+ * so the launcher is not shown twice: what was typed, small, then what it
+ * found. Hidden from screen readers, who can run the same search in the launcher.
  */
-function Find({ query }: { query: string }) {
-	const item = example(query);
+function Find({ item }: { item: DemoItem }) {
 	const row = item.rows[0];
 	return (
 		<div className="ss-find ss-split-media" aria-hidden="true">
@@ -276,7 +253,7 @@ export function FeatureBeat({ beat }: { beat: Beat }) {
 						{text}
 						{beat.key === 'files' && <Formats />}
 					</div>
-					<Find query={s.examples[beat.key]} />
+					<Find item={s.finds[beat.key]} />
 					<Shot beat={beat} />
 				</BeatSection>
 			);
@@ -312,13 +289,12 @@ export function FeatureBeat({ beat }: { beat: Beat }) {
 					<Scopes />
 				</BeatSection>
 			);
-		// the one full-bleed moment: the Pi's numbers
+		// the one full-bleed moment: the Pi itself, its numbers set over it
 		case 'pi':
 			return (
 				<BeatSection beat={beat} className="ss-band">
 					{title}
-					{text}
-					<Stats group={s.pi} />
+					<Pi />
 				</BeatSection>
 			);
 		// measured on the VM, not the Pi: out of the Pi's band
@@ -429,6 +405,44 @@ function Score({ text }: { text: string }) {
 			<span className="ss-vs-of"> of </span>
 			{of}
 		</>
+	);
+}
+
+/**
+ * The Raspberry Pi 5, large, its board fading into the band, with what it
+ * measured set over its foot. The photo's licence asks for the credit under it.
+ */
+function Pi() {
+	const p = s.pi;
+	return (
+		<div className="ss-pi">
+			<figure className="ss-pi-figure">
+				<Image
+					src={piPhoto}
+					alt={p.photo.alt}
+					sizes="(max-width: 760px) 100vw, 1040px"
+					placeholder="blur"
+					// fetched with the page, at low priority, so it is there when you reach it
+					loading="eager"
+					fetchPriority="low"
+					className="ss-pi-photo"
+				/>
+			</figure>
+			<div className="ss-statgroup ss-pi-stats">
+				<h4 className="ss-statgroup-title">{p.on}</h4>
+				<ul className={`ss-stats ss-stats--${p.stats.length}`}>
+					{p.stats.map((st) => (
+						<StatItem key={st.label} st={st} />
+					))}
+				</ul>
+				{p.note && <p className="ss-note">{p.note}</p>}
+			</div>
+			<p className="ss-credit">
+				{p.photo.credit.before}
+				<a href={p.photo.credit.licenceUrl}>{p.photo.credit.licence}</a>
+				{p.photo.credit.after}
+			</p>
+		</div>
 	);
 }
 

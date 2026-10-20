@@ -20,28 +20,23 @@ export type Marked =
 /** A short paragraph: the first sentence in full ink, the rest dimmed. */
 export type Copy = { lead: string; rest?: string };
 
-export type DemoIcon = 'doc' | 'video' | 'emoji' | 'wifi' | 'time' | 'web';
+export type DemoIcon = 'doc' | 'video';
 
-/** One row of the launcher: the matched passage is its headline. */
+/** What a search found: the matched passage is its headline. */
 export type DemoRow = {
-	/** The glyph in the row's tile. */
+	/** The glyph beside where it was found. */
 	icon: DemoIcon;
-	/** Set in the tile in place of the glyph, large: the emoji a search found. */
-	tile?: string;
 	headline: Marked[];
 	/** Under the headline, joined by " · ". Left out when empty. */
 	meta: string[];
-	/** Video moments that matched, shown as chips in place of a headline passage. */
+	/** Video moments that matched, set in place of a headline passage. */
 	moments?: string[];
-	/** On the selected row: what Enter does. */
-	hint?: string;
 };
 
+/** A search and what it finds, set large in a beat. */
 export type DemoItem = {
 	query: string;
 	rows: DemoRow[];
-	/** The same result as one plain sentence, for screen readers. */
-	said: string;
 };
 
 export type Stat = {
@@ -60,6 +55,17 @@ export type StatGroup = {
 	on: string;
 	stats: Stat[];
 	note?: string;
+};
+
+/** A photo that is not ours, with the credit its licence asks for, set small under it. */
+export type Photo = {
+	alt: string;
+	credit: {
+		before: string;
+		licence: string;
+		licenceUrl: string;
+		after: string;
+	};
 };
 
 export type Beat = {
@@ -113,74 +119,60 @@ export const superSpace = {
 	demo: {
 		/** How you open it: the product is a Super+Space launcher. */
 		title: 'Press Super+Space',
-		/** Screen readers get this list instead of the animation. */
-		listLabel: 'Example searches',
-		/** The last row in the launcher: web results are never on top. */
-		web: 'Search the web for',
-		pause: 'Pause the demo',
-		play: 'Play the demo',
-		show: 'Show the search for',
-		/** Names the chip row: the chips replay the panel above, which screen readers skip. */
-		chipsLabel: 'Replay a search in the demo',
 		/**
-		 * The first is what the demo shows still (before it is on screen, and with
-		 * reduced motion), so it is not the search the next beat sets out.
+		 * The search the launcher opens with (and its first frame shows): not the
+		 * search the next beat sets out.
 		 */
-		items: [
-			{
-				query: 'golden retriever video',
-				rows: [
-					{
-						icon: 'video',
-						headline: [],
-						moments: ['0:10–0:30', '0:45–0:59'],
-						meta: ['weekend-clips-oct-2026.mp4'],
-						hint: 'Enter plays it there',
-					},
-				],
-				said: '“golden retriever video” finds weekend-clips-oct-2026.mp4, at 0:10–0:30 and 0:45–0:59. Enter plays it there.',
-			},
-			{
-				query: 'apartment lease bond',
-				rows: [
-					{
-						icon: 'doc',
-						headline: ['“…rental ', { mark: 'bond' }, ' of $2,400…”'],
-						meta: ['The lease', 'page 3'],
-						hint: 'Opens at page 3',
-					},
-				],
-				said: '“apartment lease bond” finds the lease, page 3: “rental bond of $2,400”.',
-			},
-			{
-				query: 'anjing',
-				rows: [{ icon: 'emoji', tile: '🐶', headline: ['Emoji'], meta: [] }],
-				said: '“anjing” finds the 🐶 emoji: emoji search works in any language.',
-			},
-			{
-				query: 'wifi connect',
-				rows: [
-					{ icon: 'wifi', headline: ['Wi-Fi'], meta: ['Omarchy setting'] },
-				],
-				said: '“wifi connect” finds the Omarchy Wi-Fi setting.',
-			},
-			{
-				query: '3pm sydney in jakarta',
-				rows: [
-					{
-						icon: 'time',
-						headline: [{ mark: '11:00 am' }, ' in Jakarta'],
-						meta: ['3:00 pm in Sydney (AEDT)'],
-					},
-				],
-				said: '“3pm sydney in jakarta” answers 11:00 am in Jakarta, with Sydney on summer time (AEDT).',
-			},
-		] satisfies DemoItem[],
+		initial: 'golden retriever video',
+		/** Searches to try, under the screen: the product's own first examples, one row. */
+		examples: [
+			'golden retriever video',
+			'apartment lease bond',
+			'songs about a breakup',
+			'wifi connect',
+			'anjing',
+			'apps firefox',
+		],
+		try: 'Try',
+		/** Names the row of example searches. */
+		show: 'Example searches',
+		/** The query field's name, for screen readers. */
+		field: 'Search the demo files',
+		caption:
+			'A copy of the launcher running in your browser, over the demo files. The real one runs a model on your computer.',
 	},
 
 	/**
+	 * The result a beat sets large, in type rather than as the launcher's panel,
+	 * so the launcher is not shown twice: two of its searches, as they find.
+	 */
+	finds: {
+		files: {
+			query: 'apartment lease bond',
+			rows: [
+				{
+					icon: 'doc',
+					headline: ['“…rental ', { mark: 'bond' }, ' of $2,400…”'],
+					meta: ['The lease', 'page 3'],
+				},
+			],
+		},
+		moments: {
+			query: 'golden retriever video',
+			rows: [
+				{
+					icon: 'video',
+					headline: [],
+					moments: ['0:10–0:30', '0:45–0:59'],
+					meta: ['weekend-clips-oct-2026.mp4'],
+				},
+			],
+		},
+	} satisfies Record<'files' | 'moments', DemoItem>,
+
+	/**
 	 * The feature beats, in order. Each shows something the demo does not: the
-	 * result of its search set large (see `examples`), the scope words, the numbers.
+	 * result of its search set large (see `finds`), the scope words, the numbers.
 	 */
 	beats: [
 		{
@@ -237,27 +229,12 @@ export const superSpace = {
 				lead: 'A CLI, an MCP server and an agent skill, set up by the same install.',
 			},
 		},
-		{
-			key: 'pi',
-			title: 'Runs on a Raspberry Pi 5',
-			copy: {
-				// a word joiner after the hyphen: "re-" and "reads" stay on one line
-				lead: 'Indexing runs at idle priority, then only re-\u2060reads changed files.',
-			},
-		},
+		// the photo and its numbers say it: no paragraph
+		{ key: 'pi', title: 'Runs on a Raspberry Pi 5' },
 		// the search speed was measured on the VM, not the Pi: a beat of its own
 		// a word joiner after the hyphen: "single-digit" stays on one line
 		{ key: 'speed', title: 'First results in single-\u2060digit milliseconds' },
 	] satisfies Beat[],
-
-	/**
-	 * The result a beat sets large, in type rather than as the launcher's panel,
-	 * so the demo's panel is not shown twice: one of the demo's searches, by its query.
-	 */
-	examples: {
-		files: 'apartment lease bond',
-		moments: 'golden retriever video',
-	},
 
 	/** "Inside your files": the kinds of document it reads. */
 	formats: ['PDF', 'Word', 'Excel', 'PowerPoint', 'Markdown', 'Text'],
@@ -334,9 +311,19 @@ export const superSpace = {
 		note: 'Measured once. A small sample: 10 questions.',
 	},
 
-	/** "Runs on a Raspberry Pi 5": said what it was measured on, before the numbers. */
+	/** "Runs on a Raspberry Pi 5": the board, then what was measured on it. */
 	pi: {
-		on: 'Indexing, measured on the Pi',
+		photo: {
+			alt: 'A Raspberry Pi 5 board, seen from above',
+			/** The licence (CC BY-SA 4.0) asks for this credit, and to say the photo was cropped. */
+			credit: {
+				before: 'Raspberry Pi 5 photo: Simon Waldherr, ',
+				licence: 'CC BY-SA 4.0',
+				licenceUrl: 'https://creativecommons.org/licenses/by-sa/4.0/',
+				after: ', via Wikimedia Commons (cropped)',
+			},
+		},
+		on: 'Indexing at idle priority, measured on the Pi',
 		stats: [
 			{ about: true, value: '3', unit: 's', label: 'names searchable' },
 			{
@@ -348,7 +335,7 @@ export const superSpace = {
 			{ about: true, value: '12', unit: 'min', label: 'everything' },
 		],
 		note: 'With the demo home: about 80 documents, photos, songs and videos.',
-	} satisfies StatGroup,
+	} satisfies StatGroup & { photo: Photo },
 
 	/** The search speed, in a beat of its own: it was measured on the VM, not the Pi. */
 	speed: {

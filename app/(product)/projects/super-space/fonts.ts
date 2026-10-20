@@ -1,4 +1,4 @@
-import { Fragment_Mono, Gloock } from 'next/font/google';
+import { Fragment_Mono, Gloock, Inter } from 'next/font/google';
 
 /*
  * Super Space's own type, loaded for its product page only: Gloock for the big
@@ -19,4 +19,14 @@ export const fragmentMono = Fragment_Mono({
 	weight: '400',
 	display: 'swap',
 	variable: '--font-fragment-mono',
+});
+
+/**
+ * The launcher's panel only: Super Space draws in the system's UI sans, which is
+ * Adwaita Sans on Omarchy (made from Inter). Exposed as --font-inter.
+ */
+export const inter = Inter({
+	subsets: ['latin'],
+	display: 'swap',
+	variable: '--font-inter',
 });
