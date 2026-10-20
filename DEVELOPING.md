@@ -44,14 +44,15 @@ next preview deploy passes.
   socials, tab labels and the other interface text), `projects.ts`, `resume.ts`, and
   the posts in `writing/`.
 - `components/` are server components except the few that need the browser:
-  `StickerLink` (peel → fly), `MastFrame` (the masthead's open state), `TabLinks`
+  `StickerLink` (lift → fly), `MastFrame` (the masthead's open state), `TabLinks`
   (current tab), `FocusTitle` (a project or post title takes focus when it opens),
-  `SkipLink` (Skip to content) and `DeskProvider` (remembers where you came from, so
-  the open sticker re-sticks after Back, and runs the peel, so clicking a tab mid-peel
-  cancels it). Client components get their text as props from a server parent, like
-  their icons.
+  `SkipLink` (Skip to content) and `DeskProvider` (runs opening and leaving a project
+  as a view transition, see below, and remembers where you came from, so the sticker
+  flies back to its own spot). Client components get their text as props from a
+  server parent, like their icons.
 - `styles/` is plain global CSS, one file per part of the page, imported in cascade
-  order by `app/layout.tsx`. `base.css` holds the colour and font tokens.
+  order by `app/layout.tsx`. `base.css` holds the colour and font tokens;
+  `transitions.css` the page transitions.
 - Icons are inline SVGs from [Remix Icon](https://remixicon.com) in
   `components/Icon.tsx`. To add one, copy its `<path d="…">` from the icon set into the
   `paths` map. Only server components import `Icon`; a client component gets its icons
@@ -62,9 +63,9 @@ next preview deploy passes.
 ## The Super Space product page
 
 `/projects/super-space` is a product page in Super Space's own identity rather than a
-sheet in the book. The masthead still slaps the peeled sticker on (the root layout
+sheet in the book. The masthead still takes the sticker as its header (the root layout
 keeps it mounted); below it, in place of the book, a dark stage that the desk's lamp
-light fades into. On this page the slapped sticker is smaller than on the other
+light fades into. On this page the header sticker is smaller than on the other
 projects (it scales with the screen's height; the rules are at the top of
 `styles/superspace.css`), so the headline and the install command make the first
 screen.
@@ -83,8 +84,8 @@ screen.
 - The home page does not fetch them ahead: a project with a product page
   (`productPage: true` in `content/projects.ts`) gets `prefetch={false}` on its
   sticker, because prefetching the route would make the home page preload the route's
-  fonts and stylesheet (and Chrome warns when a preload goes unused). The peel calls
-  `router.prefetch` instead (`DeskProvider`), so they load while it plays.
+  fonts and stylesheet (and Chrome warns when a preload goes unused). A click calls
+  `router.prefetch` instead (`DeskProvider`), so they load while the sticker lifts.
 - The demo types the five example searches in the launcher's panel
   (`components/superspace/Panel.tsx`); it is the only panel on the page. The beats
   never show that panel again: "Inside your files" and "Photos and video moments" set
@@ -102,6 +103,42 @@ screen.
   `public/projects/super-space/` (`demo.webm` and/or `demo.mp4` with `poster.webp`;
   `lease.webp`, `video.webp`, `songs.webp`). The page checks at build time, so add the
   files and rebuild; without them it leaves those slots out.
+
+## Page transitions
+
+Opening a project and leaving it run as a same-document
+[view transition](https://developer.mozilla.org/docs/Web/API/View_Transition_API):
+the sticker flies from its spot on the Projects page into the header (and back), while
+the book moves to its new place and turns its leaf, Super Space's stage rises where the
+book was, and the rest of the desk cross-fades. `DeskProvider` runs it, for every way
+in and out: a sticker click (the sticker lifts for 0.1s first), the Back arrow, a tab,
+and the browser's Back and Forward (a trackpad swipe included).
+
+- The book sticker and the header sticker share one `view-transition-name`,
+  `stk-<key>` (`stickerName` in `DeskProvider`), set inline by `StickerLink` and
+  `MastFrame`, so a new project needs nothing extra. On the Projects page only the
+  sticker that flies carries it (the one clicked, or the one coming home): a named
+  sticker that does not fly would leave the page on its own and drift apart from the
+  book. The book, a product page's stage and the socials are named only while a
+  transition runs, when `<html>` carries `data-vt="open"` or `"close"`. The timing is
+  in `styles/transitions.css`.
+- The navigation happens inside `document.startViewTransition`, which waits until
+  the new page is on screen (its own layout effects have scrolled it and moved focus)
+  before it captures it. A project opens at the top with its title focused; coming
+  back puts the sticker in the middle of the screen, focused.
+- Back and Forward: Next.js handles `popstate` synchronously, which would swap the
+  page before the old one could be captured. A capturing `popstate` listener holds the
+  event back, starts the transition, and dispatches it again to Next.js from inside
+  the transition's update. A step the browser already animated (a swipe that showed
+  the page, `hasUAVisualTransition`) is left to Next.js, untouched.
+- React's `<ViewTransition>` (React 19.3 with Next.js 16.4) animates link clicks and
+  `router.push`, but starts no transition for Back and Forward (React flushes a
+  `popstate` update synchronously), so the site does not use it.
+- With reduced motion, or in a browser without view transitions (they need Chromium
+  111+, Safari 18+ or Firefox 144+), every navigation is instant.
+- `tests/transitions.spec.ts` checks that the stickers share the name and that every
+  way in and out morphs; `tests/viewTransitions.ts` records what each transition the
+  page starts really animated.
 
 ## Where the site differs from the design prototype
 
@@ -138,4 +175,6 @@ A new project also needs a sticker, because the Projects page is a hand-placed c
 3. In `styles/projects.css`, place `.slot--<key>` on the 12-column grid and give its
    `.stk` a size (`--sh`) and tilt (`--tilt`), plus the mobile sizes.
 4. In `styles/masthead.css`, set the header size: `.slap .stk--<key> .stk-body { --sh }`.
+   The flight between the two needs nothing more: both stickers take their shared
+   view-transition-name from the key.
 

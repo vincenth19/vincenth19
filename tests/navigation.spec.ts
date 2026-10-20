@@ -1,4 +1,5 @@
 import { expect, type Page, test } from '@playwright/test';
+import { recordTransitions } from './viewTransitions';
 
 const at = (path: string) => (url: URL) => url.pathname === path;
 
@@ -14,16 +15,18 @@ function watchConsole(page: Page) {
 	return problems;
 }
 
-test('peeling Super Space opens its page, then Back re-sticks it', async ({
+test('Super Space flies into the header as its page opens, and Back flies it home', async ({
 	page,
 }) => {
 	const problems = watchConsole(page);
+	const vts = await recordTransitions(page);
 	await page.goto('/');
 	const sticker = page.getByRole('link', {
 		name: 'Super Space, 2026. Open project',
 	});
 	await sticker.click();
-	await expect(sticker).toHaveClass(/is-peeling/);
+	// it lifts off the page before it flies
+	await expect(sticker).toHaveClass(/is-lifting/);
 
 	await expect(page).toHaveURL(at('/projects/super-space'));
 	await expect(page).toHaveTitle('Super Space · Vincent Haryadi');
@@ -51,7 +54,7 @@ test('peeling Super Space opens its page, then Back re-sticks it', async ({
 	await expect(mast).not.toHaveAttribute('data-open');
 	await expect(sticker).toBeFocused();
 	await expect(sticker).toBeInViewport();
-	await expect(sticker).not.toHaveClass(/is-restick/); // removed once it has played
+	await expect(sticker).not.toHaveClass(/is-lifting/);
 	// it comes to rest in the middle of the screen (give or take the 2px hover
 	// lift, as the pointer may be over it, and whole-pixel scrolling)
 	const offCentre = await sticker.evaluate((el) => {
@@ -60,6 +63,18 @@ test('peeling Super Space opens its page, then Back re-sticks it', async ({
 	});
 	expect(offCentre).toBeLessThanOrEqual(4);
 
+	// both ways the sticker morphed: the page's and the header's were one element
+	await vts.settled();
+	const runs = await vts.take();
+	expect(
+		runs.map((v) => [v.direction, v.pairs.includes('stk-superspace')]),
+	).toEqual([
+		['open', true],
+		['close', true],
+	]);
+	// the book gave way to the product page's stage, and back
+	expect(runs[0].names).toEqual(expect.arrayContaining(['book', 'stage']));
+	expect(runs[1].names).toEqual(expect.arrayContaining(['book', 'stage']));
 	expect(problems).toEqual([]);
 });
 
@@ -71,9 +86,10 @@ async function offCentre(page: Page, selector: string) {
 	});
 }
 
-test('the Projects tab from a project re-sticks its sticker in view', async ({
+test('the Projects tab from a project flies its sticker back into view', async ({
 	page,
 }) => {
+	const vts = await recordTransitions(page);
 	await page.goto('/');
 	const sticker = page.getByRole('link', {
 		name: 'CovidTracker, 2021. Open project',
@@ -91,14 +107,18 @@ test('the Projects tab from a project re-sticks its sticker in view', async ({
 
 	await expect(page).toHaveURL(at('/'));
 	await expect(sticker).toBeFocused();
-	await expect(sticker).not.toHaveClass(/is-restick/); // removed once it has played
 	await expect(sticker).toBeInViewport();
 	expect(await offCentre(page, '.stk--covid')).toBeLessThanOrEqual(4);
+	await vts.settled();
+	const close = (await vts.take()).at(-1);
+	expect(close?.direction).toBe('close');
+	expect(close?.pairs).toContain('stk-covid');
 });
 
-test("the browser's Back and Forward keep the sticker and the slap in view", async ({
+test("the browser's Back and Forward fly the sticker and keep it in view", async ({
 	page,
 }) => {
+	const vts = await recordTransitions(page);
 	await page.goto('/');
 	// click the sticker while it sits low on the screen: Back must not return there
 	const box = await page.locator('.stk--covid').evaluate((el) => {
@@ -119,27 +139,75 @@ test("the browser's Back and Forward keep the sticker and the slap in view", asy
 		name: 'CovidTracker, 2021. Open project',
 	});
 	await expect(sticker).toBeFocused();
-	await expect(sticker).not.toHaveClass(/is-restick/);
 	expect(await offCentre(page, '.stk--covid')).toBeLessThanOrEqual(4);
 
-	// Forward opens the project at the top again, where the slap plays
+	// Forward opens the project at the top again, where the sticker lands
 	await page.goForward();
 	await expect(page).toHaveURL(at('/projects/covidtracker'));
 	await expect(
 		page.getByRole('heading', { level: 2, name: 'CovidTracker' }),
 	).toBeFocused();
 	await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+
+	// the click, Back and Forward each ran the morph
+	await vts.settled();
+	const runs = await vts.take();
+	expect(runs.map((v) => [v.direction, v.pairs.includes('stk-covid')])).toEqual(
+		[
+			['open', true],
+			['close', true],
+			['open', true],
+		],
+	);
 });
 
-test('a tab clicked while a sticker peels wins', async ({ page }) => {
+test('a tab clicked while a sticker lifts wins', async ({ page }) => {
+	const vts = await recordTransitions(page);
 	await page.goto('/');
-	const tabs = page.getByRole('navigation', { name: 'Book sections' });
-	await page.getByRole('link', { name: 'Basilica. Open project' }).click();
-	await tabs.getByRole('link', { name: 'Writing' }).click();
+	// both clicks in one go, so the tab lands while the sticker is still lifting
+	await page.evaluate(() => {
+		const sticker = document.querySelector<HTMLElement>(
+			'.collage .stk--basilica',
+		);
+		const tab = document.querySelector<HTMLElement>('.tabs .tab--writing');
+		sticker?.click();
+		tab?.click();
+	});
 	await expect(page).toHaveURL(at('/writing'));
-	// the peel would have opened Basilica after 400ms
+	// the lift would have opened Basilica after 110ms
 	await page.waitForTimeout(700);
 	await expect(page).toHaveURL(at('/writing'));
+	expect(await vts.all()).toEqual([]);
+	await expect(page.locator('.is-lifting')).toHaveCount(0);
+});
+
+test('a double click opens the project once', async ({ page }) => {
+	const vts = await recordTransitions(page);
+	await page.goto('/');
+	const entries = await page.evaluate(() => history.length);
+	await page.getByRole('link', { name: 'Basilica. Open project' }).dblclick();
+	await expect(page).toHaveURL(at('/projects/basilica'));
+	await vts.settled();
+	expect(await vts.all()).toHaveLength(1);
+	expect(await page.evaluate(() => history.length)).toBe(entries + 1);
+});
+
+test('a modifier click opens the project in a new tab and leaves this page be', async ({
+	page,
+	context,
+}) => {
+	const vts = await recordTransitions(page);
+	await page.goto('/');
+	const [tab] = await Promise.all([
+		context.waitForEvent('page'),
+		page
+			.getByRole('link', { name: 'CovidTracker, 2021. Open project' })
+			.click({ modifiers: ['ControlOrMeta'] }),
+	]);
+	await expect(tab).toHaveURL(at('/projects/covidtracker'));
+	await expect(page).toHaveURL(at('/'));
+	await expect(page.locator('.is-lifting')).toHaveCount(0);
+	expect(await vts.all()).toEqual([]);
 });
 
 test('tabs reach Writing and Resume', async ({ page }) => {
@@ -254,15 +322,16 @@ test('pages have their own Open Graph tags', async ({ page }) => {
 test.describe('with reduced motion', () => {
 	test.use({ reducedMotion: 'reduce' });
 
-	test('a sticker click navigates straight away, without the peel', async ({
+	test('a sticker click navigates straight away, without the lift or a transition', async ({
 		page,
 	}) => {
+		const vts = await recordTransitions(page);
 		await page.goto('/');
 		await page.evaluate(() => {
-			const w = window as typeof window & { peeled?: boolean };
-			w.peeled = false;
+			const w = window as typeof window & { lifted?: boolean };
+			w.lifted = false;
 			new MutationObserver(() => {
-				if (document.querySelector('.is-peeling')) w.peeled = true;
+				if (document.querySelector('.is-lifting')) w.lifted = true;
 			}).observe(document.body, {
 				subtree: true,
 				attributes: true,
@@ -280,9 +349,10 @@ test.describe('with reduced motion', () => {
 		).toBeFocused();
 		expect(
 			await page.evaluate(
-				() => (window as typeof window & { peeled?: boolean }).peeled,
+				() => (window as typeof window & { lifted?: boolean }).lifted,
 			),
 		).toBe(false);
+		expect(await vts.all()).toEqual([]);
 		expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
 	});
 });

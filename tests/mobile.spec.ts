@@ -18,8 +18,6 @@ test.describe('at 390px wide', () => {
 		test(`${route} does not scroll sideways`, async ({ page }) => {
 			await page.goto(route);
 			await page.evaluate(() => document.fonts.ready);
-			// let the header slap finish: it starts scaled and rotated
-			await page.waitForTimeout(600);
 			const { scrollWidth, clientWidth } = await page.evaluate(() => ({
 				scrollWidth: document.documentElement.scrollWidth,
 				clientWidth: document.documentElement.clientWidth,

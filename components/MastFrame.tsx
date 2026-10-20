@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 import type { HeaderSticker } from '@/content/projects';
+import { stickerName, useDesk } from './DeskProvider';
 
 type Props = {
 	/** The name and tagline (server-rendered). */
@@ -18,8 +19,11 @@ type Props = {
 };
 
 /**
- * The masthead's open/closed state. On /projects/[slug] the peeled sticker becomes
- * the header (the name stays for screen readers, the tagline hides) with Back beside it.
+ * The masthead's open/closed state. On /projects/[slug] the project's sticker
+ * becomes the header (the name stays for screen readers, the tagline hides) with
+ * Back beside it. The header sticker shares its view-transition-name with the
+ * sticker on the Projects page, so opening and leaving the project fly one into
+ * the other (DeskProvider runs the transition).
  */
 export function MastFrame({
 	identity,
@@ -29,6 +33,7 @@ export function MastFrame({
 	stickers,
 }: Props) {
 	const pathname = usePathname();
+	const { navigate } = useDesk();
 	const slug = /^\/projects\/([^/]+)\/?$/.exec(pathname)?.[1];
 	const open = stickers.find((s) => s.slug === slug);
 
@@ -37,11 +42,19 @@ export function MastFrame({
 			{identity}
 			{open && (
 				<div className="slap">
-					<Link className="back" href="/" aria-label={backLabel} scroll={false}>
+					<Link
+						className="back"
+						href="/"
+						aria-label={backLabel}
+						scroll={false}
+						onNavigate={(e) => navigate(e, '/')}
+					>
 						{backIcon}
 					</Link>
-					{/* keyed by project, so the slap plays again for each one */}
-					<figure key={open.slug} className={`slap-stk stk--${open.key}`}>
+					<figure
+						className={`slap-stk stk--${open.key}`}
+						style={{ viewTransitionName: stickerName(open.key) }}
+					>
 						<span className="stk-body">
 							<span className="stk-face">
 								<img
