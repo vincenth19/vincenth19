@@ -1,4 +1,4 @@
-import type { Project } from '@/content/projects';
+import type { SheetProject } from '@/content/projects';
 import { site } from '@/content/site';
 import { Command } from './Command';
 import { Corners } from './Corners';
@@ -7,7 +7,7 @@ import { Icon } from './Icon';
 import { Chip, InlineText } from './InlineText';
 
 /** The project sheet on the leaf. Anything a project does not have is left out. */
-export function ProjectDetail({ project: p }: { project: Project }) {
+export function ProjectDetail({ project: p }: { project: SheetProject }) {
 	const titleId = `t-${p.key}`;
 	return (
 		<article className="sheet detail" aria-labelledby={titleId}>

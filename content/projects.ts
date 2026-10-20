@@ -20,20 +20,32 @@ export type ProjectLink = {
 	variant?: 'ghost';
 };
 
-export type Project = {
+/** What every project has: its sticker on the Projects page and in the header. */
+type ProjectBase = {
 	slug: string;
 	key: StickerKey;
 	name: string;
 	year?: number;
-	/** The keyword chip above the title. */
-	tag: Chip;
 	/** Shown under the sticker on the Projects page. */
 	caption: string;
+	sticker: { src: string; back: string; alt: string };
+};
+
+/**
+ * A project with its own product page (app/(product)/projects/<slug>) instead of
+ * a sheet in the book. Its copy lives with that page (e.g. content/superspace.ts).
+ */
+export type ProductProject = ProjectBase & { productPage: true };
+
+/** A project whose page is a sheet in the book (app/(book)/projects/[slug]). */
+export type SheetProject = ProjectBase & {
+	productPage?: never;
+	/** The keyword chip above the title. */
+	tag: Chip;
 	lede: string;
 	body?: Inline[];
 	tries?: { label: string; items: string[] };
 	links: ProjectLink[];
-	sticker: { src: string; back: string; alt: string };
 	/** The print on the right. Without a `screenshot` it says "Screenshot coming soon". */
 	snap: {
 		icon: IconName;
@@ -43,49 +55,22 @@ export type Project = {
 	facts: Fact[];
 };
 
+export type Project = ProductProject | SheetProject;
+
 export const projects: Project[] = [
 	{
 		slug: 'super-space',
 		key: 'superspace',
 		name: 'Super Space',
 		year: 2026,
-		tag: { chip: 'Omarchy plugin', kind: 'ui', icon: 'terminal-box-fill' },
 		caption: 'Spotlight for Omarchy that gets what you mean.',
-		lede: 'Spotlight for Omarchy that gets what you mean.',
-		body: [
-			'Press ',
-			{ kbd: 'Super' },
-			'+',
-			{ kbd: 'Space' },
-			' and type what you remember. One box finds apps, files, photos, video moments and speech by meaning. Fully local, and fast on a Raspberry Pi 5.',
-		],
-		tries: {
-			label: 'Things you can type',
-			items: ['lease pdf', 'the dog at the beach', '3pm sydney in jakarta'],
-		},
-		links: [
-			{
-				label: 'View on GitHub',
-				href: 'https://github.com/vincenth19/omarchy-super-space',
-				icon: 'github-fill',
-			},
-		],
 		sticker: {
 			src: '/img/superspace.svg',
 			back: '/img/superspace-back.svg',
 			alt: 'Super Space sticker',
 		},
-		snap: { icon: 'search-2-fill', caption: 'Super Space on Omarchy 4' },
-		facts: [
-			{ label: 'Stack', value: 'Rust, QML, local embedding models' },
-			{ label: 'Runs on', value: 'Omarchy 4 · aarch64 & x86_64' },
-			{
-				label: 'Install',
-				command:
-					'omarchy plugin add https://github.com/vincenth19/omarchy-super-space --enable',
-				wide: true,
-			},
-		],
+		// its page is a product page: app/(product)/projects/super-space, copy in content/superspace.ts
+		productPage: true,
 	},
 	{
 		slug: 'basilica',
@@ -155,8 +140,13 @@ export const projects: Project[] = [
 	},
 ];
 
-export function getProject(slug: string): Project | undefined {
-	return projects.find((p) => p.slug === slug);
+/** The projects whose page is a sheet in the book. */
+export const sheetProjects: SheetProject[] = projects.filter(
+	(p): p is SheetProject => !p.productPage,
+);
+
+export function getSheetProject(slug: string): SheetProject | undefined {
+	return sheetProjects.find((p) => p.slug === slug);
 }
 
 /** What the masthead needs to slap a sticker on the header (kept small for the client). */
