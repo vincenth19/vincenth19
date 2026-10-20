@@ -13,7 +13,7 @@ export const resume = {
 		{
 			when: '2024 – now',
 			role: 'Software Engineer',
-			org: 'Alpha Curve',
+			org: 'Universal Edge AI',
 			where: 'Brisbane, AU',
 		},
 		{

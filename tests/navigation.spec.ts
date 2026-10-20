@@ -165,7 +165,9 @@ test('tabs reach Writing and Resume', async ({ page }) => {
 	await expect(page).toHaveTitle('Resume · Vincent Haryadi');
 	await expect(page.getByRole('heading', { name: 'Resume' })).toBeVisible();
 	await expect(page.locator('.jobs li')).toHaveCount(5);
-	await expect(page.locator('.jobs li').first()).toContainText('Alpha Curve');
+	await expect(page.locator('.jobs li').first()).toContainText(
+		'Universal Edge AI',
+	);
 	await expect(tabs.getByRole('link', { name: 'Resume' })).toHaveAttribute(
 		'aria-current',
 		'page',
