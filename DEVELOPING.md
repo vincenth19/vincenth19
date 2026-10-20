@@ -64,7 +64,10 @@ next preview deploy passes.
 `/projects/super-space` is a product page in Super Space's own identity rather than a
 sheet in the book. The masthead still slaps the peeled sticker on (the root layout
 keeps it mounted); below it, in place of the book, a dark stage that the desk's lamp
-light fades into.
+light fades into. On this page the slapped sticker is smaller than on the other
+projects (it scales with the screen's height; the rules are at the top of
+`styles/superspace.css`), so the headline and the install command make the first
+screen.
 
 - Copy, numbers and the launcher demo's searches are typed data in
   `content/superspace.ts`. Keep each number exactly as measured, with its qualifier
@@ -77,14 +80,24 @@ light fades into.
 - Its fonts, Gloock and Fragment Mono, load in that route's `fonts.ts`, for this page
   only, and `styles/superspace.css` is imported by the page alone. Next keeps a
   route's stylesheet after you leave it, so every rule there is scoped to `.ss`.
-- On purpose, the home page still fetches them early: the Super Space sticker is a
-  `next/link`, and prefetching its route brings the route's preloads (the two fonts,
-  about 15 KB and 17.5 KB, and the stylesheet, about 6 KB gzipped) once the home page
-  is idle. That keeps the sticker's peel-and-slap free of a font swap on arrival. If
-  home-page weight ever matters more, set `prefetch={false}` on that sticker's link.
-- Each example search appears once, in the launcher demo; the feature beats below it
-  show other moments of the product (the file tiles, the Enter key, a query line, the
-  scope words), so the page does not tell the same story twice.
+- The home page does not fetch them ahead: a project with a product page
+  (`productPage: true` in `content/projects.ts`) gets `prefetch={false}` on its
+  sticker, because prefetching the route would make the home page preload the route's
+  fonts and stylesheet (and Chrome warns when a preload goes unused). The peel calls
+  `router.prefetch` instead (`DeskProvider`), so they load while it plays.
+- The demo types the five example searches in the launcher's panel
+  (`components/superspace/Panel.tsx`); it is the only panel on the page. The beats
+  never show that panel again: "Inside your files" and "Photos and video moments" set
+  their search's result large in type (the passage, the moments), "One box for
+  everything else" sets what else it finds as one large line, and the scope words
+  have a beat of their own. The demo starts on the video search, so its first (and,
+  with reduced motion, only) search is not the one the next beat sets out. The beats
+  take turns in layout (side by side either way, centred, the full-bleed band for the
+  Pi's numbers, then the search speed in a beat of its own, as it was measured on the
+  VM), so the page builds instead of repeating one block.
+- The launcher's text never gets cut mid-word: a headline too long for its row ends
+  in an ellipsis, and the panel's type steps down under 360px so every result fits
+  whole. `tests/superspace.spec.ts` checks every search from 320px to 1440px.
 - Media slots: the screenshots and demo clip appear once their files are in
   `public/projects/super-space/` (`demo.webm` and/or `demo.mp4` with `poster.webp`;
   `lease.webp`, `video.webp`, `songs.webp`). The page checks at build time, so add the

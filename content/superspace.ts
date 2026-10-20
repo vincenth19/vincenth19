@@ -7,8 +7,15 @@
  * Never mention anything that is not released yet.
  */
 
-/** A run of text. `mark` is the part a search matched; `code` is set in Fragment Mono. */
-export type Marked = string | { mark: string } | { code: string };
+/**
+ * A run of text. `mark` is the part a search matched; `code` is set in Fragment
+ * Mono; `word` is a key word, set in full ink among dimmer words.
+ */
+export type Marked =
+	| string
+	| { mark: string }
+	| { code: string }
+	| { word: string };
 
 /** A short paragraph: the first sentence in full ink, the rest dimmed. */
 export type Copy = { lead: string; rest?: string };
@@ -19,8 +26,10 @@ export type DemoIcon = 'doc' | 'video' | 'emoji' | 'wifi' | 'time' | 'web';
 export type DemoRow = {
 	/** The glyph in the row's tile. */
 	icon: DemoIcon;
+	/** Set in the tile in place of the glyph, large: the emoji a search found. */
+	tile?: string;
 	headline: Marked[];
-	/** Under the headline, joined by " · ". File names are set in Fragment Mono. */
+	/** Under the headline, joined by " · ". Left out when empty. */
 	meta: string[];
 	/** Video moments that matched, shown as chips in place of a headline passage. */
 	moments?: string[];
@@ -36,7 +45,7 @@ export type DemoItem = {
 };
 
 export type Stat = {
-	/** "about", when the measurement is approximate. */
+	/** "about", set on the number's line, when the measurement is approximate. */
 	about?: boolean;
 	value: string;
 	unit: string;
@@ -47,7 +56,7 @@ export type Stat = {
 
 /** A group of measurements, with what they were measured on said first. */
 export type StatGroup = {
-	/** Shown above the numbers, so it frames them. */
+	/** The group's heading, above its numbers, so it frames them. */
 	on: string;
 	stats: Stat[];
 	note?: string;
@@ -62,7 +71,8 @@ export type Beat = {
 		| 'scopes'
 		| 'private'
 		| 'agents'
-		| 'pi';
+		| 'pi'
+		| 'speed';
 	title: string;
 	copy?: Copy;
 	/** A screenshot slot: shown only when the file is in public/projects/super-space/. */
@@ -86,24 +96,23 @@ export const superSpace = {
 	uninstall: 'superspace-setup uninstall',
 	/** The small line under the hero's actions. */
 	meta: [`v${version}`, 'MIT', 'Omarchy 4'],
-	/** Between the items of a one-line list. */
-	sep: ' · ',
+	/** Between the items of a one-line list, with a space either side. */
+	sep: '·',
 
 	ui: {
 		github: 'View on GitHub',
 		copy: 'Copy',
 		copied: 'Copied',
-		copyFailed: 'Could not copy. The command is selected, copy it with Ctrl+C.',
+		copyFailed: 'Could not copy. The command is selected, copy it from there.',
 		copyInstall: 'install command',
 		copyUninstall: 'uninstall command',
 		about: 'about',
 		backToProjects: 'All projects',
-		madeBy: 'Super Space is made by Vincent Haryadi.',
 	},
 
 	demo: {
-		kicker: ['Press', 'Super', '+', 'Space'],
-		title: 'Type what you remember',
+		/** How you open it: the product is a Super+Space launcher. */
+		title: 'Press Super+Space',
 		/** Screen readers get this list instead of the animation. */
 		listLabel: 'Example searches',
 		/** The last row in the launcher: web results are never on top. */
@@ -113,19 +122,11 @@ export const superSpace = {
 		show: 'Show the search for',
 		/** Names the chip row: the chips replay the panel above, which screen readers skip. */
 		chipsLabel: 'Replay a search in the demo',
+		/**
+		 * The first is what the demo shows still (before it is on screen, and with
+		 * reduced motion), so it is not the search the next beat sets out.
+		 */
 		items: [
-			{
-				query: 'apartment lease bond',
-				rows: [
-					{
-						icon: 'doc',
-						headline: ['“…rental ', { mark: 'bond' }, ' of $2,400…”'],
-						meta: ['The lease', 'page 3'],
-						hint: 'Opens at page 3',
-					},
-				],
-				said: '“apartment lease bond” finds the lease, page 3: “rental bond of $2,400”.',
-			},
 			{
 				query: 'golden retriever video',
 				rows: [
@@ -140,8 +141,20 @@ export const superSpace = {
 				said: '“golden retriever video” finds weekend-clips-oct-2026.mp4, at 0:10–0:30 and 0:45–0:59. Enter plays it there.',
 			},
 			{
+				query: 'apartment lease bond',
+				rows: [
+					{
+						icon: 'doc',
+						headline: ['“…rental ', { mark: 'bond' }, ' of $2,400…”'],
+						meta: ['The lease', 'page 3'],
+						hint: 'Opens at page 3',
+					},
+				],
+				said: '“apartment lease bond” finds the lease, page 3: “rental bond of $2,400”.',
+			},
+			{
 				query: 'anjing',
-				rows: [{ icon: 'emoji', headline: ['🐶'], meta: ['Emoji'] }],
+				rows: [{ icon: 'emoji', tile: '🐶', headline: ['Emoji'], meta: [] }],
 				said: '“anjing” finds the 🐶 emoji: emoji search works in any language.',
 			},
 			{
@@ -166,8 +179,8 @@ export const superSpace = {
 	},
 
 	/**
-	 * The feature beats, in order. The demo above them is the one place the
-	 * example searches appear; each beat shows a different moment of the product.
+	 * The feature beats, in order. Each shows something the demo does not: the
+	 * result of its search set large (see `examples`), the scope words, the numbers.
 	 */
 	beats: [
 		{
@@ -187,6 +200,7 @@ export const superSpace = {
 			title: 'Photos and video moments',
 			copy: {
 				lead: 'It finds what a picture shows, and which parts of a video match.',
+				rest: 'Press Enter and the video plays from there.',
 			},
 			shot: {
 				file: 'video.webp',
@@ -205,19 +219,9 @@ export const superSpace = {
 				alt: 'Super Space finding songs by their lyrics',
 			},
 		},
-		{
-			key: 'everything',
-			title: 'One box for everything else',
-			copy: {
-				lead: 'Apps, settings, emoji, clipboard and browser history, folders.',
-				rest: 'And quick answers: maths, units, currency, time zones.',
-			},
-		},
-		{
-			key: 'scopes',
-			title: 'Narrow it down',
-			copy: { lead: 'Scope words narrow a search.' },
-		},
+		// its words are `everything.finds`, set large
+		{ key: 'everything', title: 'One box for everything else' },
+		{ key: 'scopes', title: 'Scope words narrow a search' },
 		{
 			key: 'private',
 			title: 'Local and private',
@@ -237,33 +241,58 @@ export const superSpace = {
 			key: 'pi',
 			title: 'Runs on a Raspberry Pi 5',
 			copy: {
-				lead: 'Indexing runs at idle priority, then only re-reads changed files.',
+				// a word joiner after the hyphen: "re-" and "reads" stay on one line
+				lead: 'Indexing runs at idle priority, then only re-\u2060reads changed files.',
 			},
 		},
+		// the search speed was measured on the VM, not the Pi: a beat of its own
+		// a word joiner after the hyphen: "single-digit" stays on one line
+		{ key: 'speed', title: 'First results in single-\u2060digit milliseconds' },
 	] satisfies Beat[],
 
-	/** "Inside your files": the kinds of document it reads, each with its tile's glyph. */
-	formats: [
-		{ name: 'PDF', icon: 'doc' },
-		{ name: 'Word', icon: 'doc' },
-		{ name: 'Excel', icon: 'sheet' },
-		{ name: 'PowerPoint', icon: 'slide' },
-		{ name: 'Markdown', icon: 'doc' },
-		{ name: 'Text', icon: 'doc' },
-	] satisfies { name: string; icon: 'doc' | 'sheet' | 'slide' }[],
+	/**
+	 * The result a beat sets large, in type rather than as the launcher's panel,
+	 * so the demo's panel is not shown twice: one of the demo's searches, by its query.
+	 */
+	examples: {
+		files: 'apartment lease bond',
+		moments: 'golden retriever video',
+	},
 
-	/** "Photos and video moments": what the Enter key does on a video. */
-	moments: { key: 'Enter', text: 'plays the video where it matched' },
+	/** "Inside your files": the kinds of document it reads. */
+	formats: ['PDF', 'Word', 'Excel', 'PowerPoint', 'Markdown', 'Text'],
 
-	/** "Spoken words and songs": a search for a song by its lyrics. */
+	/** "Spoken words and songs": a search for songs by their lyrics. */
 	speech: { query: 'songs about a breakup' },
 
-	/** "One box for everything else": the small print. */
+	/** "One box for everything else": what else it finds, set large, then the small print. */
 	everything: {
+		finds: [
+			{ word: 'Apps' },
+			', ',
+			{ word: 'Omarchy settings' },
+			' by meaning, ',
+			{ word: 'emoji' },
+			' in any language, ',
+			{ word: 'clipboard' },
+			' and ',
+			{ word: 'browser history' },
+			', ',
+			{ word: 'folders' },
+			' by name. And quick answers: ',
+			{ word: 'maths' },
+			', ',
+			{ word: 'units' },
+			', ',
+			{ word: 'currency' },
+			', ',
+			{ word: 'time zones' },
+			'.',
+		] satisfies Marked[],
 		note: 'Browser history from Chromium, Chrome, Brave, Edge, Firefox and Zen. Clipboard history keeps where each copy came from.',
 	},
 
-	/** "Narrow it down": the scope word in each search is marked. */
+	/** Scope words: the scope word in each search is marked. */
 	scopes: [
 		[{ mark: 'apps' }, ' firefox'],
 		[{ mark: 'settings' }, ' wifi'],
@@ -305,38 +334,37 @@ export const superSpace = {
 		note: 'Measured once. A small sample: 10 questions.',
 	},
 
-	/** "Runs on a Raspberry Pi 5": each group says what it was measured on first. */
-	pi: [
-		{
-			on: 'Indexing, measured on the Pi',
-			stats: [
-				{ about: true, value: '3', unit: 's', label: 'names searchable' },
-				{
-					about: true,
-					value: '1',
-					unit: 'min',
-					label: 'every document, by meaning',
-				},
-				{ about: true, value: '12', unit: 'min', label: 'everything' },
-			],
-			note: 'With the demo home: about 80 documents, photos, songs and videos.',
-		},
-		{
-			on: 'Search speed, measured on the Try Omarchy VM (Apple Silicon)',
-			stats: [
-				{ value: '2', unit: 'ms', label: 'first results, p95' },
-				{
-					value: '73',
-					unit: 'ms',
-					label: 'results by meaning, p95',
-					detail: 'about 50–75 ms of work, after a 150 ms pause in typing',
-				},
-			],
-		},
-	] satisfies StatGroup[],
+	/** "Runs on a Raspberry Pi 5": said what it was measured on, before the numbers. */
+	pi: {
+		on: 'Indexing, measured on the Pi',
+		stats: [
+			{ about: true, value: '3', unit: 's', label: 'names searchable' },
+			{
+				about: true,
+				value: '1',
+				unit: 'min',
+				label: 'every document, by meaning',
+			},
+			{ about: true, value: '12', unit: 'min', label: 'everything' },
+		],
+		note: 'With the demo home: about 80 documents, photos, songs and videos.',
+	} satisfies StatGroup,
+
+	/** The search speed, in a beat of its own: it was measured on the VM, not the Pi. */
+	speed: {
+		on: 'Search speed, measured on the Try Omarchy VM (Apple Silicon)',
+		stats: [
+			{ value: '2', unit: 'ms', label: 'to first results, p95' },
+			{
+				value: '73',
+				unit: 'ms',
+				label: 'of work for results by meaning, p95',
+				detail: 'about 50–75 ms, after a 150 ms pause in typing',
+			},
+		],
+	} satisfies StatGroup,
 
 	installSection: {
-		eyebrow: 'Install',
 		title: 'One command',
 		requirements: {
 			title: 'Requirements',
@@ -351,6 +379,7 @@ export const superSpace = {
 			title: 'Download',
 			app: {
 				label: 'The app',
+				/** One per line. */
 				sizes: [
 					{ size: '8.5 MB', arch: 'arm64' },
 					{ size: '9.0 MB', arch: 'x64' },
@@ -358,20 +387,22 @@ export const superSpace = {
 			},
 			setupLead:
 				'Setup also fetches the models and runtimes, about 1 GB in total:',
-			/** Each size is one unbreakable piece; a list of them wraps between pieces. */
+			/** Each size is one line; "about" goes with each of them. */
 			parts: [
 				{ label: 'EmbeddingGemma', size: ['310 MB'] },
 				{ label: 'EmbeddingGemma image and audio part', size: ['555 MB'] },
 				{ label: 'whisper base', size: ['82 MB'] },
 				{
 					label: 'llama.cpp and whisper.cpp builds',
-					size: ['about 19 MB arm64', '28 MB x64'],
+					size: ['about 19 MB arm64', 'about 28 MB x64'],
 				},
 			],
 		},
 		uninstall: { title: 'Uninstall' },
-		licence:
-			'The code is MIT-licensed. The model is Google’s EmbeddingGemma, under Google’s Gemma terms: setup downloads it, it is not bundled.',
+		licence: {
+			title: 'Licence',
+			text: 'The code is MIT-licensed. The model is Google’s EmbeddingGemma, under Google’s Gemma terms: setup downloads it, it is not bundled.',
+		},
 	},
 
 	faqTitle: 'Questions',
@@ -391,7 +422,7 @@ export const superSpace = {
 		{
 			q: 'Is it fast?',
 			a: [
-				'First results in single-digit milliseconds; results by meaning land as soon as you pause typing. Indexing runs at idle priority, then only re-reads changed files.',
+				'First results in single-digit milliseconds; results by meaning land as soon as you pause typing. Indexing runs at idle priority, then only re-\u2060reads changed files.',
 			],
 		},
 		{

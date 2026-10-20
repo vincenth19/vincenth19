@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { overflowing } from './overflow';
 
 const routes = [
 	'/',
@@ -24,6 +25,8 @@ test.describe('at 390px wide', () => {
 				clientWidth: document.documentElement.clientWidth,
 			}));
 			expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
+			// the desk clips what sticks out, so scrollWidth alone would miss it
+			expect(await overflowing(page, '.desk')).toEqual([]);
 		});
 	}
 });

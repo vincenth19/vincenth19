@@ -1,4 +1,5 @@
 import { expect, type Page, test } from '@playwright/test';
+import { overflowing } from './overflow';
 
 const path = '/projects/super-space';
 const repo = 'https://github.com/vincenth19/omarchy-super-space';
@@ -86,6 +87,10 @@ test.describe('Super Space product page', () => {
 			hero.getByRole('link', { name: 'View on GitHub' }),
 		).toHaveAttribute('href', repo);
 		await expect(hero.getByText('v0.1.4 · MIT · Omarchy 4')).toBeVisible();
+		// the dots are hidden from screen readers, the spaces around them are not
+		await expect(hero.locator('.ss-version')).toMatchAriaSnapshot(
+			'- paragraph: v0.1.4 MIT Omarchy 4',
+		);
 
 		const copy = hero.getByRole('button', { name: 'Copy install command' });
 		await expect(copy).toBeVisible();
@@ -126,6 +131,17 @@ test.describe('Super Space product page', () => {
 		]) {
 			await expect(section).toContainText(text);
 		}
+		// one size per line, and a comma between them for screen readers (the
+		// snapshot puts a space before it: the comma is out of the text flow)
+		await expect(section.locator('.ss-size-app dd')).toMatchAriaSnapshot(
+			'- definition: /8\\.5 MB arm64 ?, 9\\.0 MB x64/',
+		);
+		// the licence is as plain to see as the rest of the specs
+		const licence = section.locator('.ss-licence dd');
+		await expect(licence).toBeVisible();
+		expect(await licence.evaluate((el) => getComputedStyle(el).color)).toBe(
+			'rgb(236, 232, 225)',
+		);
 	});
 
 	test('FAQ answers open and close', async ({ page }) => {
@@ -180,15 +196,17 @@ test.describe('Super Space product page', () => {
 	}) => {
 		await page.goto(path);
 		await page.locator('.ss-launcher').scrollIntoViewIfNeeded();
-		const query = page.locator('.ss-q');
-		await expect(query).toHaveText('golden retriever video', {
+		const query = page.locator('.ss-launcher .ss-q');
+		await expect(query).toHaveText('apartment lease bond', {
 			timeout: 12_000,
 		});
-		await expect(
-			page.getByRole('button', { name: /golden retriever video/ }),
-		).toHaveAttribute('aria-pressed', 'true');
+		// the chip marks the search on screen, without a pressed state that would
+		// change by itself
+		const chip = page.getByRole('button', { name: /apartment lease bond/ });
+		await expect(chip).toHaveAttribute('aria-current', 'true');
+		await expect(chip).not.toHaveAttribute('aria-pressed');
 		await expect(page.locator('.ss-launcher .ss-panel')).toContainText(
-			'0:45–0:59',
+			'rental bond of $2,400',
 		);
 
 		await page.getByRole('button', { name: 'Pause the demo' }).click();
@@ -196,7 +214,7 @@ test.describe('Super Space product page', () => {
 			page.getByRole('button', { name: 'Play the demo' }),
 		).toBeVisible();
 		await page.waitForTimeout(4500);
-		await expect(query).toHaveText('golden retriever video');
+		await expect(query).toHaveText('apartment lease bond');
 
 		await page.getByRole('button', { name: /wifi connect/ }).click();
 		await expect(query).toHaveText('wifi connect');
@@ -211,19 +229,99 @@ test.describe('Super Space product page', () => {
 		).toHaveCount(0);
 	});
 
-	test('each example search appears once, in the demo', async ({ page }) => {
+	test('each feature shows its real result, without repeating the demo’s panel', async ({
+		page,
+	}) => {
 		await page.goto(path);
-		const stage = page.locator('main');
-		for (const query of [
-			'apartment lease bond',
-			'golden retriever video',
-			'wifi connect',
-			'anjing',
-			'3pm sydney in jakarta',
+		// the launcher's panel is the demo's alone: the beats set the result in type
+		await expect(page.locator('.ss-panel')).toHaveCount(1);
+		const files = page.locator('.ss-beat--files .ss-find');
+		await expect(files).toBeVisible();
+		await expect(files).toContainText('apartment lease bond');
+		await expect(files).toContainText('“…rental bond of $2,400…”');
+		await expect(files).toContainText('The lease · page 3');
+		const moments = page.locator('.ss-beat--moments .ss-find');
+		await expect(moments).toContainText('golden retriever video');
+		await expect(moments).toContainText('0:10–0:30');
+		await expect(moments).toContainText('0:45–0:59');
+		await expect(moments).toContainText('weekend-clips-oct-2026.mp4');
+		// screen readers already have these searches, in the demo's list
+		for (const find of [files, moments]) {
+			await expect(find).toHaveAttribute('aria-hidden', 'true');
+		}
+
+		const everything = page.locator('.ss-beat--everything');
+		await expect(everything).toContainText('emoji in any language');
+		await expect(everything).toContainText('Omarchy settings by meaning');
+		await expect(everything).toContainText('folders by name');
+		await expect(everything).toContainText(
+			'quick answers: maths, units, currency, time zones',
+		);
+		await expect(everything).toContainText('Firefox and Zen');
+		const scopes = page.locator('.ss-beat--scopes');
+		await expect(
+			scopes.getByRole('heading', { name: 'Scope words narrow a search.' }),
+		).toBeVisible();
+		await expect(scopes.getByRole('listitem')).toHaveCount(5);
+		await expect(scopes).toContainText('camera folder');
+		// the song search is an example, not a search box with nothing found
+		const speech = page.locator('.ss-beat--speech');
+		await expect(speech.getByText('songs about a breakup')).toBeVisible();
+		await expect(speech.locator('.ss-panel')).toHaveCount(0);
+	});
+
+	test('the demo’s first search is not the one the next beat sets out', async ({
+		page,
+	}) => {
+		await page.goto(path);
+		const first = await page.locator('.ss-launcher .ss-q').textContent();
+		const next = await page.locator('.ss-beat--files .ss-find-q').textContent();
+		expect(first?.trim()).toBe('golden retriever video');
+		expect(next?.trim()).toBe('apartment lease bond');
+	});
+
+	test('the headline and the install command are on the first screen', async ({
+		page,
+	}) => {
+		for (const viewport of [
+			{ width: 1440, height: 900 },
+			{ width: 1280, height: 800 },
+			{ width: 1920, height: 1080 },
 		]) {
-			await expect(
-				stage.locator('section:not(.ss-demo)').getByText(query),
-			).toHaveCount(0);
+			await page.setViewportSize(viewport);
+			await page.goto(path);
+			await page.evaluate(() => document.fonts.ready);
+			const command = await page.locator('.ss-hero .ss-cmd').boundingBox();
+			const headline = await page.locator('.ss-headline').boundingBox();
+			expect(command && headline).toBeTruthy();
+			if (command && headline) {
+				expect(headline.y, `${viewport.width}`).toBeGreaterThanOrEqual(0);
+				expect(command.y + command.height, `${viewport.width}`).toBeLessThan(
+					viewport.height,
+				);
+			}
+		}
+	});
+
+	test('the home page does not fetch this page’s fonts or stylesheet ahead', async ({
+		page,
+	}) => {
+		const preloads = () =>
+			page.evaluate(() =>
+				[
+					...document.querySelectorAll(
+						'link[rel="preload"]:is([as="font"], [as="style"])',
+					),
+				].map((l) => `${l.getAttribute('as')} ${l.getAttribute('href')}`),
+			);
+		// the site's own preloads, on a page without the Super Space sticker
+		await page.goto('/writing');
+		const site = await preloads();
+		await page.goto('/');
+		await page.waitForLoadState('networkidle');
+		await page.waitForTimeout(1500); // links in view prefetch once the page is idle
+		for (const preload of await preloads()) {
+			expect(site).toContain(preload);
 		}
 	});
 
@@ -231,7 +329,13 @@ test.describe('Super Space product page', () => {
 		page,
 	}) => {
 		await page.goto(path);
-		const beat = page.locator('.ss-beat--pi');
+		// measured on the VM, not the Pi: out of the Pi's band, in a beat of its own
+		const band = page.locator('.ss-beat--pi');
+		await expect(band).toContainText('Indexing, measured on the Pi');
+		await expect(band).not.toContainText(/\bms\b/);
+		await expect(band).not.toContainText('Try Omarchy VM');
+		const beat = page.locator('.ss-beat--speed');
+		await expect(beat).not.toHaveClass(/ss-band/);
 		const label = beat.getByText(
 			'Search speed, measured on the Try Omarchy VM (Apple Silicon)',
 		);
@@ -247,7 +351,28 @@ test.describe('Super Space product page', () => {
 	test('the demo waits while it is off screen', async ({ page }) => {
 		await page.goto(path);
 		await page.waitForTimeout(5000); // longer than one search is held
-		await expect(page.locator('.ss-q')).toHaveText('apartment lease bond');
+		await expect(page.locator('.ss-launcher .ss-q')).toHaveText(
+			'golden retriever video',
+		);
+	});
+
+	test('the example chips and Pause are one row, at every width', async ({
+		page,
+	}) => {
+		for (const width of [390, 768, 820, 1024, 1180, 1440]) {
+			await page.setViewportSize({ width, height: 900 });
+			await page.goto(path);
+			await page.evaluate(() => document.fonts.ready);
+			const pause = page.getByRole('button', { name: 'Pause the demo' });
+			await expect(pause).toBeVisible();
+			const tops = await page
+				.locator('.ss-demo-controls :is(.ss-chip, .ss-pause)')
+				.evaluateAll((els) =>
+					els.map((el) => Math.round(el.getBoundingClientRect().top)),
+				);
+			expect(tops, `${width}`).toHaveLength(6);
+			expect(new Set(tops).size, `${width}`).toBe(1);
+		}
 	});
 
 	test.describe('with reduced motion', () => {
@@ -257,15 +382,18 @@ test.describe('Super Space product page', () => {
 			await page.goto(path);
 			const panel = page.locator('.ss-launcher .ss-panel');
 			await panel.scrollIntoViewIfNeeded();
-			await expect(page.locator('.ss-q')).toHaveText('apartment lease bond');
-			await expect(panel).toContainText('rental bond of $2,400');
+			const query = page.locator('.ss-launcher .ss-q');
+			await expect(query).toHaveText('golden retriever video');
+			await expect(panel).toContainText('0:10–0:30');
+			await expect(panel).toContainText('0:45–0:59');
+			await expect(panel).toContainText('weekend-clips-oct-2026.mp4');
 			await expect(panel).toHaveAttribute('data-phase', 'shown');
 			// nothing moves, so there is nothing to pause
 			await expect(
 				page.getByRole('button', { name: 'Pause the demo' }),
 			).toHaveCount(0);
 			await page.waitForTimeout(4500);
-			await expect(page.locator('.ss-q')).toHaveText('apartment lease bond');
+			await expect(query).toHaveText('golden retriever video');
 			expect(
 				await panel.evaluate(
 					(el) => el.getAnimations({ subtree: true }).length,
@@ -274,8 +402,41 @@ test.describe('Super Space product page', () => {
 
 			// a chip shows its search at once
 			await page.getByRole('button', { name: /3pm sydney in jakarta/ }).click();
-			await expect(page.locator('.ss-q')).toHaveText('3pm sydney in jakarta');
+			await expect(query).toHaveText('3pm sydney in jakarta');
 			await expect(panel).toContainText('11:00 am in Jakarta');
+		});
+
+		// No result is ever cut short: not the passage, a moment, a file name or
+		// the query. Only the web row, which repeats the query, may end in "…".
+		test('the launcher shows every result whole, from phones to laptops', async ({
+			page,
+		}) => {
+			for (const width of [320, 360, 390, 768, 901, 960, 1024, 1100, 1440]) {
+				await page.setViewportSize({ width, height: 900 });
+				await page.goto(path);
+				await page.evaluate(() => document.fonts.ready);
+				const chips = page.locator('.ss-chip');
+				for (let i = 0; i < 5; i++) {
+					await chips.nth(i).click();
+					const cut = await page
+						.locator('.ss-launcher')
+						.evaluate((launcher) =>
+							[
+								...launcher.querySelectorAll(
+									'.ss-q, .ss-row:not(.ss-row--web) :is(.ss-head-text, .ss-moment, .ss-meta)',
+								),
+							]
+								.filter((el) => el.scrollWidth > el.clientWidth + 1)
+								.map((el) => el.textContent),
+						);
+					expect(cut, `${width}px, search ${i + 1}`).toEqual([]);
+				}
+				const panel = page.locator('.ss-launcher .ss-panel');
+				await chips.nth(1).click();
+				await expect(panel).toContainText('rental bond of $2,400');
+				// and nothing on the stage sticks out past the screen's edges
+				expect(await overflowing(page, '.ss'), `${width}px`).toEqual([]);
+			}
 		});
 	});
 
@@ -293,6 +454,8 @@ test.describe('Super Space product page', () => {
 				clientWidth: document.documentElement.clientWidth,
 			}));
 			expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
+			// and nothing on the stage sticks out to be clipped by the desk
+			expect(await overflowing(page, '.ss')).toEqual([]);
 
 			// the install command wraps inside its box
 			const box = await page.locator('.ss-hero .ss-cmd').boundingBox();

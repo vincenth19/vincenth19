@@ -44,7 +44,7 @@ export function CopyButton({
 			await navigator.clipboard.writeText(text);
 		} catch {
 			ok = false;
-			// leave the command selected, ready for Ctrl+C
+			// leave the command selected, ready to copy by hand
 			const el = document.getElementById(target);
 			const selection = window.getSelection();
 			if (el && selection) {

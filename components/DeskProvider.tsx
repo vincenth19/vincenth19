@@ -65,6 +65,9 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 			if (busy.current) return;
 			busy.current = true;
 			setPeeling(href);
+			// a link that does not prefetch (a product page) starts fetching now,
+			// so the page is ready by the end of the peel; for the rest it is a no-op
+			router.prefetch(href);
 			timer.current = window.setTimeout(() => {
 				timer.current = undefined;
 				router.push(href, { scroll: false });

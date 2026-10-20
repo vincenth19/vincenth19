@@ -9,6 +9,12 @@ type Props = Pick<Project, 'sticker'> & {
 	href: string;
 	stickerKey: Project['key'];
 	label: string;
+	/**
+	 * False for a project with its own product page: prefetching that route
+	 * would make this page preload the product page's fonts and stylesheet. The
+	 * peel fetches it instead, while it plays.
+	 */
+	prefetch?: boolean;
 };
 
 /**
@@ -16,7 +22,13 @@ type Props = Pick<Project, 'sticker'> & {
  * the project, where the header slaps it back down. Coming back from that project
  * re-sticks it here.
  */
-export function StickerLink({ href, stickerKey, label, sticker }: Props) {
+export function StickerLink({
+	href,
+	stickerKey,
+	label,
+	sticker,
+	prefetch,
+}: Props) {
 	const desk = useDesk();
 	const ref = useRef<HTMLAnchorElement>(null);
 	const peeling = desk.peeling === href;
@@ -55,6 +67,7 @@ export function StickerLink({ href, stickerKey, label, sticker }: Props) {
 			ref={ref}
 			className={className}
 			href={href}
+			prefetch={prefetch}
 			scroll={false}
 			aria-label={label}
 			onClick={onClick}

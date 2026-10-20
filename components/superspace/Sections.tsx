@@ -1,8 +1,11 @@
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 import { FocusTitle } from '@/components/FocusTitle';
 import { Icon } from '@/components/Icon';
 import {
 	type Beat,
+	type Copy,
+	type DemoItem,
 	type Stat,
 	type StatGroup,
 	superSpace,
@@ -13,14 +16,43 @@ import { Glyph } from './Glyph';
 import { LauncherDemo } from './LauncherDemo';
 import { Logo } from './Logo';
 import { MarkedText, plain } from './MarkedText';
+import type { PanelIcons } from './Panel';
 
 const s = superSpace;
 
-/** A one-line list, its items joined by " · " (the dots are not read out). */
+/** The launcher's glyphs, rendered here on the server for the demo. */
+const icons: PanelIcons = {
+	search: <Glyph name="search" />,
+	doc: <Glyph name="doc" />,
+	video: <Glyph name="video" />,
+	emoji: <Glyph name="emoji" />,
+	wifi: <Glyph name="wifi" />,
+	time: <Glyph name="time" />,
+	web: <Glyph name="web" />,
+	enter: <Glyph name="enter" />,
+	play: <Glyph name="play" />,
+};
+
+/** One of the demo's searches, by its query. */
+function example(query: string): DemoItem {
+	const item = s.demo.items.find((it) => it.query === query);
+	if (!item) throw new Error(`No demo search for “${query}”`);
+	return item;
+}
+
+/**
+ * A one-line list, its items joined by " · ". The dot is not read out; the
+ * spaces around it are real, so the items do not run together for screen readers.
+ */
 function Joined({ items }: { items: string[] }) {
 	return items.map((item, i) => (
 		<span key={item}>
-			{i > 0 && <span aria-hidden="true">{s.sep}</span>}
+			{i > 0 && (
+				<>
+					{' '}
+					<span aria-hidden="true">{s.sep}</span>{' '}
+				</>
+			)}
 			{item}
 		</span>
 	));
@@ -31,18 +63,28 @@ function Line({
 	id,
 	text,
 	accent = false,
-	className = 'ss-line',
+	size,
 }: {
 	id: string;
 	text: string;
 	accent?: boolean;
-	className?: string;
+	/** The demo's line and "Free." are a step up from a feature's. */
+	size?: 'lg' | 'xl';
 }) {
 	return (
-		<h3 className={className} id={id}>
+		<h3 className={size ? `ss-line ss-line--${size}` : 'ss-line'} id={id}>
 			{text}
 			<span className={accent ? 'ss-dot' : undefined}>.</span>
 		</h3>
+	);
+}
+
+function Text({ copy }: { copy: Copy }) {
+	return (
+		<p className="ss-text">
+			<span className="ss-lead">{copy.lead}</span>
+			{copy.rest && ` ${copy.rest}`}
+		</p>
 	);
 }
 
@@ -84,12 +126,7 @@ export function Demo({ film }: { film?: Film }) {
 	const d = s.demo;
 	return (
 		<section className="ss-beat ss-demo" aria-labelledby="ss-demo-title">
-			<p className="ss-keys">
-				{d.kicker[0]} <kbd>{d.kicker[1]}</kbd>
-				<span className="ss-plus">{d.kicker[2]}</span>
-				<kbd>{d.kicker[3]}</kbd>
-			</p>
-			<Line id="ss-demo-title" text={d.title} />
+			<Line id="ss-demo-title" text={d.title} size="lg" />
 			<ul className="sr-only" aria-label={d.listLabel}>
 				{d.items.map((item) => (
 					<li key={item.query}>{item.said}</li>
@@ -104,18 +141,7 @@ export function Demo({ film }: { film?: Film }) {
 					show: d.show,
 					chips: d.chipsLabel,
 				}}
-				icons={{
-					search: <Glyph name="search" />,
-					doc: <Glyph name="doc" />,
-					video: <Glyph name="video" />,
-					emoji: <Glyph name="emoji" />,
-					wifi: <Glyph name="wifi" />,
-					time: <Glyph name="time" />,
-					web: <Glyph name="web" />,
-					enter: <Glyph name="enter" />,
-					play: <Glyph name="play" />,
-					pause: <Glyph name="pause" />,
-				}}
+				icons={{ ...icons, pause: <Glyph name="pause" /> }}
 			/>
 			{film && (
 				<figure className="ss-film">
@@ -139,88 +165,202 @@ export function Demo({ film }: { film?: Film }) {
 	);
 }
 
-/** One feature: a big line, a sentence or two, and a moment of the product. */
-export function FeatureBeat({ beat }: { beat: Beat }) {
-	const shot = beat.shot && getShot(beat.shot.file);
-	const id = `ss-${beat.key}`;
+/** A feature's section, labelled by its line. */
+function BeatSection({
+	beat,
+	className,
+	children,
+}: {
+	beat: Beat;
+	className?: string;
+	children: ReactNode;
+}) {
+	const cls = `ss-beat ss-beat--${beat.key}`;
 	return (
-		<section className={`ss-beat ss-beat--${beat.key}`} aria-labelledby={id}>
-			<Line id={id} text={beat.title} />
-			{beat.copy && (
-				<p className="ss-text">
-					<span className="ss-lead">{beat.copy.lead}</span>
-					{beat.copy.rest && ` ${beat.copy.rest}`}
-				</p>
-			)}
-			{beat.key === 'files' && <Formats />}
-			{beat.key === 'moments' && <EnterKey />}
-			{beat.key === 'speech' && <Query text={s.speech.query} />}
-			{beat.key === 'everything' && (
-				<p className="ss-note">{s.everything.note}</p>
-			)}
-			{beat.key === 'scopes' && <Scopes />}
-			{beat.key === 'private' && <Private />}
-			{beat.key === 'agents' && <Agents />}
-			{beat.key === 'pi' && <Pi />}
-			{shot && beat.shot && (
-				<figure className="ss-shot">
-					<img
-						src={shot.src}
-						alt={beat.shot.alt}
-						width={shot.width}
-						height={shot.height}
-						loading="lazy"
-						decoding="async"
-					/>
-				</figure>
-			)}
+		<section
+			className={className ? `${cls} ${className}` : cls}
+			aria-labelledby={`ss-${beat.key}`}
+		>
+			{children}
 		</section>
 	);
 }
 
-/** The kinds of document it reads, as the launcher's file tiles. */
+/** A real screenshot of the feature, once it is published. */
+function Shot({ beat }: { beat: Beat }) {
+	const shot = beat.shot && getShot(beat.shot.file);
+	if (!shot || !beat.shot) return null;
+	return (
+		<figure className="ss-shot">
+			<img
+				src={shot.src}
+				alt={beat.shot.alt}
+				width={shot.width}
+				height={shot.height}
+				loading="lazy"
+				decoding="async"
+			/>
+		</figure>
+	);
+}
+
+/**
+ * One search's result, set large in type rather than in the launcher's panel,
+ * so the demo's panel is not shown twice: what was typed, small, then what it
+ * found. Hidden from screen readers, who get the same search in the demo's list.
+ */
+function Find({ query }: { query: string }) {
+	const item = example(query);
+	const row = item.rows[0];
+	return (
+		<div className="ss-find ss-split-media" aria-hidden="true">
+			<p className="ss-find-q">
+				<Glyph name="search" />
+				{item.query}
+			</p>
+			{row.moments ? (
+				<ul className="ss-find-a ss-find-moments">
+					{row.moments.map((m) => (
+						<li key={m}>
+							<Glyph name="play" />
+							{m}
+						</li>
+					))}
+				</ul>
+			) : (
+				<p className="ss-find-a">
+					<MarkedText parts={row.headline} />
+				</p>
+			)}
+			{/* what Enter does is the beat's own sentence, so only where it was found */}
+			<p className="ss-find-meta">
+				<Glyph name={row.icon} />
+				<span>
+					<Joined items={row.meta} />
+				</span>
+			</p>
+		</div>
+	);
+}
+
+/**
+ * One feature: a line, a sentence or two, and something the demo above does not
+ * show. The beats take turns in how they are laid out (side by side either way,
+ * centred, a band of numbers), so the page builds instead of repeating one block.
+ */
+export function FeatureBeat({ beat }: { beat: Beat }) {
+	const title = <Line id={`ss-${beat.key}`} text={beat.title} />;
+	const text = beat.copy && <Text copy={beat.copy} />;
+
+	switch (beat.key) {
+		// side by side: the words, then the result (the agents' run is a table)
+		case 'agents':
+			return (
+				<BeatSection beat={beat} className="ss-split">
+					<div className="ss-split-copy">
+						{title}
+						{text}
+					</div>
+					<Agents />
+				</BeatSection>
+			);
+		case 'files':
+		case 'moments':
+			return (
+				<BeatSection
+					beat={beat}
+					className={`ss-split${beat.key === 'moments' ? ' ss-split--flip' : ''}`}
+				>
+					<div className="ss-split-copy">
+						{title}
+						{text}
+						{beat.key === 'files' && <Formats />}
+					</div>
+					<Find query={s.examples[beat.key]} />
+					<Shot beat={beat} />
+				</BeatSection>
+			);
+		// a search for songs, as it is typed: there is no result to show for it
+		case 'speech':
+			return (
+				<BeatSection beat={beat}>
+					{title}
+					{text}
+					<p className="ss-typed">
+						<Glyph name="search" />
+						<span className="ss-typed-q">{s.speech.query}</span>
+						<span className="ss-typed-caret" aria-hidden="true" />
+					</p>
+					<Shot beat={beat} />
+				</BeatSection>
+			);
+		// what else it finds, set large: the key words in full ink
+		case 'everything':
+			return (
+				<BeatSection beat={beat}>
+					{title}
+					<p className="ss-wall">
+						<MarkedText parts={s.everything.finds} />
+					</p>
+					<p className="ss-note ss-note--line">{s.everything.note}</p>
+				</BeatSection>
+			);
+		case 'scopes':
+			return (
+				<BeatSection beat={beat} className="ss-split ss-split--flip">
+					<div className="ss-split-copy">{title}</div>
+					<Scopes />
+				</BeatSection>
+			);
+		// the one full-bleed moment: the Pi's numbers
+		case 'pi':
+			return (
+				<BeatSection beat={beat} className="ss-band">
+					{title}
+					{text}
+					<Stats group={s.pi} />
+				</BeatSection>
+			);
+		// measured on the VM, not the Pi: out of the Pi's band
+		case 'speed':
+			return (
+				<BeatSection beat={beat}>
+					{title}
+					<Stats group={s.speed} />
+				</BeatSection>
+			);
+		default:
+			return (
+				<BeatSection beat={beat}>
+					{title}
+					{text}
+					{beat.key === 'private' && <Private />}
+				</BeatSection>
+			);
+	}
+}
+
+/** The kinds of document it reads inside. */
 function Formats() {
 	return (
 		<ul className="ss-formats">
 			{s.formats.map((f) => (
-				<li key={f.name}>
-					<span className="ss-tile">
-						<Glyph name={f.icon} />
-					</span>
-					{f.name}
-				</li>
+				<li key={f}>{f}</li>
 			))}
 		</ul>
 	);
 }
 
-/** What Enter does on a video that matched. */
-function EnterKey() {
-	return (
-		<p className="ss-enter">
-			<kbd>{s.moments.key}</kbd>
-			<span>{s.moments.text}</span>
-		</p>
-	);
-}
-
-/** A search on its own, in the launcher's query line. */
-function Query({ text }: { text: string }) {
-	return (
-		<p className="ss-panel ss-qline">
-			<Glyph name="search" />
-			<span>{text}</span>
-			<span className="ss-caret" aria-hidden="true" />
-		</p>
-	);
-}
-
+/** Five searches, as they are typed: the scope word in each in full ink. */
 function Scopes() {
 	return (
-		<ul className="ss-scopes">
+		<ul className="ss-scopes ss-split-media">
 			{s.scopes.map((scope) => (
 				<li key={plain(scope)}>
-					<MarkedText parts={scope} />
+					<Glyph name="search" />
+					<span>
+						<MarkedText parts={scope} />
+					</span>
 				</li>
 			))}
 		</ul>
@@ -292,11 +432,12 @@ function Score({ text }: { text: string }) {
 	);
 }
 
+/** A measurement: "about" sits on the number's own line, so it is read with it. */
 function StatItem({ st }: { st: Stat }) {
 	return (
 		<li>
-			{st.about && <span className="ss-stat-about">{s.ui.about} </span>}
 			<span className="ss-stat-num">
+				{st.about && <span className="ss-stat-about">{s.ui.about} </span>}
 				{st.value}
 				<span className="ss-stat-unit"> {st.unit}</span>
 			</span>
@@ -308,11 +449,11 @@ function StatItem({ st }: { st: Stat }) {
 	);
 }
 
-/** Each group of numbers is headed by what it was measured on. */
-function Pi() {
-	return s.pi.map((group: StatGroup) => (
-		<div key={group.on} className="ss-statgroup">
-			<p className="ss-eyebrow">{group.on}</p>
+/** A group of numbers, headed by what it was measured on. */
+function Stats({ group }: { group: StatGroup }) {
+	return (
+		<div className="ss-statgroup">
+			<h4 className="ss-statgroup-title">{group.on}</h4>
 			<ul className={`ss-stats ss-stats--${group.stats.length}`}>
 				{group.stats.map((st) => (
 					<StatItem key={st.label} st={st} />
@@ -320,6 +461,22 @@ function Pi() {
 			</ul>
 			{group.note && <p className="ss-note">{group.note}</p>}
 		</div>
+	);
+}
+
+/** One size per line; screen readers hear a comma between them. */
+function Sizes({ sizes }: { sizes: { size: string; arch?: string }[] }) {
+	return sizes.map((a, k) => (
+		<span key={a.size + (a.arch ?? '')} className="ss-size">
+			{a.size}
+			{a.arch && (
+				<>
+					{' '}
+					<span className="ss-arch">{a.arch}</span>
+				</>
+			)}
+			{k < sizes.length - 1 && <span className="sr-only">,</span>}
+		</span>
 	));
 }
 
@@ -331,7 +488,6 @@ export function Install() {
 			id="install"
 			aria-labelledby="ss-install-title"
 		>
-			<p className="ss-eyebrow">{i.eyebrow}</p>
 			<Line id="ss-install-title" text={i.title} />
 			<CommandBox
 				id="ss-cmd-install"
@@ -339,25 +495,14 @@ export function Install() {
 				what={s.ui.copyInstall}
 			/>
 			<div className="ss-specs">
-				<div className="ss-specs-col">
-					<div className="ss-spec">
-						<h4>{i.requirements.title}</h4>
-						<ul>
-							{i.requirements.items.map((item) => (
-								<li key={item}>{item}</li>
-							))}
-						</ul>
-						<p className="ss-spec-note">{i.requirements.note}</p>
-					</div>
-					<div className="ss-uninstall">
-						<h4>{i.uninstall.title}</h4>
-						<CommandBox
-							id="ss-cmd-uninstall"
-							command={s.uninstall}
-							what={s.ui.copyUninstall}
-							size="sm"
-						/>
-					</div>
+				<div className="ss-spec">
+					<h4>{i.requirements.title}</h4>
+					<ul>
+						{i.requirements.items.map((item) => (
+							<li key={item}>{item}</li>
+						))}
+					</ul>
+					<p className="ss-spec-note">{i.requirements.note}</p>
 				</div>
 				<div className="ss-spec">
 					<h4>{i.download.title}</h4>
@@ -365,12 +510,7 @@ export function Install() {
 						<div className="ss-size-app">
 							<dt>{i.download.app.label}</dt>
 							<dd>
-								{i.download.app.sizes.map((a, k) => (
-									<span key={a.arch} className="nw">
-										{k > 0 && <span aria-hidden="true">{s.sep}</span>}
-										{a.size} <span className="ss-arch">{a.arch}</span>
-									</span>
-								))}
+								<Sizes sizes={i.download.app.sizes} />
 							</dd>
 						</div>
 					</dl>
@@ -380,19 +520,31 @@ export function Install() {
 							<div key={part.label}>
 								<dt>{part.label}</dt>
 								<dd>
-									{part.size.map((piece, k) => (
-										<span key={piece}>
-											{k > 0 && ', '}
-											<span className="nw">{piece}</span>
-										</span>
-									))}
+									<Sizes sizes={part.size.map((size) => ({ size }))} />
 								</dd>
 							</div>
 						))}
 					</dl>
 				</div>
+				{/* across both columns: how to remove it, and the licence, as plainly as "MIT" */}
+				<dl className="ss-spec ss-spec--wide">
+					<div>
+						<dt>{i.uninstall.title}</dt>
+						<dd>
+							<CommandBox
+								id="ss-cmd-uninstall"
+								command={s.uninstall}
+								what={s.ui.copyUninstall}
+								size="sm"
+							/>
+						</dd>
+					</div>
+					<div className="ss-licence">
+						<dt>{i.licence.title}</dt>
+						<dd>{i.licence.text}</dd>
+					</div>
+				</dl>
 			</div>
-			<p className="ss-licence">{i.licence}</p>
 		</section>
 	);
 }
@@ -423,12 +575,7 @@ export function Closing() {
 		<>
 			<section className="ss-cta" aria-labelledby="ss-cta-title">
 				<Logo id="ss-logo-cta" className="ss-logo ss-logo--cta" />
-				<Line
-					id="ss-cta-title"
-					text={s.cta.title}
-					accent
-					className="ss-line ss-line--xl"
-				/>
+				<Line id="ss-cta-title" text={s.cta.title} accent size="xl" />
 				<p className="ss-text">{s.cta.copy}</p>
 				<a className="ss-button" href={s.repo}>
 					<Icon name="github-fill" />
@@ -437,7 +584,9 @@ export function Closing() {
 				<p className="ss-repo">{s.repoLabel}</p>
 			</section>
 			<footer className="ss-foot">
-				<p>{s.ui.madeBy}</p>
+				<p>
+					<Joined items={[s.name, ...s.meta]} />
+				</p>
 				<Link className="ss-foot-link" href="/" scroll={false}>
 					<Icon name="arrow-left-long-line" />
 					{s.ui.backToProjects}

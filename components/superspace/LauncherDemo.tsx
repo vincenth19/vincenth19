@@ -1,8 +1,8 @@
 'use client';
 
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import type { DemoIcon, DemoItem } from '@/content/superspace';
-import { MarkedText } from './MarkedText';
+import type { DemoItem } from '@/content/superspace';
+import { type PanelIcons, QueryLine, Rows } from './Panel';
 
 type Props = {
 	items: DemoItem[];
@@ -10,7 +10,7 @@ type Props = {
 	web: string;
 	labels: { pause: string; play: string; show: string; chips: string };
 	/** Rendered on the server, like the rest of the site's icons. */
-	icons: Record<DemoIcon | 'search' | 'enter' | 'play' | 'pause', ReactNode>;
+	icons: PanelIcons & { pause: ReactNode };
 };
 
 type Phase = 'typing' | 'shown' | 'leaving';
@@ -34,6 +34,7 @@ const LEAVE_MS = 420;
  */
 export function LauncherDemo({ items, web, labels, icons }: Props) {
 	const ref = useRef<HTMLDivElement>(null);
+	const chipsRef = useRef<HTMLUListElement>(null);
 	const [state, setState] = useState<State>({
 		i: 0,
 		typed: items[0].query.length,
@@ -100,6 +101,25 @@ export function LauncherDemo({ items, web, labels, icons }: Props) {
 		return () => window.clearTimeout(timer);
 	}, [running, state, items]);
 
+	// Where the chips do not fit one row (phones, tablets) the row scrolls
+	// sideways: keep the one on screen in view, by scrolling that row only
+	// (never the page).
+	useEffect(() => {
+		const row = chipsRef.current;
+		const chip = row?.children[state.i] as HTMLElement | undefined;
+		if (!row || !chip || row.scrollWidth <= row.clientWidth) return;
+		// the row is positioned, so a chip's offsetLeft is measured from it
+		const left = chip.offsetLeft;
+		const right = left + chip.offsetWidth;
+		if (left >= row.scrollLeft && right <= row.scrollLeft + row.clientWidth) {
+			return;
+		}
+		row.scrollTo({
+			left: Math.max(0, left - 24),
+			behavior: motion ? 'smooth' : 'auto',
+		});
+	}, [state.i, motion]);
+
 	function show(i: number) {
 		// empty the live region first, so pressing the same chip again is read again
 		setSaid('');
@@ -124,65 +144,26 @@ export function LauncherDemo({ items, web, labels, icons }: Props) {
 			{/* the slot keeps the panel's full height, so the page does not move */}
 			<div className="ss-slot">
 				<div className="ss-panel" data-phase={state.phase} aria-hidden="true">
-					<div className="ss-query">
-						{icons.search}
-						<span className="ss-q">
-							{item.query.slice(0, state.typed)}
-							<span className={typing ? 'ss-caret' : 'ss-caret is-idle'} />
-						</span>
-					</div>
+					<QueryLine icons={icons}>
+						{item.query.slice(0, state.typed)}
+						<span className={typing ? 'ss-caret' : 'ss-caret is-idle'} />
+					</QueryLine>
 					<div className="ss-results">
-						<ul className="ss-rows">
-							{item.rows.map((row, j) => (
-								<li
-									key={`${row.icon} ${row.meta.join()}`}
-									className={`ss-row ss-row--${row.icon}${j === 0 ? ' is-sel' : ''}`}
-								>
-									<span className="ss-tile">{icons[row.icon]}</span>
-									<span className="ss-row-text">
-										<span className="ss-head">
-											{row.moments ? (
-												row.moments.map((m) => (
-													<span key={m} className="ss-moment">
-														{icons.play}
-														{m}
-													</span>
-												))
-											) : (
-												<MarkedText parts={row.headline} />
-											)}
-										</span>
-										<span className="ss-meta">{row.meta.join(' · ')}</span>
-									</span>
-									{j === 0 && row.hint && (
-										<span className="ss-hint">
-											{icons.enter}
-											{row.hint}
-										</span>
-									)}
-								</li>
-							))}
-							<li className="ss-row ss-row--web">
-								<span className="ss-tile">{icons.web}</span>
-								<span className="ss-row-text">
-									<span className="ss-head">
-										{web} “{item.query}”
-									</span>
-								</span>
-							</li>
-						</ul>
+						<Rows item={item} icons={icons} web={web} />
 					</div>
 				</div>
 			</div>
 			{/* under the panel, so nothing that is not Super Space's sits inside it */}
 			<div className="ss-demo-controls">
-				<ul className="ss-chips" aria-label={labels.chips}>
+				<ul className="ss-chips" aria-label={labels.chips} ref={chipsRef}>
 					{items.map((it, i) => (
 						<li key={it.query}>
 							<button
 								type="button"
 								className="ss-chip"
-								aria-pressed={i === state.i}
+								// marks the search on screen; not a pressed state, which
+								// would change by itself as the demo moves on
+								aria-current={i === state.i || undefined}
 								onClick={() => show(i)}
 							>
 								<span className="sr-only">{labels.show} </span>
@@ -191,16 +172,17 @@ export function LauncherDemo({ items, web, labels, icons }: Props) {
 						</li>
 					))}
 				</ul>
-				{motion && (
-					<button
-						type="button"
-						className="ss-pause"
-						aria-label={paused ? labels.play : labels.pause}
-						onClick={togglePause}
-					>
-						{paused ? icons.play : icons.pause}
-					</button>
-				)}
+				{/* in the server HTML too, unseen until we know motion is welcome, so
+				    nothing below moves when the page hydrates; CSS removes it for
+				    reduced motion, where nothing moves and there is nothing to pause */}
+				<button
+					type="button"
+					className={motion ? 'ss-pause' : 'ss-pause is-waiting'}
+					aria-label={paused ? labels.play : labels.pause}
+					onClick={togglePause}
+				>
+					{paused ? icons.play : icons.pause}
+				</button>
 			</div>
 			<p className="sr-only" aria-live="polite">
 				{said}
