@@ -8,14 +8,9 @@
 import type { Answer } from './types';
 
 /** Exchange rates against the euro, with the day the ECB published them ("2026-10-20"). */
-/**
- * Euro rates: the ECB's of `date`, or, `approximate`, a stand-in for when the
- * ECB could not be reached, which the card names neither the ECB nor a day for.
- */
 export type Rates = {
 	date: string;
 	eur: Record<string, number>;
-	approximate?: boolean;
 };
 
 // ------------------------------------------------------------ numbers
@@ -997,11 +992,7 @@ function currency(a: Amount, to: string, rates?: Rates | null): Answer | null {
 		inputLabel: label(from),
 		output: `${shown} ${to}`,
 		outputLabel: label(to),
-		detail: `1 ${x} = ${num(one, 4)} ${y} · ${
-			rates.approximate
-				? 'approximate rate'
-				: `ECB rate of ${dayMonth(rates.date)}`
-		}`,
+		detail: `1 ${x} = ${num(one, 4)} ${y} · ECB rate of ${dayMonth(rates.date)}`,
 		copy: plain(shown),
 	};
 }

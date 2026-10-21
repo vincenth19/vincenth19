@@ -143,10 +143,8 @@ one does (2px, the field's height, steady while it moves); the web row's icon is
   this copy knows; gibberish and English words get the plain notice.
 - Currency uses the ECB's euro reference rates (`lib/ecbRates.ts`), fetched when the
   page is built and again once a day (the page revalidates daily); the card names the
-  day ("ECB rate of 20 Oct 2026"). A build that cannot reach the ECB uses the rates in
-  `lib/ecbFallback.ts`, which are approximate: their source is not on record and could
-  not be checked against the ECB, so the card then says "approximate rate" and names
-  neither the ECB nor a day (to replace them with a real day's file, see that file).
+  day ("ECB rate of 20 Oct 2026"). A build that cannot reach the ECB gets no rates, and
+  the card says it cannot convert instead of showing a number.
   A daily refresh that cannot reach the ECB fails on purpose, so Next.js keeps serving
   the page it has. To check the answers against the real crate, run the cases in
   omarchy-super-space's `crates/answers/tests/table.rs` through `answer()` with that

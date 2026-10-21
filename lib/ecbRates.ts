@@ -1,5 +1,4 @@
 import type { Rates } from '@/components/superspace/launcher/answers';
-import { ecbFallback } from './ecbFallback';
 
 /**
  * The euro reference rates the European Central Bank publishes each working
@@ -7,10 +6,9 @@ import { ecbFallback } from './ecbFallback';
  * computer; this page fetches them when it is built and again once a day
  * after that, and the answer card says whose rates and from which day.
  *
- * When the ECB cannot be reached: a build uses the approximate rates in
- * lib/ecbFallback.ts (the card says "approximate rate", naming neither the
- * ECB nor a day), and a daily refresh fails, so Next.js keeps serving the page
- * it has, with the last rates it got.
+ * When the ECB cannot be reached: a build gets no rates (the card says it
+ * cannot convert, instead of showing a number), and a daily refresh fails, so
+ * Next.js keeps serving the page it has, with the last rates it got.
  */
 const URL = 'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml';
 
@@ -40,17 +38,17 @@ async function fetchEcb(): Promise<Rates | null> {
 	}
 }
 
-export async function getEcbRates(): Promise<Rates> {
+export async function getEcbRates(): Promise<Rates | null> {
 	const rates = await fetchEcb();
 	if (rates) return rates;
-	// a build (or the dev server) has the snapshot; a daily refresh that cannot
+	// a build (or the dev server) goes without; a daily refresh that cannot
 	// reach the ECB fails, and the page it has, with the last rates, stays
 	const phase = process.env.NEXT_PHASE;
 	if (
 		phase === 'phase-production-build' ||
 		phase === 'phase-development-server'
 	) {
-		return ecbFallback;
+		return null;
 	}
 	throw new Error('The ECB’s reference rates could not be fetched');
 }

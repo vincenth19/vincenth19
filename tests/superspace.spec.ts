@@ -352,10 +352,6 @@ test.describe('Super Space product page', () => {
 			expect(text).toMatch(/\d[\d,]*\.\d\d USD/);
 			expect(text).toMatch(/ECB rate of \d{1,2} \w{3} \d{4}/);
 			await expect(launcher.locator('.ssl-hints')).toContainText('↵ copy');
-		} else if (text.includes('approximate rate')) {
-			// built where the ECB could not be reached: a number, said to be approximate, naming no one
-			expect(text).toMatch(/\d[\d,]*\.\d\d USD/);
-			expect(text).not.toContain('ECB');
 		} else {
 			// built without them (offline): it says so in words, and offers nothing to copy
 			expect(text).toContain('100,000 IDR');
