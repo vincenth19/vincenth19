@@ -5,6 +5,7 @@ import {
 	useCallback,
 	useEffect,
 	useId,
+	useLayoutEffect,
 	useRef,
 	useState,
 } from 'react';
@@ -102,7 +103,7 @@ export function Launcher({
 	const card = useRef<HTMLDivElement>(null);
 	const field = useRef<HTMLInputElement>(null);
 	const reopen = useRef<HTMLButtonElement>(null);
-	const opts = { rates };
+	const opts = { rates, pictures: thumbs };
 	const [query, setQuery] = useState(initial);
 	const [view, setView] = useState<ViewState>(() => ({
 		shown: initial ? search(initial, true, opts) : blank,
@@ -116,6 +117,9 @@ export function Launcher({
 	const [status, setStatus] = useState('');
 	const [width, setWidth] = useState<number | undefined>(undefined);
 	const [now, setNow] = useState<string>('');
+	/** The drawn caret: where it is in the field, and how often it moved (each move restarts its blink). */
+	const [caret, setCaret] = useState<{ x: number; n: number } | null>(null);
+	const pen = useRef<CanvasRenderingContext2D | null>(null);
 
 	// what the timers and key handlers read without waiting for a render
 	const live = useRef({
@@ -185,7 +189,7 @@ export function Launcher({
 				setStatus('');
 				return;
 			}
-			show(search(q, false, { rates }), true);
+			show(search(q, false, { rates, pictures: thumbs }), true);
 			l.typing = setTimeout(() => {
 				l.typing = 0;
 				if (l.last.q === q.trim()) {
@@ -195,12 +199,12 @@ export function Launcher({
 			}, CALM_MS);
 			l.final = setTimeout(() => {
 				l.final = 0;
-				l.last = search(q, true, { rates });
+				l.last = search(q, true, { rates, pictures: thumbs });
 				show(l.last, l.typing !== 0);
 				if (!l.typing) setStatus(statusOf(l.last, labels));
 			}, FINAL_MS);
 		},
-		[show, rates, labels],
+		[show, rates, thumbs, labels],
 	);
 
 	/**
@@ -272,7 +276,7 @@ export function Launcher({
 		setToast(null);
 		setClosed(false);
 		setQuery(request.q);
-		l.last = search(request.q, true, { rates });
+		l.last = search(request.q, true, { rates, pictures: thumbs });
 		setView((v) => ({ ...v, shown: l.last, sel: 0, hit: 0, mode: 'text' }));
 		setStatus(statusOf(l.last, labels));
 		// pressed with a mouse or a key, the search is there to change: the caret goes to its end
@@ -283,7 +287,7 @@ export function Launcher({
 			el.setSelectionRange(request.q.length, request.q.length);
 			l.caret = [request.q.length, request.q.length];
 		}
-	}, [request, rates, labels]);
+	}, [request, rates, thumbs, labels]);
 
 	// a row chosen with ↓/↑ scrolls into the list's view, the list only
 	useEffect(() => {
@@ -325,6 +329,40 @@ export function Launcher({
 		setToast((t) => ({ text, n: (t?.n ?? 0) + 1 }));
 	}
 
+	/**
+	 * Puts the drawn caret where the field's cursor is (the real launcher draws its
+	 * own: 2px, the field's height). None while text is selected or the field is
+	 * not focused.
+	 */
+	const placeCaret = useCallback(() => {
+		const el = field.current;
+		const a = el?.selectionStart;
+		if (!el || document.activeElement !== el || a == null) {
+			setCaret(null);
+			return;
+		}
+		if (a !== el.selectionEnd) {
+			setCaret(null);
+			return;
+		}
+		pen.current ??= document.createElement('canvas').getContext('2d');
+		const ctx = pen.current;
+		if (!ctx) return;
+		const cs = getComputedStyle(el);
+		ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+		const x = Math.min(
+			el.clientWidth - 2,
+			Math.max(0, ctx.measureText(el.value.slice(0, a)).width - el.scrollLeft),
+		);
+		setCaret((c) => (c && c.x === x ? c : { x, n: (c?.n ?? 0) + 1 }));
+	}, []);
+
+	// typing moves the cursor: the caret follows once the new text is in the field
+	// biome-ignore lint/correctness/useExhaustiveDependencies: runs when the text changes
+	useLayoutEffect(() => {
+		placeCaret();
+	}, [query, placeCaret]);
+
 	/** What Enter (or Ctrl+Enter) would do on the real machine, said plainly. */
 	function open(v: ViewState, index: number, pick: number, alt = false) {
 		const o = offsetOf(v);
@@ -363,13 +401,19 @@ export function Launcher({
 		return { ...v, sel, hit: sel === v.sel ? v.hit : 0, mode: 'rows' };
 	}
 
-	/** ←/→ walk the selected row's hits in drawn order; screen readers hear the part picked. */
+	/**
+	 * ←/→ walk the selected row's hits in drawn order; screen readers hear the
+	 * part picked. Past the last part → goes round to the first (and ← from the
+	 * first to the last): the best part is often the last in time order, as the
+	 * opening search's is, and a key that does nothing reads as broken. (The real
+	 * launcher stops at the ends.)
+	 */
 	function stepHit(v: ViewState, step: number): ViewState {
 		const row = currentOf(v);
 		const order = row?.order ?? [];
-		if (!row || !order.length) return v;
+		if (!row || order.length < 2) return v;
 		const at = order.indexOf(v.hit);
-		const hit = order[Math.max(0, Math.min(order.length - 1, at + step))];
+		const hit = order[(at + step + order.length) % order.length];
 		if (hit !== v.hit) setStatus(partLabel(row, hit));
 		return { ...v, hit };
 	}
@@ -413,8 +457,19 @@ export function Launcher({
 			// listed already, it moves on through the page, so it never keeps the keyboard
 			if (v.mode === 'sections') return;
 			const s = settle();
-			if (!partsOf(currentOf(s))) return;
+			const row = currentOf(s);
+			const parts = partsOf(row);
+			if (!row || !parts) return;
 			next = { ...s, mode: 'sections' };
+			// the list shows; screen readers hear it, and that Tab again moves on
+			setStatus(
+				labels.listed
+					.replace('{parts}', parts[0].toUpperCase() + parts.slice(1))
+					.replace(
+						'{list}',
+						row.order.map((h) => partLabel(row, h)).join('; '),
+					),
+			);
 		} else if (e.key === 'Tab' && e.shiftKey && v.mode === 'sections') {
 			next = { ...v, mode: 'text' };
 		} else if (ctrl && /^[1-9]$/.test(e.key)) {
@@ -471,66 +526,80 @@ export function Launcher({
 							<label className="sr-only" htmlFor={`${base}-q`}>
 								{labels.field}
 							</label>
-							<input
-								ref={field}
-								id={`${base}-q`}
-								className="ssl-q"
-								type="text"
-								role="combobox"
-								aria-expanded={expanded}
-								aria-controls={ids.list}
-								aria-autocomplete="list"
-								aria-activedescendant={active}
-								aria-describedby={`${base}-keys`}
-								autoComplete="off"
-								autoCorrect="off"
-								autoCapitalize="none"
-								spellCheck={false}
-								enterKeyHint="search"
-								placeholder={labels.placeholder}
-								value={query}
-								onChange={(e) => {
-									setQuery(e.target.value);
-									onQuery?.(e.target.value);
-									setView((v) => ({ ...v, mode: 'text' }));
-									run(e.target.value);
-								}}
-								onSelect={(e) => {
-									// moving the cursor (a click, Shift+arrows) gives ←/→ back to it
-									const el = e.currentTarget;
-									const at: [number, number] = [
-										el.selectionStart ?? 0,
-										el.selectionEnd ?? 0,
-									];
-									const [a, b] = live.current.caret;
-									if (at[0] === a && at[1] === b) return;
-									live.current.caret = at;
-									setView((v) =>
-										v.mode === 'rows' ? { ...v, mode: 'text' } : v,
-									);
-								}}
-								onBlur={() => {
-									// leaving the field leaves the rows as they were before ↓/↑, and Tab's list closed
-									setView((v) =>
-										v.mode === 'text' ? v : { ...v, mode: 'text' },
-									);
-								}}
-								onFocus={(e) => {
-									// the first time in, the example query is selected, so typing replaces it
-									if (!live.current.selected) {
-										live.current.selected = true;
-										live.current.focusing = true;
-										live.current.caret = [0, e.currentTarget.value.length];
-										e.currentTarget.select();
-									}
-								}}
-								onMouseUp={(e) => {
-									// …and the click that focused it does not put the caret back in it
-									if (live.current.focusing) e.preventDefault();
-									live.current.focusing = false;
-								}}
-								onKeyDown={onKeyDown}
-							/>
+							<span className="ssl-qbox">
+								<input
+									ref={field}
+									id={`${base}-q`}
+									className="ssl-q"
+									type="text"
+									role="combobox"
+									aria-expanded={expanded}
+									aria-controls={ids.list}
+									aria-autocomplete="list"
+									aria-activedescendant={active}
+									aria-describedby={`${base}-keys`}
+									autoComplete="off"
+									autoCorrect="off"
+									autoCapitalize="none"
+									spellCheck={false}
+									enterKeyHint="search"
+									placeholder={labels.placeholder}
+									value={query}
+									onChange={(e) => {
+										setQuery(e.target.value);
+										onQuery?.(e.target.value);
+										setView((v) => ({ ...v, mode: 'text' }));
+										run(e.target.value);
+									}}
+									onScroll={placeCaret}
+									onSelect={(e) => {
+										placeCaret();
+										// moving the cursor (a click, Shift+arrows) gives ←/→ back to it
+										const el = e.currentTarget;
+										const at: [number, number] = [
+											el.selectionStart ?? 0,
+											el.selectionEnd ?? 0,
+										];
+										const [a, b] = live.current.caret;
+										if (at[0] === a && at[1] === b) return;
+										live.current.caret = at;
+										setView((v) =>
+											v.mode === 'rows' ? { ...v, mode: 'text' } : v,
+										);
+									}}
+									onBlur={() => {
+										setCaret(null);
+										// leaving the field leaves the rows as they were before ↓/↑, and Tab's list closed
+										setView((v) =>
+											v.mode === 'text' ? v : { ...v, mode: 'text' },
+										);
+									}}
+									onFocus={(e) => {
+										// the first time in, the example query is selected, so typing replaces it
+										if (!live.current.selected) {
+											live.current.selected = true;
+											live.current.focusing = true;
+											live.current.caret = [0, e.currentTarget.value.length];
+											e.currentTarget.select();
+										}
+										placeCaret();
+									}}
+									onMouseUp={(e) => {
+										// …and the click that focused it does not put the caret back in it
+										if (live.current.focusing) e.preventDefault();
+										live.current.focusing = false;
+									}}
+									onKeyDown={onKeyDown}
+								/>
+								{caret && view.mode === 'text' && (
+									<span
+										key={caret.n}
+										className="ssl-caret"
+										style={{ transform: `translateX(${caret.x}px)` }}
+										aria-hidden="true"
+									/>
+								)}
+							</span>
 							<span id={`${base}-keys`} className="sr-only">
 								{labels.keys}
 							</span>
@@ -572,18 +641,33 @@ function message(
 	q: string,
 ): string {
 	const name = row.title;
+	// Ctrl+Enter, as the daemon's `alternative`: a file shows in its folder; for
+	// anything else, what the row points at is copied
 	if (alt) {
-		if (
-			row.kind === 'file' ||
-			row.kind === 'folder' ||
-			row.kind === 'image' ||
-			row.kind === 'video' ||
-			row.kind === 'audio'
-		) {
-			const folder = row.where.slice(0, row.where.lastIndexOf('/')) || '~';
-			return `Would show ${row.where.slice(row.where.lastIndexOf('/') + 1)} in ${folder}`;
+		switch (row.kind) {
+			case 'file':
+			case 'folder':
+			case 'image':
+			case 'video':
+			case 'audio': {
+				const folder = row.where.slice(0, row.where.lastIndexOf('/')) || '~';
+				return `Would show ${row.where.slice(row.where.lastIndexOf('/') + 1)} in ${folder}`;
+			}
+			case 'web':
+				return `Would copy https://duckduckgo.com/?q=${encodeURIComponent(q)}`;
+			case 'app':
+				return `Would copy ${row.key.slice(4)}, ${name}’s app id`;
+			case 'setting':
+				return `Would copy the command that opens ${name}`;
+			case 'emoji':
+				return `Would copy ${row.emoji}`;
+			case 'clip':
+				return `Would copy “${name.length > 48 ? `${name.slice(0, 47)}…` : name}”`;
+			case 'history':
+				return `Would copy ${row.where}`;
+			default:
+				return `Would copy ${row.where}`;
 		}
-		return `Would copy ${row.where}`;
 	}
 	const l = hit?.loc;
 	const at = l

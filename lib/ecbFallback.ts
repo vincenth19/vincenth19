@@ -1,13 +1,16 @@
 import type { Rates } from '@/components/superspace/launcher/answers';
 
 /**
- * The ECB's euro reference rates of 20 October 2026, as published in its
- * daily file (eurofxref-daily.xml), for the launcher's currency answers when
- * the page is built where the ECB cannot be reached. The answer card names
- * the day, so a converted amount always says how old its rate is. Refresh it
- * now and then: paste a newer day's file into `parseEcb` (lib/ecbRates.ts).
+ * Approximate euro rates, for the launcher's currency answers when the page is
+ * built where the ECB cannot be reached. Their source is not on record and
+ * could not be checked against the ECB's files (the machine that wrote them
+ * could not reach ecb.europa.eu), so they are marked `approximate`: the answer
+ * card then says "approximate rate" and names neither the ECB nor a day. To
+ * replace them with a real day's rates, paste that day's eurofxref-daily.xml
+ * into `parseEcb` (lib/ecbRates.ts), note its URL here, and drop `approximate`.
  */
 export const ecbFallback: Rates = {
+	approximate: true,
 	date: '2026-10-20',
 	eur: {
 		USD: 1.1215,

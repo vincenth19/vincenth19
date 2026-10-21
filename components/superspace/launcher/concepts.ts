@@ -41,6 +41,7 @@ const BASE: string[][] = [
 	['boil', 'boiling', 'boil over'],
 	['cook', 'cooking', 'bake', 'baking', 'masak', 'memasak'],
 	// food and drink
+	['food', 'meal', 'meals', 'eat', 'eating', 'dish', 'makan', 'makanan'],
 	['pizza', 'margherita'],
 	['pasta', 'spaghetti', 'noodles', 'noodle', 'lasagna', 'macaroni', 'mie'],
 	['sushi', 'nigiri'],
@@ -120,6 +121,7 @@ const BASE: string[][] = [
 		'rental agreement',
 		'tenant',
 		'lessor',
+		'landlord',
 		'rental',
 		'sewa',
 	],
@@ -166,6 +168,7 @@ const BASE: string[][] = [
 		'universitas',
 	],
 	['job', 'role', 'position', 'application', 'apply'],
+	['job application', 'cover letter', 'applying for'],
 	// work
 	['meetup', 'meet up', 'event'],
 	['venue', 'precinct', 'room', 'hall', 'tempat'],
@@ -398,7 +401,12 @@ const WORLD: Record<string, string> = {
  * A phrase that means its word outright, not just something like it: "tax
  * return" is the tax notes, so its word matches as fully as the phrase.
  */
-export const SAME: [string, string][] = [['tax return', 'tax']];
+export const SAME: [string, string][] = [
+	['tax return', 'tax'],
+	['security deposit', 'bond'],
+	['rental deposit', 'bond'],
+	['job application', 'cover letter'],
+];
 
 /**
  * Words that say how a thing looks or what you think of it, not what it is

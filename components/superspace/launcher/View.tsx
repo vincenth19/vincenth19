@@ -614,15 +614,49 @@ function AnswerCard({
 	);
 }
 
+/** A plural word as one: "feet" → "foot", "inches" → "inch", "dollars" → "dollar"; "yen" stays. */
+function singularWord(w: string): string {
+	const lower = w.toLowerCase();
+	if (lower === 'feet') return w.replace(/eet$/i, 'oot');
+	if (/(ch|sh|x|ss)es$/i.test(w)) return w.slice(0, -2);
+	if (/ies$/i.test(w)) return `${w.slice(0, -3)}y`;
+	if (/[^s]s$/i.test(w)) return w.slice(0, -1);
+	return w;
+}
+
+/**
+ * A unit's or currency's name for `n` of it: "5 kilometres", "1 acre", "1 US
+ * dollar", "21 degrees Celsius", "1 kilometre per hour".
+ */
+function unitName(n: string, label: string, currency: boolean): string {
+	const one = /^[-−]?1$/.test(n);
+	if (/^(Celsius|Fahrenheit)$/.test(label))
+		return `${one ? 'degree' : 'degrees'} ${label}`;
+	// a unit is said in lower case ("Kilometres"), but not its proper names ("US cups")
+	const l = currency
+		? label
+		: label.replace(/^[A-Z](?=[a-z])/, (c) => c.toLowerCase());
+	if (!one) return l;
+	const [head, per] = l.split(/ (?=per )/);
+	const words = head.split(' ');
+	words[words.length - 1] = singularWord(words[words.length - 1]);
+	return [words.join(' '), per].filter(Boolean).join(' ');
+}
+
 /** An answer, as it is said: "3:00 PM Sydney, AEDT is 11:00 AM Jakarta, WIB". */
 export function answerLabel(a: Answer): string {
 	// a unit or a currency is said by its name: "5 kilometres", not "5 km Kilometres"
 	const named = a.kind === 'units' || a.kind === 'currency';
 	const side = (v: string, label: string) => {
 		if (!label) return v;
-		const m = named ? /^([-−]?[\d.,]+)\s*([^\d\s]+)$/.exec(v) : null;
-		if (!m || /^[-−]?1$/.test(m[1])) return `${v} ${label}`;
-		return `${m[1]} ${a.kind === 'units' ? label.toLowerCase() : label}`;
+		// feet and inches together: "5 feet 11 inches"
+		const fi = /^([-−]?[\d.,]+) ft ([\d.,]+) in$/.exec(v);
+		if (named && fi) {
+			return `${fi[1]} ${unitName(fi[1], 'Feet', false)} ${fi[2]} ${unitName(fi[2], 'Inches', false)}`;
+		}
+		const m = named ? /^([-−]?[\d.,]+)\s*([^\d\s].*)$/.exec(v) : null;
+		if (!m) return `${v} ${label}`;
+		return `${m[1]} ${unitName(m[1], label, a.kind === 'currency')}`;
 	};
 	return `${side(a.input, a.inputLabel)} is ${side(a.output, a.outputLabel)}${a.detail ? `. ${a.detail}` : ''}`;
 }

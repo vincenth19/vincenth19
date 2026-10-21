@@ -130,23 +130,26 @@ export function Demo({ film, rates }: { film?: Film; rates?: Rates | null }) {
 					rates={rates}
 				/>
 			</LauncherIsland>
-			{/* the pictures' licences ask for their credit: each one the launcher shows */}
+			{/* the pictures' licences ask for their credit: each one the launcher shows, folded */}
 			{credited.length > 0 && (
-				<p className="ssl-credits">
-					{d.credit.lead}{' '}
-					{credited.map((p, i) => (
-						<span key={p.scene}>
-							{i > 0 && '; '}
-							<a href={p.source}>{p.title}</a> {d.credit.by} {p.author},{' '}
-							{d.licences[p.licence] ? (
-								<a href={d.licences[p.licence]}>{p.licence}</a>
-							) : (
-								p.licence
-							)}
-							{p.at !== undefined && ` ${d.credit.frame}`}
-						</span>
-					))}
-				</p>
+				<details className="ssl-credits">
+					<summary>{d.credit.summary}</summary>
+					<p>
+						{d.credit.lead}{' '}
+						{credited.map((p, i) => (
+							<span key={p.scene}>
+								{i > 0 && '; '}
+								<a href={p.source}>{p.title}</a> {d.credit.by} {p.author},{' '}
+								{d.licences[p.licence] ? (
+									<a href={d.licences[p.licence]}>{p.licence}</a>
+								) : (
+									p.licence
+								)}
+								{p.at !== undefined && ` ${d.credit.frame}`}
+							</span>
+						))}
+					</p>
+				</details>
 			)}
 			{film && (
 				<figure className="ss-film">

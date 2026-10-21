@@ -10,7 +10,16 @@
 import { answerWord, answer as quickAnswer, type Rates } from './answers';
 import { GROUPS, MODIFIERS, SAME } from './concepts';
 import { items } from './corpus';
-import type { Answer, Hit, Item, Kind, Part, Response, Row } from './types';
+import type {
+	Answer,
+	Hit,
+	Item,
+	Kind,
+	Part,
+	Response,
+	Row,
+	Scene,
+} from './types';
 
 // ------------------------------------------------------------ words
 
@@ -21,7 +30,9 @@ const STOP = new Set(
 		'where when how why do does did done much many and or but if then so can could should would ' +
 		'will shall may might any some all get got have has had need needs want show find look ' +
 		'please one just really very go going went take takes taking took di ke dari yang untuk saat dan atau ini itu dengan pada hari ' +
-		'saya aku kami ' +
+		'saya aku kami apa berapa kapan mana dimana bagaimana siapa ' +
+		// "something to eat": what is asked for is the eating
+		'something anything up ' +
 		// "what did I say about rent": saying is how it was kept, not what it is about
 		'say says said saying tell tells told telling mention mentions mentioned bilang'
 	).split(' '),
@@ -109,9 +120,13 @@ export function stem(word: string): string {
 const CJK =
 	/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
 
-/** Lowercase, and accents off Latin letters, so "café" is "cafe" and "Hund" is "hund". */
+/**
+ * Lowercase, full-width letters as plain ones (NFKC), and accents off Latin
+ * letters, so "café" is "cafe", "Ｄｏｇ" is "dog" and "Hund" is "hund".
+ */
 function fold(text: string): string {
 	return text
+		.normalize('NFKC')
 		.toLowerCase()
 		.normalize('NFD')
 		.replace(/[\u0300-\u036f]/g, '')
@@ -163,11 +178,46 @@ const KIND_CONTEXT: Partial<Record<Kind, string>> = {
 	image: 'photo picture',
 	video: 'video',
 	audio: 'audio',
-	app: 'app application',
+	// not "application": that is a job application as often as an app
+	app: 'app',
 	setting: 'setting',
 	clip: 'clipboard copied',
 	history: 'history browser website visited',
 };
+
+/**
+ * The demo's photos and video frames this copy has pictures of (null: all of
+ * them). A photo it has no picture of is left out of the demo home, and so is
+ * a video's moment without its frame, so a search never finds a blank tile.
+ */
+let pictured: { key: string; has: (scene: Scene) => boolean } = {
+	key: '*',
+	has: () => true,
+};
+
+/** Sets the pictures this copy has; the index is built again when they change. */
+function setPictures(
+	pictures: Partial<Record<Scene, string>> | null | undefined,
+) {
+	const key = pictures ? Object.keys(pictures).sort().join(',') : '*';
+	if (key === pictured.key) return;
+	pictured = {
+		key,
+		has: pictures ? (scene) => Boolean(pictures[scene]) : () => true,
+	};
+	built = null;
+	home = null;
+}
+
+let home: Item[] | null = null;
+
+/** The demo home: every item, less the photos this copy has no picture of. */
+function homeItems(): Item[] {
+	home ??= items.filter(
+		(item) => item.kind !== 'image' || !item.scene || pictured.has(item.scene),
+	);
+	return home;
+}
 
 let built: {
 	parts: Indexed[];
@@ -193,7 +243,7 @@ function folderWords(item: Item) {
 function index() {
 	if (built) return built;
 	const parts: Indexed[] = [];
-	for (const item of items) {
+	for (const item of homeItems()) {
 		if (item.kind === 'emoji' || item.kind === 'folder') continue; // found by name only
 		const ctx = padded(
 			stems(
@@ -206,6 +256,8 @@ function index() {
 			),
 		);
 		item.parts.forEach((part, n) => {
+			// a video's moment this copy has no frame of is not found (it keeps its place in the file)
+			if (part.thumb && !pictured.has(part.thumb)) return;
 			const own = stems(`${part.sense ?? ''} ${part.text}`);
 			parts.push({ item, part, n, text: padded(own), len: own.length, ctx });
 		});
@@ -256,7 +308,7 @@ function index() {
 				spelled.set(w, stem(w));
 		}
 	};
-	for (const item of items) {
+	for (const item of homeItems()) {
 		if (item.kind === 'emoji' || item.kind === 'folder') continue;
 		spell(`${item.title.replace(/[-_.]/g, ' ')} ${item.about ?? ''}`);
 		for (const part of item.parts) spell(`${part.sense ?? ''} ${part.text}`);
@@ -279,11 +331,83 @@ function index() {
 
 // ------------------------------------------------------------ type words
 
+/** File extensions as scope words: "lease pdf" asks for PDFs only. */
+const EXTENSIONS = new Set([
+	'pdf',
+	'docx',
+	'xlsx',
+	'pptx',
+	'odt',
+	'ods',
+	'odp',
+	'txt',
+	'md',
+	'epub',
+	'html',
+]);
+
+/**
+ * Words that are kinds alone ("notes" lists the text files) but, next to
+ * other words, what the search is about: "rust notes", "job application".
+ */
+const CONTENT_KIND = new Set(['note', 'notes', 'application', 'applications']);
+
+/** What a search's scope words ask for: kinds, files by extension, audio as songs or recordings. */
+export type Scope = {
+	kinds: Kind[];
+	/** File extensions, when the scope words named some ("pdf"); empty for every text file. */
+	ext: string[];
+	/** "songs" asks for songs, "voice memos" for recordings, "audio" for both. */
+	audio: 'song' | 'memo' | null;
+};
+
+/** Whether an item is in what the scope words ask for. */
+function inScope(item: Item, scope: Scope | null): boolean {
+	if (!scope) return true;
+	if (!scope.kinds.includes(item.kind)) return false;
+	if (
+		item.kind === 'file' &&
+		scope.ext.length &&
+		!scope.ext.some((e) => item.key.endsWith(`.${e}`))
+	)
+		return false;
+	if (item.kind === 'audio' && scope.audio) {
+		const song = item.subtitle.startsWith('Song ·');
+		if (song !== (scope.audio === 'song')) return false;
+	}
+	return true;
+}
+
+/** The scope the type words of a query ask for. */
+function scopeOf(typed: string[]): Scope {
+	const kinds: Kind[] = [];
+	for (const t of typed) {
+		const k = kindWord(t);
+		if (k && !kinds.includes(k)) kinds.push(k);
+	}
+	const ext = typed.filter((t) => EXTENSIONS.has(t.replace(/s$/, '')));
+	const bare = (t: string) => t.replace(/s$/, '');
+	const songs = typed.some((t) => ['song', 'music', 'track'].includes(bare(t)));
+	const memos = typed.some((t) => ['memo', 'recording'].includes(bare(t)));
+	const all = typed.some((t) => ['audio', 'podcast'].includes(bare(t)));
+	return {
+		kinds,
+		ext:
+			kinds.includes('file') &&
+			typed.every((t) => kindWord(t) !== 'file' || EXTENSIONS.has(bare(t)))
+				? ext.map(bare)
+				: [],
+		audio: all || songs === memos ? null : songs ? 'song' : 'memo',
+	};
+}
+
 /**
  * The kind a type word asks for ("videos", "pdf", "songs"), as the daemon
- * reads it (crates/superspace/src/search.rs, `kind_word`).
+ * reads it (crates/superspace/src/search.rs, `kind_word`), with every file
+ * extension the demo has.
  */
 function kindWord(w: string): Kind | null {
+	if (EXTENSIONS.has(w.replace(/s$/, ''))) return 'file';
 	switch (w.endsWith('s') ? w.slice(0, -1) : w) {
 		case 'video':
 		case 'movie':
@@ -308,7 +432,6 @@ function kindWord(w: string): Kind | null {
 		case 'doc':
 		case 'document':
 		case 'file':
-		case 'pdf':
 		case 'note':
 			return 'file';
 		case 'folder':
@@ -335,19 +458,18 @@ function kindWord(w: string): Kind | null {
 /**
  * Type words at the end of the query ("golden retriever video"), or leading
  * when plural ("apps firefox") or before "of", "about", … ("songs about a
- * breakup"): the rest of the query, the kinds asked for, and whether the files
- * asked for are PDFs. A port of the daemon's `type_words`.
+ * breakup"): the rest of the query and the scope asked for. A port of the
+ * daemon's `type_words`; "notes" and "application" are what such a search is
+ * about here ("rust notes", "job application"), not kinds.
  */
-export function typeWords(
-	q: string,
-): { rest: string; kinds: Kind[]; pdf: boolean } | null {
+export function typeWords(q: string): (Scope & { rest: string }) | null {
 	const w = q
 		.toLowerCase()
 		.replace(/[,&]/g, ' , ')
 		.split(/\s+/)
 		.filter((t) => t && t !== 'only');
 	const typeword = (i: number) =>
-		kindWord(w[i]) !== null ||
+		(kindWord(w[i]) !== null && !CONTENT_KIND.has(w[i])) ||
 		['and', 'or', ','].includes(w[i]) ||
 		(w[i] === 'voice' && w[i + 1]?.replace(/s$/, '') === 'memo');
 	let end = w.length;
@@ -366,7 +488,9 @@ export function typeWords(
 		plural < start &&
 		(kindWord(w[plural]) === null ||
 			w[plural].endsWith('s') ||
-			['emoji', 'clipboard', 'folder', 'dir', 'directory'].includes(w[plural]))
+			['emoji', 'clipboard', 'history', 'folder', 'dir', 'directory'].includes(
+				w[plural],
+			))
 	)
 		plural++;
 	if (named) start = 1;
@@ -378,16 +502,9 @@ export function typeWords(
 	)
 		start = plural;
 	const typed = [...w.slice(0, start), ...w.slice(end)];
-	const kinds: Kind[] = [];
-	for (const t of typed) {
-		const k = kindWord(t);
-		if (k && !kinds.includes(k)) kinds.push(k);
-	}
-	const pdf =
-		kinds.includes('file') &&
-		typed.every((t) => kindWord(t) !== 'file' || t.startsWith('pdf'));
-	return kinds.length && start < end
-		? { rest: w.slice(start, end).join(' '), kinds, pdf }
+	const scope = scopeOf(typed);
+	return scope.kinds.length && start < end
+		? { ...scope, rest: w.slice(start, end).join(' ') }
 		: null;
 }
 
@@ -438,9 +555,17 @@ function oneEdit(a: string, b: string): boolean {
 	);
 }
 
-/** Two words that differ only by neighbours swapped ("dgo", "dog"). */
+/** Two words that differ only by two neighbours swapped ("dgo", "dog"; not "usd", "use"). */
 function swapped(a: string, b: string): boolean {
-	return a.length === b.length && a !== b && oneEdit(a, b) && a[0] === b[0];
+	if (a.length !== b.length || a === b || a[0] !== b[0]) return false;
+	const i = [...a].findIndex((c, k) => c !== b[k]);
+	return (
+		i >= 0 &&
+		i + 1 < a.length &&
+		a[i] === b[i + 1] &&
+		a[i + 1] === b[i] &&
+		a.slice(i + 2) === b.slice(i + 2)
+	);
 }
 
 /** How a title written with a typo scores: below its name, above a near miss. */
@@ -468,31 +593,34 @@ function typo(qw: string[], title: string): boolean {
 
 /**
  * How well the query names the item: the whole name (1), the start of it, every
- * word the start of a word of it, or its title with a typo. 0 when it does not.
+ * word a word of it (0.9) or the start of one (0.85), or its title with a
+ * typo. 0 when it does not. An emoji's names are short words of their own: a
+ * word under four letters names one only whole (".git" is not "gitar"), and
+ * never as a typo ("folder" is not "folded", "dessert" not "desert").
  */
 function nameScore(q: string, item: Item): number {
 	const qn = norm(q);
 	if (!qn) return 0;
-	const qw = qn.split(' ');
+	const qw = [...new Set(qn.split(' '))];
+	const emoji = item.kind === 'emoji';
+	const prefix = (w: string, x: string, first: boolean) =>
+		x.startsWith(w) && (emoji ? w.length >= 4 : w.length > 1 || first);
 	let best = 0;
 	for (const name of [item.title, ...item.names]) {
 		const n = norm(name);
 		if (!n) continue;
 		if (n === qn) return 1;
-		if (n.startsWith(qn)) {
+		if (n.startsWith(qn) && (!emoji || qn.length >= 4)) {
 			best = Math.max(best, 0.92);
 			continue;
 		}
 		const nw = n.split(' ');
-		if (
-			qw.every((w) =>
-				nw.some((x) => x.startsWith(w) && (w.length > 1 || x === nw[0])),
-			)
-		) {
+		if (qw.every((w) => nw.includes(w))) best = Math.max(best, 0.9);
+		else if (qw.every((w) => nw.some((x) => prefix(w, x, x === nw[0])))) {
 			best = Math.max(best, 0.85);
 		}
 	}
-	if (best < TYPO && typo(qw, item.title)) best = TYPO;
+	if (!emoji && best < TYPO && typo(qw, item.title)) best = TYPO;
 	return best;
 }
 
@@ -510,8 +638,9 @@ type Term = {
 
 /**
  * A word this copy does not know, read as the word it is one typo from:
- * one insertion, deletion, change or swap, from the same first letter (for a
- * word of three letters, only a swap: "dgo" is "dog"). Short words are often
+ * one insertion, deletion, change or swap, from the same first letter (a short
+ * word never as a change: "dgo" is "dog" and "lese" is "lease", but "node" is
+ * not "note"). Short words are often
  * other real words one letter apart ("pasta" is not "paste"), so a word under
  * six letters is read only as one of the groups' words; the groups' words come
  * first, then the words the demo files use most. Its stem, or null.
@@ -523,7 +652,16 @@ function correct(w: string): string | null {
 	let score = -1;
 	for (const [v, st] of spelled) {
 		if (v[0] !== w[0] || Math.abs(v.length - w.length) > 1) continue;
-		if (w.length === 3 ? !swapped(w, v) : !oneEdit(w, v)) continue;
+		// a short word is often another real word one letter changed ("node" is not
+		// "note", "usd" not "use"): a word of three letters is read only as a swap,
+		// one of four as a swap or a letter left out or doubled ("lese" is "lease")
+		const fits =
+			w.length === 3
+				? swapped(w, v)
+				: w.length === 4
+					? swapped(w, v) || (v.length !== w.length && oneEdit(w, v))
+					: oneEdit(w, v);
+		if (!fits) continue;
 		if (w.length < 6 && !member.has(st)) continue;
 		const s = (member.has(st) ? 1e6 : 0) + (vocab.get(st) ?? 0);
 		if (s > score) {
@@ -565,21 +703,47 @@ function terms(q: string): { list: Term[]; unknown: number } {
 	const { groups, member, phrases, parts, vocab } = index();
 	const same = SAME.map(([p, w]) => [stems(p).join(' '), stems(w).join(' ')]);
 	let unknown = 0;
-	// letters past ASCII as typed (before accents are folded off): "épave", "Hündchen", "собака"
-	const foreign = /\p{L}/u.test(q.replace(/\p{ASCII}/gu, ''));
+	// letters past ASCII once full-width ones are plain (NFKC): "Hündchen" and
+	// "собака" may be a language this copy has not the words of, "ｄｏｇ" is not;
+	// it only counts for a word that is not found once its accents are off
+	// ("résumé" is found)
+	const foreign = /\p{L}/u.test(q.normalize('NFKC').replace(/\p{ASCII}/gu, ''));
+	const known = (w: string) => {
+		const s = stem(w);
+		if (vocab.has(s) || member.has(s) || MODIFIER.has(s)) return s;
+		const fix = correct(w);
+		if (fix) return fix;
+		if (foreign && /\p{L}/u.test(w)) unknown++;
+		return s;
+	};
 	// small numbers ("2+2*3", "3pm") are in every document: they are not what a search is about
-	const ws = words(q)
+	const raw = words(q)
 		.flatMap((w) => (CJK.test(w) ? segment(w) : [w]))
-		.filter((w) => KEEP.has(w) || !STOP.has(w))
-		.filter((w) => (w.length > 1 || CJK.test(w)) && !/^\d{1,2}$/.test(w))
-		.map((w) => {
-			const s = stem(w);
-			if (vocab.has(s) || member.has(s) || MODIFIER.has(s)) return s;
-			const fix = correct(w);
-			if (fix) return fix;
-			if (foreign && /\p{L}/u.test(w)) unknown++;
-			return s;
-		});
+		.filter((w) => (w.length > 1 || CJK.test(w)) && !/^\d{1,2}$/.test(w));
+	const small = (w: string) => STOP.has(w) && !KEEP.has(w);
+	const ws: string[] = [];
+	for (let i = 0; i < raw.length; ) {
+		// a group's phrase with a small word in it ("pick up", "set up", "in
+		// total") keeps it; anywhere else a small word ("up", "to", "of") goes
+		let len = Math.min(3, raw.length - i);
+		while (
+			len > 1 &&
+			!phrases.has(
+				raw
+					.slice(i, i + len)
+					.map(stem)
+					.join(' '),
+			)
+		)
+			len--;
+		if (len > 1 && raw.slice(i, i + len).some(small)) {
+			ws.push(...raw.slice(i, i + len).map(stem));
+			i += len;
+			continue;
+		}
+		const w = raw[i++];
+		if (!small(w)) ws.push(known(w));
+	}
 	const out: Term[] = [];
 	for (let i = 0; i < ws.length; ) {
 		let len = Math.min(3, ws.length - i);
@@ -888,7 +1052,7 @@ function emojiNames(q: string): string {
  * A query of kind words only, one of them plural ("photos", "settings",
  * "voice memos"), or "emoji", "clipboard", "history": the kinds it lists.
  */
-function kindsOnly(q: string): { kinds: Kind[]; pdf: boolean } | null {
+function kindsOnly(q: string): Scope | null {
 	const w = q
 		.toLowerCase()
 		.replace(/[,&]/g, ' ')
@@ -901,11 +1065,7 @@ function kindsOnly(q: string): { kinds: Kind[]; pdf: boolean } | null {
 		(t) => t.endsWith('s') || ['emoji', 'clipboard', 'history'].includes(t),
 	);
 	if (!listed) return null;
-	const kinds = [...new Set(w.map((t) => kindWord(t) as Kind))];
-	return {
-		kinds,
-		pdf: w.every((t) => kindWord(t) !== 'file' || /^pdf/.test(t)),
-	};
+	return scopeOf(w);
 }
 
 /**
@@ -915,8 +1075,18 @@ function kindsOnly(q: string): { kinds: Kind[]; pdf: boolean } | null {
 export function search(
 	query: string,
 	final: boolean,
-	{ now = Date.now(), rates }: { now?: number; rates?: Rates | null } = {},
+	{
+		now = Date.now(),
+		rates,
+		pictures,
+	}: {
+		now?: number;
+		rates?: Rates | null;
+		/** The photos and video frames this copy has pictures of; the rest are left out. */
+		pictures?: Partial<Record<Scene, string>> | null;
+	} = {},
 ): Response {
+	setPictures(pictures);
 	const q = query.trim();
 	if (!q) {
 		return {
@@ -930,7 +1100,7 @@ export function search(
 	}
 	const ans = quickAnswer(q, now, undefined, rates);
 	// under an answer, only what the sum or the conversion does not say is searched for
-	const asked = emojiNames(ans ? residue(q, ans.kind) : q);
+	const asked = emojiNames(ans ? residue(q, ans) : q);
 	const typed = asked ? typeWords(asked) : null;
 	const lone = ans || typed ? null : kindsOnly(asked);
 	let res: ReturnType<typeof run>;
@@ -938,13 +1108,13 @@ export function search(
 		res = { rows: [], filter: null, unknown: 0 };
 	} else if (lone) {
 		// "photos" lists the photos, unless it names something ("files" is an app)
-		res = run(asked, final, null);
+		res = run(asked, final, null, q);
 		if (!res.rows.some((r) => r.score >= 0.85 && r.named)) res = listed(lone);
 	} else {
-		res = run(typed ? typed.rest : asked, final, typed);
+		res = run(typed ? typed.rest : asked, final, typed, q);
 		// a filter that would leave nothing while an app or setting is named falls back to none
 		if (typed && !res.rows.length) {
-			const all = run(asked, final, null);
+			const all = run(asked, final, null, q);
 			if (
 				all.rows.some(
 					(r) => (r.kind === 'app' || r.kind === 'setting') && r.named,
@@ -972,28 +1142,28 @@ export function search(
 
 /**
  * The query without what a quick answer reads: numbers, operators, units,
- * currencies and the words that join them ("12 times 12", "100 c to f"). A
- * currency answer keeps amounts of four figures or more: "$2,400" is also
- * the lease's bond.
+ * currencies and the words that join them ("12 times 12", "100 c to f",
+ * "1 fl oz to ml": the answer's own words too). A currency answer keeps
+ * amounts of four figures or more: "$2,400" is also the lease's bond.
  */
-function residue(q: string, kind: Answer['kind']): string {
+function residue(q: string, ans: Answer): string {
+	const own = new Set(
+		words(`${ans.input} ${ans.inputLabel} ${ans.output} ${ans.outputLabel}`),
+	);
 	return words(q)
 		.filter(
 			(w) =>
 				!answerWord(w) &&
-				!(/\d/.test(w) && !(kind === 'currency' && /^\d{4,}$/.test(w))),
+				!own.has(w) &&
+				!(/\d/.test(w) && !(ans.kind === 'currency' && /^\d{4,}$/.test(w))),
 		)
 		.join(' ');
 }
 
 /** Every item of the kinds asked for, as the demo home lists them. */
-function listed(asked: { kinds: Kind[]; pdf: boolean }) {
-	const rows = items
-		.filter(
-			(item) =>
-				asked.kinds.includes(item.kind) &&
-				!(item.kind === 'file' && asked.pdf && !item.key.endsWith('.pdf')),
-		)
+function listed(asked: Scope) {
+	const rows = homeItems()
+		.filter((item) => inScope(item, asked))
 		.map((item) => ({ ...toRow(item, 0.5, [], []), named: false }));
 	return { rows: order(rows, asked.kinds), filter: asked.kinds, unknown: 0 };
 }
@@ -1001,13 +1171,11 @@ function listed(asked: { kinds: Kind[]; pdf: boolean }) {
 function run(
 	q: string,
 	final: boolean,
-	typed: { kinds: Kind[]; pdf: boolean } | null,
+	typed: Scope | null,
+	typedEmoji = '',
 ): { rows: Row[]; filter: Kind[] | null; unknown: number } {
 	const kinds = typed?.kinds ?? null;
-	const keep = (item: Item) =>
-		!kinds ||
-		(kinds.includes(item.kind) &&
-			!(item.kind === 'file' && typed?.pdf && !item.key.endsWith('.pdf')));
+	const keep = (item: Item) => inScope(item, typed);
 	const { list: ts, unknown } = final ? terms(q) : { list: [], unknown: 0 };
 	const cut = cutoff(ts);
 	const byItem = new Map<Item, Scored[]>();
@@ -1039,9 +1207,13 @@ function run(
 		top = Math.max(top, scored[0].score);
 	}
 	const rows: Row[] = [];
-	for (const item of items) {
+	for (const item of homeItems()) {
 		if (!keep(item)) continue;
-		const name = nameScore(q, item);
+		// an emoji typed into the query is that emoji, above any name like it
+		const name =
+			item.kind === 'emoji' && item.emoji && typedEmoji.includes(item.emoji)
+				? 1
+				: nameScore(q, item);
 		const scored = byItem.get(item) ?? [];
 		const real = scored[0]?.score >= Math.max(cut, top - NEAR_MISS);
 		const matched = real ? scored : [];

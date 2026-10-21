@@ -109,6 +109,8 @@ export type LauncherLabels = {
 	many: string;
 	/** The button that opens the launcher again once it is closed. */
 	reopen: string;
+	/** Said when Tab lists a row's parts: "{Parts} listed: {list}". */
+	listed: string;
 };
 
 /**
@@ -188,9 +190,11 @@ export const superSpace = {
 			one: '1 result. First: {top}',
 			many: '{n} results. First: {top}',
 			reopen: 'Open the launcher again (Super+Space)',
+			listed: '{parts} listed: {list}. Tab again moves on.',
 		} satisfies LauncherLabels,
 		/** The credit line for the demo's pictures: before the list, between title and author, after a video's frame. */
 		credit: {
+			summary: 'Picture credits',
 			lead: 'Pictures in the demo, via Wikimedia Commons, scaled down:',
 			by: 'by',
 			frame: '(a frame)',

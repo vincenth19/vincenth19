@@ -352,6 +352,10 @@ test.describe('Super Space product page', () => {
 			expect(text).toMatch(/\d[\d,]*\.\d\d USD/);
 			expect(text).toMatch(/ECB rate of \d{1,2} \w{3} \d{4}/);
 			await expect(launcher.locator('.ssl-hints')).toContainText('↵ copy');
+		} else if (text.includes('approximate rate')) {
+			// built where the ECB could not be reached: a number, said to be approximate, naming no one
+			expect(text).toMatch(/\d[\d,]*\.\d\d USD/);
+			expect(text).not.toContain('ECB');
 		} else {
 			// built without them (offline): it says so in words, and offers nothing to copy
 			expect(text).toContain('100,000 IDR');
@@ -468,6 +472,63 @@ test.describe('Super Space product page', () => {
 		);
 	});
 
+	test('searches find what is there, and only that', async ({ page }) => {
+		await page.goto(path);
+		const launcher = await openLauncher(page);
+		const field = launcher.getByRole('combobox');
+		const list = launcher.locator('.ssl-list');
+		const rows = launcher.getByRole('option');
+		const card = launcher.locator('.ssl-answer');
+		// a photo this copy has no picture of is left out: no blank tiles
+		for (const q of ['photos beach', 'cat', 'photos food', 'dog']) {
+			await search(field, q);
+			await expect(rows.first(), q).not.toContainText('Search the web');
+			await expect(list.locator('.ssl-pic.is-none'), q).toHaveCount(0);
+		}
+		// what it means, in other words
+		await search(field, 'security deposit');
+		await expect(rows.first()).toContainText(
+			'apartment-lease-new-farm-2026.pdf',
+		);
+		await search(field, 'job application');
+		await expect(launcher.locator('.ssl-pill')).toHaveCount(0);
+		await expect(rows.first()).toContainText('cover-letter');
+		// where a copy came from, and which browser a page was seen in
+		await search(field, 'copied from signal');
+		await expect(rows.first()).toContainText('Flat white with oat milk');
+		await search(field, 'firefox history');
+		await expect(launcher.locator('.ssl-pill')).toHaveText('History');
+		await expect(rows.first()).toContainText('Firefox ·');
+		// a small word is not what a search is about; an emoji's name is not a typo
+		await search(field, 'thumbs up');
+		await expect(rows).toHaveCount(2);
+		await search(field, 'folder');
+		await expect(list).not.toContainText('Folded hands');
+		// hexadecimal is not read as a sum
+		await search(field, '0x10 + 1');
+		await expect(card).toHaveCount(0);
+		await search(field, '1 fl oz to ml');
+		await expect(card).toContainText('29.5735 mL');
+		await expect(rows).toHaveCount(2);
+	});
+
+	test('→ steps the opening search’s sections, round from the last', async ({
+		page,
+	}) => {
+		await page.goto(path);
+		const launcher = await openLauncher(page);
+		const field = launcher.getByRole('combobox');
+		const row = launcher.getByRole('option').first();
+		await field.click();
+		await field.press('End');
+		await expect(row.locator('.ssl-place')).toHaveText('0:45–0:59');
+		await field.press('ArrowRight');
+		await expect(row.locator('.ssl-place')).toHaveText('0:10–0:30');
+		await expect(launcher.getByRole('status').last()).toContainText('0:10');
+		await field.press('ArrowRight');
+		await expect(row.locator('.ssl-place')).toHaveText('0:45–0:59');
+	});
+
 	test('the example searches under it run in the launcher', async ({
 		page,
 	}) => {
@@ -503,10 +564,14 @@ test.describe('Super Space product page', () => {
 			'src',
 			'/projects/super-space/demo/dog-swimming.webp',
 		);
+		// the credits are folded under the example searches, one press away
 		const credits = page.locator('.ssl-credits');
+		await expect(credits.locator('p')).toBeHidden();
+		await credits.getByText('Picture credits').click();
 		const source = credits.getByRole('link', {
 			name: 'Golden retriever swimming the doggy paddle',
 		});
+		await expect(source).toBeVisible();
 		await expect(source).toHaveAttribute(
 			'href',
 			'https://commons.wikimedia.org/wiki/File:Golden_retriever_swimming_the_doggy_paddle.webm',

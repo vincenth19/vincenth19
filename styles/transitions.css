@@ -59,18 +59,27 @@
 	:root[data-vt-far]::view-transition-group(*) {
 		animation-timing-function: var(--ease-out);
 	}
-	/* the desk and the masthead around the sticker */
-	::view-transition-old(root),
-	::view-transition-new(root) {
-		animation-duration: 0.32s;
+	/* The desk and the masthead around the sticker: the old page's name and
+	   tagline (or a product page's headline) go first, and the new page's come
+	   in after them, so the two are never read over each other. */
+	::view-transition-old(root) {
+		mix-blend-mode: normal;
+		animation: vt-fade-out 0.12s ease-out both;
 	}
-	/* The leaf turns as the book moves: the new page is there at once, under the
-	   old one, which goes quickly (the paper, the same on both, stays solid), so
-	   the two pages are never read over each other. */
+	::view-transition-new(root) {
+		mix-blend-mode: normal;
+		animation: vt-fade-in 0.26s 0.1s var(--ease-out) both;
+	}
+	/* The leaf turns as the book moves: the old page is wiped off the new one
+	   under it, from its outer edge (back the other way), so every point of the
+	   leaf shows one page or the other, never both. */
 	::view-transition-old(book) {
 		z-index: 1;
 		mix-blend-mode: normal;
-		animation: vt-fade-out 0.12s ease-out both;
+		animation: vt-turn 0.22s var(--ease-out) both;
+	}
+	:root[data-vt='close']::view-transition-old(book) {
+		animation-name: vt-turn-back;
 	}
 	::view-transition-new(book) {
 		mix-blend-mode: normal;
@@ -109,6 +118,27 @@
 @keyframes vt-fade-out {
 	to {
 		opacity: 0;
+	}
+}
+@keyframes vt-fade-in {
+	from {
+		opacity: 0;
+	}
+}
+@keyframes vt-turn {
+	from {
+		clip-path: inset(0);
+	}
+	to {
+		clip-path: inset(0 100% 0 0);
+	}
+}
+@keyframes vt-turn-back {
+	from {
+		clip-path: inset(0);
+	}
+	to {
+		clip-path: inset(0 0 0 100%);
 	}
 }
 @keyframes vt-sink {

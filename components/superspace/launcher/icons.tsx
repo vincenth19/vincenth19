@@ -84,6 +84,10 @@ function Tile({ fill, children }: { fill: string; children?: ReactNode }) {
 	);
 }
 
+/** The web row's icon, a 20 px bitmap (see `web` below). */
+const WEB_ICON =
+	'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAMAAAC6V+0/AAAB4FBMVEUAAAD29vP////29fT////////4+Pj29vT29fTx8O/x8O/29fP29PT39vT29fX39/Xo5ubp6Oj39/f////08/P18/L29PT19fX29vP19PP19PT29PT29vP/9PT29fP29PT49PT////29vT29vT29fT19PP29fT29fT////39/f////29fT19fT19fX49PTExML29fP69fX////MzMrT0dD29fTy8fDz8vH39fP////69PTNzMz29fShoKA4NzcREREODg6lpKRYWFgWFhaNjItnZmU5ODdhYWBERERVVFSioaDg393o5+bJx8SRj40jIyKOjY0XFxe3trT08/Hk5OLr6um2tLIbGxuSkZEdHR2ampjZ2Napqafq6eiIh4UkIyPQz84yMTHi4d9aWlqQkI8fHx/U09KTkpJgYF/r6uh1dHQMDAxDQkGXlpVnZmaAf37y8e+RkZBmZWNqaWmFhYRjY2KqqqmIiIexsbCJiYgUFBS0tLPv7u2CgoEsLCwtLS3x8O+5ubd/f34lJSUhISG3tbIbGhqzs7JLS0qHh4YNDQ2VlZN1dXWQj47p6Oejop8oJydTU1Pm5uQ9PTxXV1YzMzOPj4+dnJuBgH45OTlMS0sYGBg5ODinpqbLysrOzc393p69AAAAO3RSTlMAVgz+DQomWrLr6rGjvbB/9vV6AtHEeBlu7u10rRewqEgBpKP57ev6CyAf5eZQR7DdMRGLxOD+/pcHMIumuPkAAAExSURBVBjTY2CAAUZGBgzAxMzMgsxnZWNg5+C0tubiZmRgY4UK8tjw2trZOzjY2zny2fBABfkFnBwcHJxdXN0c3AWFIGLCIh4ODp5e3j6+vn7+HqLCYEGxAIfAoODgkFBfX9+w8AgxoJC4hGSkQ1RwcHRMLFDQNy5eSkKcQcwmwSExODgpOQUs6JuaZiPNIC6T7pARnJmVDRXMyZWRZWCQy3PILyjMhgkWFcuD7ClxKC3LhgvmlINsUqhwqKxCCKZWKzAwKCrV1NZlwwXj6huUFRmYVFQbm1KaW7ILQYKtbe1q6hoMDJpa2h2dXd09vX2+vv0TJupoaYK9pDvJafKUqdOmzyiyz/DRg4Wd/szKWfazHeznzDUwhAeokbGJqdm8+eamFkzI4WzJYGllZQnjAQD3EVarFU/54wAAAABJRU5ErkJggg==';
+
 const icons: Record<Exclude<IconName, 'photo' | 'emoji'>, () => ReactNode> = {
 	// GNOME's document viewer: a plain page, a red seal with a written "e", thin blue glasses
 	pdf: () => (
@@ -113,12 +117,14 @@ const icons: Record<Exclude<IconName, 'photo' | 'emoji'>, () => ReactNode> = {
 				fill="none"
 				strokeLinecap="round"
 			/>
-			<g stroke="#1c71d8" strokeWidth=".75" fill="#fff" fillOpacity=".35">
-				<rect x="3.4" y="19.3" width="6.9" height="3.3" rx=".7" />
-				<rect x="12" y="19.3" width="6.9" height="3.3" rx=".7" />
-				<path d="M10.3 19.9c.5-.7 1.2-.7 1.7 0" fill="none" />
-				<path d="M3.5 19.8 2.4 17.6M18.8 19.8l1.1-2.2" fill="none" />
+			{/* the temples go down behind the page; the lenses meet at a bridge with a nose pad */}
+			<path d="M7.4 22.4v1.6M15.6 22.4v1.6" stroke="#9a9996" strokeWidth=".7" />
+			<g stroke="#1c71d8" strokeWidth=".85" fill="#fff" fillOpacity=".35">
+				<rect x="3.6" y="19.3" width="6.8" height="3.2" rx=".8" />
+				<rect x="12" y="19.3" width="6.8" height="3.2" rx=".8" />
+				<path d="M10.4 19.9c.4-.6 1.2-.6 1.6 0" fill="none" />
 			</g>
+			<circle cx="11.2" cy="19.3" r=".55" fill="#c0bfbc" />
 		</svg>
 	),
 	writer: () => (
@@ -154,17 +160,18 @@ const icons: Record<Exclude<IconName, 'photo' | 'emoji'>, () => ReactNode> = {
 			<rect x="12" y="9" width="8.5" height="5" rx="1" fill="#f6d32d" />
 		</svg>
 	),
-	// mpv: a dark, smooth purple disc with a pale rim (thicker on the left), a dark well a little
-	// off centre, a large pale button and a purple play sign; the gloss is layered discs, so the
-	// many icons on the page share no ids
+	// mpv: a purple disc, lighter to the top left and darker to the bottom right, with a pale
+	// rim, a dark well round a lavender-grey button (lighter at its top left) and a purple play
+	// sign; the shading is layered discs, so the many icons on the page share no ids
 	mpv: () => (
 		<svg aria-hidden="true" focusable="false" viewBox="0 0 30 30">
-			<circle cx="14.9" cy="15" r="13" fill="#ece5ef" />
-			<circle cx="15.4" cy="15" r="12.1" fill="#4f1d5e" />
-			<circle cx="14.4" cy="13.9" r="10" fill="#62286f" opacity=".55" />
-			<circle cx="16" cy="15.9" r="8.4" fill="#3a1046" opacity=".85" />
-			<circle cx="15.2" cy="15" r="6.5" fill="#f1ecf3" />
-			<circle cx="14.7" cy="14.4" r="5.2" fill="#fbf9fc" opacity=".7" />
+			<circle cx="15" cy="15" r="13" fill="#ece5ef" />
+			<circle cx="15" cy="15" r="12.1" fill="#4a1959" />
+			<circle cx="14.3" cy="14.3" r="11.2" fill="#6e3080" opacity=".7" />
+			<circle cx="13.6" cy="13.6" r="9.4" fill="#7d3c8f" opacity=".45" />
+			<circle cx="15.6" cy="15.6" r="8.3" fill="#3a1046" opacity=".55" />
+			<circle cx="15" cy="15" r="7" fill="#cbc1d3" />
+			<circle cx="14.3" cy="14.3" r="5.8" fill="#e2dce7" opacity=".85" />
 			<path d="M13.6 12v6l4.9-3z" fill="#5d2069" />
 		</svg>
 	),
@@ -193,37 +200,18 @@ const icons: Record<Exclude<IconName, 'photo' | 'emoji'>, () => ReactNode> = {
 			/>
 		</svg>
 	),
-	// the default browser's icon, as on the real web row (a small icon drawn large, so soft): a
-	// round white halo with one bump on top, a black ring, a face light on the left and grey on
-	// the right, and a classic mouse pointer, mirrored: its tip at the top, its straight edge on
-	// the right, its tail leaving the ring at the lower left
+	// the default browser's icon, as on the real web row: a small bitmap drawn large, so soft and
+	// blocky (a 20 px raster of a round white halo with small notches, a thick black ring, a face
+	// white on the left and grey on the right, and a classic mouse pointer)
 	web: () => (
-		<svg
-			aria-hidden="true"
-			focusable="false"
-			viewBox="0 0 30 30"
-			className="ssl-soft ssl-soft--web"
-		>
-			<rect x="1.4" y="2" width="27.2" height="27.2" rx="11.5" fill="#f6f5f4" />
-			<rect x="12.5" y="0.8" width="5" height="3.6" rx="1.6" fill="#f6f5f4" />
-			<circle
-				cx="15"
-				cy="15.6"
-				r="9.2"
-				fill="#e7e6e4"
-				stroke="#111"
-				strokeWidth="2.6"
-			/>
-			<path d="M15.3 6.4a9.2 9.2 0 0 1 0 18.4z" fill="#bab8b5" />
-			<path d="M15.6 6.6v18" stroke="#fff" strokeWidth=".8" />
-			<path
-				d="M15 10.2v15.6l-3.1-2.4-1.9 4.8-2.2-1 1.9-4.6-4.1-.1z"
-				fill="#0c0c0c"
-				stroke="#f6f5f4"
-				strokeWidth=".55"
-				strokeLinejoin="round"
-			/>
-		</svg>
+		<img
+			className="ssl-raster"
+			src={WEB_ICON}
+			alt=""
+			width={30}
+			height={30}
+			decoding="async"
+		/>
 	),
 	paste: () => (
 		<svg aria-hidden="true" focusable="false" viewBox="0 0 30 30">
@@ -463,7 +451,7 @@ export function DesktopIcon({
 	name: 'Downloads' | 'Music' | 'Pictures' | 'Projects' | 'Videos';
 }) {
 	const sign = {
-		Downloads: <path d="M15 6v10m-4.5-4.5L15 16l4.5-4.5M8 21h14" />,
+		Downloads: <path d="M15 5.5v10.5M10 11l5 5 5-5M8.4 21.2h13.2" />,
 		Music: (
 			<>
 				<path d="M12 19V8.5l9-2V17" />
@@ -473,8 +461,17 @@ export function DesktopIcon({
 		),
 		Pictures: <path d="M15 7.5 22.5 21h-15z" fill="currentColor" />,
 		Projects: null,
+		// a film frame: its side strips solid with square sprocket holes, thin edges between
 		Videos: (
-			<path d="M8 8.5h14v12H8zM8 11.5h14M8 17.5h14M11 8.5v3m4-3v3m4-3v3M11 17.5v3m4-3v3m4-3v3" />
+			<>
+				<path d="M9.2 7.65h11.6M9.2 21.35h11.6" />
+				<path
+					fillRule="evenodd"
+					fill="currentColor"
+					stroke="none"
+					d="M5 7h4.2v15H5zM6.25 9.2h1.7v1.3H6.25zM6.25 12.2h1.7v1.3H6.25zM6.25 15.2h1.7v1.3H6.25zM6.25 18.2h1.7v1.3H6.25zM20.8 7H25v15h-4.2zM22.05 9.2h1.7v1.3H22.05zM22.05 12.2h1.7v1.3H22.05zM22.05 15.2h1.7v1.3H22.05zM22.05 18.2h1.7v1.3H22.05z"
+				/>
+			</>
 		),
 	}[name];
 	return (
@@ -484,7 +481,7 @@ export function DesktopIcon({
 			viewBox="0 0 30 30"
 			fill="none"
 			stroke="currentColor"
-			strokeWidth="2"
+			strokeWidth="1.3"
 		>
 			{sign}
 		</svg>

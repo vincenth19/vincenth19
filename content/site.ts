@@ -73,7 +73,7 @@ export const site: Site = {
 	 * The masthead subtitle: three commands, one verb each on one axis, each
 	 * keyword a whole idea. The `nw` runs are where a line may not break, so a
 	 * command that wraps on a phone breaks at a phrase ("full-stack" / "web and
-	 * mobile apps.", "people actually use.", "a product mind.").
+	 * mobile apps.", "people rely on.", "and product sense.").
 	 */
 	tagline: [
 		{
@@ -103,7 +103,7 @@ export const site: Site = {
 					],
 				},
 				' ',
-				{ nw: ['people actually use.'] },
+				{ nw: ['people rely on.'] },
 			],
 		},
 		{
@@ -114,13 +114,13 @@ export const site: Site = {
 				' ',
 				{
 					nw: [
-						'and a ',
+						'and ',
 						{
 							chip: 'product',
 							kind: 'product',
 							icon: 'lightbulb-flash-fill',
 						},
-						' mind.',
+						' sense.',
 					],
 				},
 			],

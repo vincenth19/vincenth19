@@ -169,17 +169,17 @@ const photos: Item[] = [
 	photo(
 		'Pictures/Camera/IMG_2175.jpg',
 		'pizza',
-		'a margherita pizza on a plate',
+		'a margherita pizza on a plate, food',
 	),
 	photo(
 		'Pictures/Camera/IMG_2181.jpg',
 		'sushi',
-		'a plate of sushi, salmon and tuna nigiri and rolls',
+		'a plate of sushi, salmon and tuna nigiri and rolls, food',
 	),
 	photo(
 		'Pictures/Camera/IMG_2186.jpg',
 		'nasi-goreng',
-		'a plate of nasi goreng, Indonesian fried rice with a fried egg',
+		'a plate of nasi goreng, Indonesian fried rice with a fried egg, food',
 	),
 	photo(
 		'Pictures/Camera/IMG_2190.jpg',
@@ -189,7 +189,7 @@ const photos: Item[] = [
 	photo(
 		'Pictures/Camera/IMG_2194.jpg',
 		'pavlova',
-		'a pavlova dessert, meringue topped with cream and fruit',
+		'a pavlova dessert, meringue topped with cream and fruit, food',
 	),
 	photo(
 		'Pictures/Camera/IMG_2199.jpg',
@@ -978,8 +978,16 @@ const emoji: Item[] = EMOJI.map(([e, title, words]) => {
 	};
 });
 
-/** Clipboard history, newest first, with where each copy came from. */
+/**
+ * Clipboard history, newest first, with where each copy came from: the app
+ * and the page or person it was copied from are words it is found by too
+ * ("copied from signal").
+ */
 function clip(text: string, from: string, icon: IconName, sense: string): Item {
+	const source = from
+		.replace(/^from /, '')
+		.split(' · ')
+		.slice(0, -1);
 	return {
 		key: `clip:${text}`,
 		kind: 'clip',
@@ -987,6 +995,7 @@ function clip(text: string, from: string, icon: IconName, sense: string): Item {
 		subtitle: from,
 		icon,
 		names: [],
+		about: `copied from ${source.join(', ')}`,
 		parts: [{ loc: {}, text, sense: `${text}. ${sense}` }],
 		where: text,
 	};
@@ -1044,6 +1053,8 @@ function visit(
 					? 'firefox'
 					: 'zen',
 		names: [],
+		// the browser it was seen in is a word it is found by ("firefox history"); Chrome is Chromium
+		about: browser === 'Chromium' ? 'Chromium, Chrome' : browser,
 		parts: [{ loc: {}, text: `${title} ${page}` }],
 		where: `https://${page}`,
 	};

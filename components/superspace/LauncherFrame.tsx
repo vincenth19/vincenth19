@@ -19,7 +19,7 @@ export function LauncherFrame({
 	thumbs?: Thumbs;
 	rates?: Rates | null;
 }) {
-	const shown = search(q, true, { rates });
+	const shown = search(q, true, { rates, pictures: thumbs });
 	return (
 		<div className="ssl-screen" inert>
 			<Bar now="" />

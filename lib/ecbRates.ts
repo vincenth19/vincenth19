@@ -7,9 +7,10 @@ import { ecbFallback } from './ecbFallback';
  * computer; this page fetches them when it is built and again once a day
  * after that, and the answer card says whose rates and from which day.
  *
- * When the ECB cannot be reached: a build uses the dated snapshot in
- * lib/ecbFallback.ts (the card names its day), and a daily refresh fails, so
- * Next.js keeps serving the page it has, with the last rates it got.
+ * When the ECB cannot be reached: a build uses the approximate rates in
+ * lib/ecbFallback.ts (the card says "approximate rate", naming neither the
+ * ECB nor a day), and a daily refresh fails, so Next.js keeps serving the page
+ * it has, with the last rates it got.
  */
 const URL = 'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml';
 

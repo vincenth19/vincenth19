@@ -73,7 +73,11 @@ export function StickerLink({
 		if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
 			return; // new tab, new window, download: let the browser do it
 		}
-		if (!canAnimate()) return; // no transition: the link navigates straight away
+		if (!canAnimate()) {
+			// no transition: the link navigates straight away, and Back comes back here
+			desk.remember();
+			return;
+		}
 		e.preventDefault();
 		desk.open(href);
 	}

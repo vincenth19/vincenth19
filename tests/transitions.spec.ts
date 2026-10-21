@@ -315,6 +315,118 @@ test('a click while the sticker flies is not lost: Back pressed at once goes bac
 	await expect(sticker).toBeFocused();
 });
 
+test('a second press during the flight neither cuts it short nor clicks the page coming in', async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 1440, height: 900 });
+	const vts = await recordTransitions(page);
+	const external: string[] = [];
+	const site = /^https?:\/\/(127\.0\.0\.1|localhost)[:/]/;
+	page.on('request', (r) => {
+		if (r.isNavigationRequest() && !site.test(r.url())) external.push(r.url());
+	});
+	// a press must never reach a link off the site: keep the run offline
+	await page.route(
+		(url) => !site.test(url.href),
+		(r) => r.abort(),
+	);
+	await page.goto('/');
+	const entries = await page.evaluate(() => history.length);
+	const sticker = page.getByRole('link', { name: 'Basilica. Open project' });
+	const box = await sticker.boundingBox();
+	if (!box) throw new Error('no sticker');
+	const x = box.x + box.width / 2;
+	const y = box.y + box.height / 2;
+	const flying = () =>
+		page.waitForFunction(() =>
+			document
+				.getAnimations()
+				.some((a) =>
+					(a.effect as KeyframeEffect | null)?.pseudoElement?.startsWith(
+						'::view-transition',
+					),
+				),
+		);
+
+	// a slow double tap on the sticker: the second lands on the page coming in
+	await page.mouse.click(x, y);
+	await flying();
+	await page.mouse.click(x, y);
+	await vts.settled();
+	await page.waitForTimeout(300);
+	await expect(page).toHaveURL(at('/projects/basilica'));
+	expect(await page.evaluate(() => history.length)).toBe(entries + 1);
+	const [open] = await vts.take();
+	expect(open.skipped).toBe(false);
+
+	// a double click on the Projects tab flies home once, all the way
+	await page
+		.getByRole('navigation', { name: 'Book sections' })
+		.getByRole('link', { name: 'Projects' })
+		.dblclick();
+	await expect(page).toHaveURL(at('/'));
+	await vts.settled();
+	await page.waitForTimeout(300);
+	await expect(page).toHaveURL(at('/'));
+	const runs = await vts.take();
+	expect(runs).toHaveLength(1);
+	expect(runs[0].skipped).toBe(false);
+
+	// Back, then at once a tab where it was: the page coming in is not what was
+	// under it, so the press is dropped rather than opening whatever is there now
+	await sticker.click();
+	await expect(page).toHaveURL(at('/projects/basilica'));
+	await vts.settled();
+	await vts.take();
+	const writing = await page
+		.getByRole('navigation', { name: 'Book sections' })
+		.getByRole('link', { name: 'Writing' })
+		.boundingBox();
+	if (!writing) throw new Error('no Writing tab');
+	await page.getByRole('link', { name: 'Back', exact: true }).click();
+	await flying();
+	await page.mouse.click(
+		writing.x + writing.width / 2,
+		writing.y + writing.height / 2,
+	);
+	await vts.settled();
+	await page.waitForTimeout(300);
+	await expect(page).toHaveURL(at('/'));
+	const [close] = await vts.take();
+	expect(close.skipped).toBe(false);
+	expect(external).toEqual([]);
+});
+
+test('the Back arrow steps back in history rather than adding a step', async ({
+	page,
+}) => {
+	const vts = await recordTransitions(page);
+	await page.goto('/');
+	await page.getByRole('link', { name: 'Basilica. Open project' }).click();
+	await expect(page).toHaveURL(at('/projects/basilica'));
+	await vts.settled();
+	const entries = await page.evaluate(() => history.length);
+	await page.getByRole('link', { name: 'Back', exact: true }).click();
+	await expect(page).toHaveURL(at('/'));
+	await vts.settled();
+	expect(await page.evaluate(() => history.length)).toBe(entries);
+	// so the browser's Forward, not its Back, opens the project again
+	await page.evaluate(() => history.forward());
+	await expect(page).toHaveURL(at('/projects/basilica'));
+	await vts.settled();
+	const runs = await vts.take();
+	expect(runs.map((v) => v.direction)).toEqual(['open', 'close', 'open']);
+	for (const run of runs) expect(run.pairs).toContain('stk-basilica');
+
+	// a project opened straight from its link has no Projects page behind it:
+	// the arrow goes there as a new step
+	await page.goto('/projects/covidtracker');
+	const fresh = await page.evaluate(() => history.length);
+	await page.getByRole('link', { name: 'Back', exact: true }).click();
+	await expect(page).toHaveURL(at('/'));
+	expect(await page.evaluate(() => history.length)).toBe(fresh + 1);
+});
+
 test('a sticker opened from far down the Projects page leaves the book where it is', async ({
 	page,
 }) => {
@@ -481,7 +593,8 @@ test.describe('with reduced motion', () => {
 		await expect(sticker).toBeFocused();
 		await expect(sticker).toBeInViewport({ ratio: 0.99 });
 
-		await page.evaluate(() => history.back());
+		// the Back arrow stepped back: Forward opens the project again
+		await page.evaluate(() => history.forward());
 		await expect(page).toHaveURL(at('/projects/covidtracker'), {
 			timeout: 2000,
 		});
@@ -492,5 +605,32 @@ test.describe('with reduced motion', () => {
 
 		expect(await vts.all()).toEqual([]);
 		expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
+	});
+
+	test('Back puts the Projects page where it was when the project opened', async ({
+		page,
+	}) => {
+		await page.setViewportSize({ width: 1440, height: 900 });
+		await page.goto('/');
+		await page.evaluate(() => window.scrollTo(0, 250));
+		await expect.poll(() => scrollY(page)).toBe(250);
+		const sticker = page.getByRole('link', { name: 'Basilica. Open project' });
+		for (const leave of [
+			() => page.getByRole('link', { name: 'Back', exact: true }).click(),
+			() =>
+				page
+					.getByRole('navigation', { name: 'Book sections' })
+					.getByRole('link', { name: 'Projects' })
+					.click(),
+		]) {
+			await sticker.click();
+			await expect(page).toHaveURL(at('/projects/basilica'), {
+				timeout: 2000,
+			});
+			await leave();
+			await expect(page).toHaveURL(at('/'), { timeout: 2000 });
+			await expect(sticker).toBeFocused();
+			await expect.poll(() => scrollY(page)).toBe(250);
+		}
 	});
 });

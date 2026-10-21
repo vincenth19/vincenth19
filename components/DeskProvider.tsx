@@ -53,8 +53,17 @@ type Desk = {
 	 * A link's onNavigate: when the link opens or leaves a project, it takes the
 	 * navigation over and runs it as a view transition. Any other navigation
 	 * goes ahead as usual, and either way a sticker still lifting is dropped.
+	 * `back` (the Back arrow, "All projects"): when the page before this one in
+	 * the browser's history is `href`, it steps back to it, as the browser's
+	 * Back would, rather than adding a step.
 	 */
-	navigate: (event: { preventDefault: () => void }, href: string) => void;
+	navigate: (
+		event: { preventDefault: () => void },
+		href: string,
+		back?: boolean,
+	) => void;
+	/** Notes where the page is scrolled before a project opens without a transition (reduced motion). */
+	remember: () => void;
 	/** Where a page was scrolled when it was left to open a project (or left a project for another page). */
 	scrollOf: (path: string) => number | undefined;
 };
@@ -65,6 +74,7 @@ const DeskContext = createContext<Desk>({
 	open: () => {},
 	intent: () => {},
 	navigate: () => {},
+	remember: () => {},
 	scrollOf: () => undefined,
 });
 
@@ -75,6 +85,21 @@ const DeskContext = createContext<Desk>({
 const scrolled = new Map<string, number>();
 
 const projectPath = /^\/projects\/[^/]+\/?$/;
+
+/**
+ * True when the entry before this one in the browser's history is `path` on
+ * this page (the Navigation API knows; without it, false). Then the Back arrow
+ * steps back to it instead of adding a step that Back would undo.
+ */
+function previousEntryIs(path: string): boolean {
+	if (!('navigation' in window)) return false;
+	const current = navigation.currentEntry;
+	if (!current || current.index < 1) return false;
+	const prev = navigation.entries()[current.index - 1];
+	if (!prev?.url || !prev.sameDocument) return false;
+	const url = new URL(prev.url);
+	return url.origin === window.location.origin && url.pathname === path;
+}
 
 /** Opening a project, or leaving one, morphs its sticker. Other page turns are instant. */
 function morphs(from: string, to: string): boolean {
@@ -102,49 +127,71 @@ export function stickerName(key: string): string {
 let running: ViewTransition | null = null;
 
 /**
- * A press made while a transition runs: the browser sends it to <html> under
- * the transition's snapshots, so it would be lost. The transition is cut short
- * at the press, and the click goes to what is under the pointer once the new
- * page is on screen (a quick click on the new page's Back arrow, or a tab).
+ * The last click on the page outside a transition (most often the one that
+ * started it): a press during the transition close to it is the same click
+ * again (the second half of a double click, a re-tap), not a new one.
  */
-let pressed: { x: number; y: number; at: number } | null = null;
+let lastClick: { x: number; y: number; at: number } | null = null;
+/** How near (px) and how soon (ms) a press is the last click again. */
+const AGAIN_PX = 12;
+const AGAIN_MS = 2500;
+
+/**
+ * A press made while a transition runs. The browser sends it to <html> under
+ * the transition's snapshots, where it would be lost; it is not allowed to
+ * cut the flight short. One thing is worth keeping: a quick press on the new
+ * page's Back arrow, the only link that is where it is seen to be. That click
+ * goes to the arrow once the flight has landed; any other press is dropped
+ * (a sticker, a tab or a link under the pointer on the new page is not what
+ * the reader could see there).
+ */
+let pressed: { x: number; y: number; at: number; again: boolean } | null = null;
 
 function onPressDuringTransition(event: PointerEvent) {
-	const vt = running;
-	if (!vt || event.button !== 0 || !event.isPrimary) return;
+	if (!running || event.button !== 0 || !event.isPrimary) return;
 	// a press on the scrollbar is not a click on the page
 	if (event.clientX >= document.documentElement.clientWidth) return;
-	pressed = { x: event.clientX, y: event.clientY, at: performance.now() };
-	vt.skipTransition();
+	const now = performance.now();
+	const last = lastClick;
+	pressed = {
+		x: event.clientX,
+		y: event.clientY,
+		at: now,
+		again:
+			event.detail >= 2 ||
+			(last !== null &&
+				now - last.at < AGAIN_MS &&
+				Math.hypot(event.clientX - last.x, event.clientY - last.y) <= AGAIN_PX),
+	};
 }
 
 function onClickDuringTransition(event: MouseEvent) {
 	const press = pressed;
 	pressed = null;
-	if (!press || performance.now() - press.at > 1500) return;
-	// it found something on the page after all: leave it be
 	const target = event.target;
-	if (target !== document.documentElement && target !== document.body) return;
+	const lost = target === document.documentElement || target === document.body;
+	if (!press || !lost || performance.now() - press.at > 1500) {
+		// a click on the page itself
+		if (!running && event.isTrusted) {
+			lastClick = {
+				x: event.clientX,
+				y: event.clientY,
+				at: performance.now(),
+			};
+		}
+		return;
+	}
 	event.preventDefault();
 	event.stopImmediatePropagation();
-	const retarget = () => {
+	// the same click again: the first one already went where it was meant to
+	if (press.again || event.detail >= 2) return;
+	const toBack = () => {
 		const el = document.elementFromPoint(press.x, press.y);
-		if (!el || el === document.documentElement) return;
-		el.dispatchEvent(
-			new MouseEvent('click', {
-				bubbles: true,
-				cancelable: true,
-				composed: true,
-				view: window,
-				clientX: press.x,
-				clientY: press.y,
-				button: 0,
-			}),
-		);
+		el?.closest<HTMLElement>('.mast .back')?.click();
 	};
 	const vt = running;
-	if (vt) vt.finished.catch(() => {}).finally(retarget);
-	else retarget();
+	if (vt) vt.finished.catch(() => {}).finally(toBack);
+	else toBack();
 }
 
 /**
@@ -333,6 +380,8 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 	const busy = useRef(false);
 	/** The sticker click waiting to fly (lifting, then waiting for its page); null when none is. */
 	const lift = useRef<{ cancelled: boolean } | null>(null);
+	/** The page the Back arrow stepped back from, until the step lands: a second press is not a second step. */
+	const backing = useRef<string | null>(null);
 
 	useEffect(() => {
 		watchPageData();
@@ -354,6 +403,7 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 	useLayoutEffect(() => {
 		shown.current = pathname;
 		busy.current = false;
+		backing.current = null;
 		const resolve = waiting.current;
 		waiting.current = [];
 		for (const done of resolve) done();
@@ -481,9 +531,19 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 	);
 
 	const navigate = useCallback<Desk['navigate']>(
-		(event, href) => {
+		(event, href, back = false) => {
 			cancelLift();
 			const to = new URL(href, window.location.href).pathname;
+			// The page before this one is where the link goes (the project was opened
+			// from it): step back, so the browser's Back does not open the project
+			// again. The step runs as Back does (popstate, below).
+			if (back && previousEntryIs(to)) {
+				event.preventDefault();
+				if (backing.current === shown.current) return;
+				backing.current = shown.current;
+				window.history.back();
+				return;
+			}
 			if (!morphs(shown.current, to)) return;
 			scrolled.set(shown.current, window.scrollY);
 			if (!canAnimate()) return;
@@ -568,6 +628,7 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 			open,
 			intent,
 			navigate,
+			remember: () => scrolled.set(shown.current, window.scrollY),
 			scrollOf: (path: string) => scrolled.get(path),
 		}),
 		[nav.from, flight, open, intent, navigate],

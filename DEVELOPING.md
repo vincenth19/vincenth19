@@ -94,27 +94,46 @@ screen.
 a field you type into, over the demo home, on a screen with Omarchy's bar. It is
 recreated from Super Space's own UI (`SuperSpace.qml`, `ui/ResultRow.qml`,
 `ui/AnswerCard.qml` in omarchy-super-space) and sized from its screenshots (the panel
-is 737px wide at 1x), in the dark warm theme they use.
+is 737px wide at 1x), in the dark warm theme they use, on the flat near-black desktop
+(#131212) of those captures: the panel, the theme's menu colour at 81%, comes out at
+their (28, 24, 20) with a crisp edge, and the folder tiles' names show faintly through
+it as they do there (the captures show no blur). It draws its own caret, as the real
+one does (2px, the field's height, steady while it moves); the web row's icon is a
+20px bitmap drawn large, as the real row's is.
 
 - `components/superspace/launcher/`: `View.tsx` draws the panel (no state; shared by
   the server and the browser), `Launcher.tsx` runs it (the instant phase on each key,
   the final phase 150 ms after typing pauses, "calm" typing that only adds rows until
   400 ms after the last key, ↑/↓, →/←, Enter, Ctrl+1–9; Tab lists the selected (or top)
-  row's parts, as the real one does, and Tab again, or Tab on a row with nothing to
-  list, moves on through the page, so it never keeps the keyboard; Esc closes the
-  launcher, as v0.1.4's does, and a "Super + Space" button opens it again, empty), `engine.ts`
+  row's parts, as the real one does (screen readers hear the list), and Tab again, or
+  Tab on a row with nothing to list, moves on through the page, so it never keeps the
+  keyboard; Esc puts a list away and otherwise closes the launcher, as v0.1.4's does,
+  and a "Super + Space" button opens it again, empty). One difference on purpose: →
+  past a row's last part goes round to its first (and ← the other way), where the
+  real one stops, because the best part is often the last in time order, as the
+  opening search's is, and a key that does nothing reads as broken. `engine.ts`
   is the search (names, with the daemon's title-only typo rule; scope words ported
   from the daemon's `type_words`, a lone plural kind word such as "photos" listing
   that kind; and "meaning": the query's words, a word it does not know read as the
   word one typo away, and the words in `concepts.ts` that mean the same, weighed by
   how rare they are, with cut-offs so a search can find nothing; words that only say
   how a thing looks, `MODIFIERS` ("cute", "lucu"), weigh little, and a word under six
-  letters is read as a typo only of a group's word, so "pasta" is not "paste"),
+  letters is read as a typo only of a group's word, so "pasta" is not "paste"; one of
+  three letters only as a swap, one of four never as a changed letter, so "node" is
+  not "note"; small words like "up" and "to" count only inside a group's phrase,
+  "pick up", "set up"; an emoji's names are matched whole or from four letters, never
+  as a typo, and an emoji typed into the query comes first; a clipboard copy is found
+  by where it came from, a page of history by its browser, Chrome being Chromium;
+  scope words narrow by extension, "pdf", and "songs" to songs, "voice memos" to
+  recordings, while "notes" and "application" next to other words are what the search
+  is about, "rust notes", "job application"),
   `answers.ts` the
   quick answers (maths, units, currency and time zones ported from the daemon's
-  `crates/answers`), and `corpus.ts` / `documents.ts` the demo home (from the demo's
-  `make_docs.py` and `make_media.py`). Under an answer the search reads only the words
-  the answer does not ("12 times 12" finds no "time").
+  `crates/answers`; "0x10" and "1.000,5" are not read as sums, and a home zone the
+  browser names by its old name, Asia/Calcutta, is said by its new one, Kolkata), and
+  `corpus.ts` / `documents.ts` the demo home (from the demo's `make_docs.py` and
+  `make_media.py`). Under an answer the search reads only the words the answer does not
+  ("12 times 12" finds no "time", "1 fl oz to ml" no flight).
 - `concepts.ts` knows the demo's words in English and Indonesian, and the main ones
   (dog, cat, beach, coffee, money, breakup, …) in ten more languages (`WORLD`); the
   emoji have their names in those languages too (`corpus.ts`). A translation that is
@@ -124,17 +143,22 @@ is 737px wide at 1x), in the dark warm theme they use.
   this copy knows; gibberish and English words get the plain notice.
 - Currency uses the ECB's euro reference rates (`lib/ecbRates.ts`), fetched when the
   page is built and again once a day (the page revalidates daily); the card names the
-  day ("ECB rate of 20 Oct 2026"). A build that cannot reach the ECB uses the dated
-  snapshot in `lib/ecbFallback.ts` (the rates of 20 Oct 2026, as published; refresh it
-  now and then), and a daily refresh that cannot reach it fails on purpose, so Next.js
-  keeps serving the page it has. To check the answers against the real crate, run the cases in
+  day ("ECB rate of 20 Oct 2026"). A build that cannot reach the ECB uses the rates in
+  `lib/ecbFallback.ts`, which are approximate: their source is not on record and could
+  not be checked against the ECB, so the card then says "approximate rate" and names
+  neither the ECB nor a day (to replace them with a real day's file, see that file).
+  A daily refresh that cannot reach the ECB fails on purpose, so Next.js keeps serving
+  the page it has. To check the answers against the real crate, run the cases in
   omarchy-super-space's `crates/answers/tests/table.rs` through `answer()` with that
   test's rates: all 296 match.
 - The demo's photos and video frames are other people's (Wikimedia Commons, listed
   with their licences in `content/superspace.ts` as `demo.pictures`). Each one shows
   as its real picture once `public/projects/super-space/demo/<scene>.webp` is there
-  (122 × 122 for a photo, 174 × 98 for a frame), with its credit under the screen;
-  until then its row shows a plain tile with an image sign, never a drawing of it.
+  (122 × 122 for a photo, 174 × 98 for a frame), with its credit under the screen
+  (folded, "Picture credits"). Until then the photo is left out of the demo home, and
+  a video's moment without its frame is not found (it keeps its place in the file), so
+  a search never shows a blank tile: the page passes the pictures it has to `search`
+  (`pictures`), and they come back by themselves once the files are added.
   16 of the 31 are there: the same Commons files, taken from copies that other
   projects host on GitHub (Commons itself could not be reached when they were made),
   checked by eye against their titles and scaled down; the cat chasing the laser is
@@ -144,7 +168,7 @@ is 737px wide at 1x), in the dark warm theme they use.
   (`dog-swimming.webp`) is a frame of the real video, from Super Space's own
   screenshot. The scanned receipt and the terminal screenshot (`scan`, `terminal`,
   `demo.own`) are drawn as the demo's own make_media.py draws them (CC0, no credit
-  needed). The screen's wallpaper (`demo/wallpaper.webp`) is generated, not a photo.
+  needed).
 - Opening anything only says, in a toast (a polite live region), what the real
   launcher would do ("Would open apartment-lease-new-farm-2026.pdf at page 3");
   Enter on an answer copies it.
@@ -227,14 +251,25 @@ Forward (a trackpad swipe included).
   far end of its keyframes), lands without the overshoot, and the socials fade with
   the page instead of sliding that far. A book that would slide most of a screen (a
   sticker opened from far down the Projects page, `data-vt-book-far`) stays still:
-  the old leaf goes and the new page fades in where it is. Elsewhere the leaf turns
-  with the new page under the old, which fades out in 0.12 s, so the two are never
-  read over each other; a sticker with no partner (the header sticker, to Writing or
-  Resume) sinks away or rises rather than lie over the page.
+  the old leaf goes and the new page fades in where it is. Elsewhere the leaf turns:
+  the old page is wiped off the new one under it, from its outer edge (back the other
+  way), so every point of the leaf shows one page or the other, never both. Around
+  them the old page (the name and tagline, or a product page's headline) fades out in
+  0.12 s before the new one fades in, so the two are never read over each other; a
+  sticker with no partner (the header sticker, to Writing or Resume) sinks away or
+  rises rather than lie over the page.
 - The browser sends a click made during a transition to `<html>` under its
-  snapshots, so it would be lost. A press during a transition cuts it short, and the
-  click goes to what is under the pointer on the new page (a quick click on the new
-  page's Back arrow, a tab).
+  snapshots. A press never cuts the flight short: the click waits for it to land, and
+  then goes to the new page's Back arrow if that is what is under the pointer (a quick
+  "Back" right after opening). Any other press made during the flight is dropped: what
+  is under the pointer on the new page (a sticker, a tab, a social link) is not what
+  the reader could see there. The second half of a double click, or a re-tap where
+  the click that started the flight was, is dropped too.
+- The Back arrow and "All projects" step back in the browser's history when the page
+  before is the Projects page (the Navigation API knows; the project was opened from
+  it), so the browser's Back does not open the project again; otherwise (a project
+  opened from a link elsewhere, or a browser without the Navigation API) they go to the
+  Projects page as a new step. Tabs always add a step.
 - Back and Forward: Next.js handles `popstate` synchronously, which would swap the
   page before the old one could be captured. A capturing `popstate` listener holds the
   event back, starts the transition, and dispatches it again to Next.js from inside
@@ -244,7 +279,9 @@ Forward (a trackpad swipe included).
   `router.push`, but starts no transition for Back and Forward (React flushes a
   `popstate` update synchronously), so the site does not use it.
 - With reduced motion, or in a browser without view transitions (they need Chromium
-  111+, Safari 18+ or Firefox 144+), every navigation is instant.
+  111+, Safari 18+ or Firefox 144+), every navigation is instant; a sticker's click
+  still notes where the Projects page was (`desk.remember`), so coming back puts it
+  there.
 - `tests/transitions.spec.ts` checks that the stickers share the name and that every
   way in and out morphs; `tests/viewTransitions.ts` records what each transition the
   page starts really animated.

@@ -23,10 +23,13 @@ export const fragmentMono = Fragment_Mono({
 
 /**
  * The launcher's panel only: Super Space draws in the system's UI sans, which is
- * Adwaita Sans on Omarchy (made from Inter). Exposed as --font-inter.
+ * Adwaita Sans on Omarchy (made from Inter). Exposed as --font-inter. Not
+ * preloaded: the launcher is below the first screen, and a preload would vie
+ * with the headline's fonts for the first paint.
  */
 export const inter = Inter({
 	subsets: ['latin'],
 	display: 'swap',
+	preload: false,
 	variable: '--font-inter',
 });

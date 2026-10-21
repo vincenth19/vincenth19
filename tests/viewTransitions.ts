@@ -18,6 +18,8 @@ export type Recorded = {
 	pairs: string[];
 	/** The first and last transform of each sticker's group: where it flew from and to. */
 	flights: Record<string, { from: string; to: string }>;
+	/** True when something cut it short (skipTransition), so it never animated to its end. */
+	skipped: boolean;
 	finished: boolean;
 };
 
@@ -51,10 +53,16 @@ export async function recordTransitions(page: Page) {
 				names: [],
 				pairs: [],
 				flights: {},
+				skipped: false,
 				finished: false,
 			};
 			w.__vts.push(rec);
 			const vt = start(update);
+			const skip = vt.skipTransition.bind(vt);
+			vt.skipTransition = () => {
+				rec.skipped = true;
+				skip();
+			};
 			vt.ready
 				.then(() => {
 					const old = new Set<string>();

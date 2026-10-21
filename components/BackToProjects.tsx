@@ -21,7 +21,7 @@ export function BackToProjects({
 			className={className}
 			href="/"
 			scroll={false}
-			onNavigate={(e) => navigate(e, '/')}
+			onNavigate={(e) => navigate(e, '/', true)}
 		>
 			{children}
 		</Link>

@@ -8,7 +8,15 @@
 import type { Answer } from './types';
 
 /** Exchange rates against the euro, with the day the ECB published them ("2026-10-20"). */
-export type Rates = { date: string; eur: Record<string, number> };
+/**
+ * Euro rates: the ECB's of `date`, or, `approximate`, a stand-in for when the
+ * ECB could not be reached, which the card names neither the ECB nor a day for.
+ */
+export type Rates = {
+	date: string;
+	eur: Record<string, number>;
+	approximate?: boolean;
+};
 
 // ------------------------------------------------------------ numbers
 
@@ -89,12 +97,16 @@ function normalize(q: string): string | null {
 
 /** A leading number: "1,000", "1.5", "1e3", ".5", "-40". Value, raw text, rest. */
 function number(s: string): [number, string, string] | null {
+	// "0x10" is hexadecimal, which this does not read: not 0 times 10
+	if (/^[-+]?0x[\da-f]/i.test(s)) return null;
 	const m = /^[-+]?[\d.,]*(?:e[-+]?\d+)?/.exec(s);
 	if (!m) return null;
 	let raw = m[0];
 	// "1e" with no digits after is not an exponent
 	raw = raw.replace(/[,.]+$/, '');
 	if (!/\d/.test(raw)) return null;
+	// "1.000,5" is written the European way, which this does not read: not 1.0005
+	if (/\..*,/.test(raw)) return null;
 	const int = raw.split('.')[0].replace(/^[-+]/, '');
 	if (raw.includes(',')) {
 		const groups = int.split(',');
@@ -192,6 +204,12 @@ class Parser {
 		if (!a) return null;
 		for (;;) {
 			const r = this.rest();
+			// "1920x1080" multiplies; "0x10" is hexadecimal, which this does not read
+			if (
+				/^x[\da-f]/i.test(r) &&
+				/(?:^|[^\d.])0$/.test(this.s.slice(0, this.i))
+			)
+				return null;
 			const gluedX = /^x\d/.test(r);
 			let op: string;
 			if (this.eat('*') || (gluedX && this.eat('x'))) op = '*';
@@ -979,7 +997,11 @@ function currency(a: Amount, to: string, rates?: Rates | null): Answer | null {
 		inputLabel: label(from),
 		output: `${shown} ${to}`,
 		outputLabel: label(to),
-		detail: `1 ${x} = ${num(one, 4)} ${y} · ECB rate of ${dayMonth(rates.date)}`,
+		detail: `1 ${x} = ${num(one, 4)} ${y} · ${
+			rates.approximate
+				? 'approximate rate'
+				: `ECB rate of ${dayMonth(rates.date)}`
+		}`,
 		copy: plain(shown),
 	};
 }
@@ -1109,7 +1131,7 @@ const PLACES: [string, string][] = [
 	['Asia/Seoul', 'South Korea, Korea, Busan'],
 	[
 		'Asia/Kolkata',
-		'India, Kolkata, Calcutta, Mumbai, Delhi, New Delhi, Bangalore, Bengaluru, Chennai',
+		'India, Kolkata, Calcutta, Mumbai, Bombay, Delhi, New Delhi, Bangalore, Bengaluru, Chennai',
 	],
 	['Asia/Kathmandu', 'Kathmandu, Katmandu, Nepal, Pokhara'],
 	['Asia/Dubai', 'UAE, Abu Dhabi'],
@@ -1140,6 +1162,25 @@ const PLACES: [string, string][] = [
 
 type Place = { zone: string | number; name: string };
 
+/**
+ * Cities whose zones were renamed, by the name browsers still give them
+ * (Chromium reports Asia/Kolkata as Asia/Calcutta, Europe/Kyiv as Europe/Kiev):
+ * shown by their current names.
+ */
+const RENAMED: Record<string, string> = {
+	Calcutta: 'Kolkata',
+	Kiev: 'Kyiv',
+	Saigon: 'Ho Chi Minh City',
+	Katmandu: 'Kathmandu',
+	Rangoon: 'Yangon',
+};
+
+/** A zone's city, as it is called now: "Asia/Calcutta" is "Kolkata". */
+function cityOf(zone: string): string {
+	const city = zone.slice(zone.lastIndexOf('/') + 1).replaceAll('_', ' ');
+	return RENAMED[city] ?? city;
+}
+
 let placeMap: Map<string, [string, string]> | null = null;
 
 /** Every zone's city ("Sydney", "New York"), then the places above, by lowercase name. */
@@ -1153,7 +1194,7 @@ function places() {
 	for (const zone of zones) {
 		if (zone.startsWith('Etc/') || /\d/.test(zone)) continue;
 		const city = zone.slice(zone.lastIndexOf('/') + 1).replaceAll('_', ' ');
-		map.set(city.toLowerCase(), [zone, city]);
+		map.set(city.toLowerCase(), [zone, cityOf(zone)]);
 	}
 	for (const [zone, names] of PLACES) {
 		for (const n of names.split(', ')) map.set(n.toLowerCase(), [zone, n]);
@@ -1359,7 +1400,7 @@ function card(from: Place, to: Place, at: number, twelve: boolean): Answer {
 function time(q: string, now: number, homeZone: string): Answer | null {
 	const home: Place = {
 		zone: homeZone,
-		name: homeZone.slice(homeZone.lastIndexOf('/') + 1).replaceAll('_', ' '),
+		name: cityOf(homeZone),
 	};
 	// "time in berlin", "now in tokyo", "london time"
 	const prefix = NOW.find((p) => q.startsWith(p));

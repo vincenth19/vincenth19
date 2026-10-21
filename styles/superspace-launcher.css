@@ -12,7 +12,7 @@
 	margin: 56px auto 0;
 }
 
-/* ── the screen: a painted wallpaper, Omarchy's bar and folder tiles, the panel at 18% of its height ── */
+/* ── the screen: Omarchy's flat desktop, its bar and folder tiles, the panel at 18% of its height ── */
 .ss .ssl-screen {
 	/* fixed, so typing never moves the page; tall enough for the list to hold five or six rows */
 	--s-h: clamp(560px, 50vw, 720px);
@@ -24,42 +24,14 @@
 	font-family: var(--font-inter), 'Adwaita Sans', system-ui, sans-serif;
 	text-align: left;
 	color: #ebe1cc;
-	background:
-		url('/projects/super-space/demo/wallpaper.webp') center / cover no-repeat,
-		radial-gradient(
-			ellipse 34% 42% at 16% 82%,
-			rgba(150, 104, 58, 0.34),
-			transparent 72%
-		),
-		radial-gradient(
-			ellipse 26% 34% at 86% 18%,
-			rgba(176, 128, 78, 0.26),
-			transparent 72%
-		),
-		radial-gradient(
-			ellipse 30% 26% at 72% 86%,
-			rgba(110, 72, 40, 0.3),
-			transparent 70%
-		),
-		radial-gradient(
-			ellipse 22% 30% at 36% 30%,
-			rgba(96, 66, 42, 0.32),
-			transparent 72%
-		),
-		radial-gradient(ellipse 120% 90% at 50% 40%, #241a12, #0f0b08 78%);
+	/* the flat near-black desktop of the real launcher's captures (#131212), so
+	   the panel at 81% sits on it at their colour with a crisp edge */
+	background: #131212;
 	box-shadow:
 		0 0 0 1px rgba(236, 232, 225, 0.09),
 		0 60px 120px -50px #000,
 		0 26px 54px -30px rgba(0, 0, 0, 0.85);
 	-webkit-font-smoothing: antialiased;
-}
-/* the menu's scrim over the desktop */
-.ss .ssl-screen::before {
-	content: '';
-	position: absolute;
-	inset: 0;
-	pointer-events: none;
-	background: rgba(10, 8, 6, 0.18);
 }
 .ss .ssl-screen[inert] {
 	cursor: progress;
@@ -147,6 +119,9 @@
 	--sm: 4.5px;
 	--radius: 13px;
 	--thumb: 87px;
+	/* small dimmed text (subtitles, times, the kind, an answer's labels): the real
+	   panel's 0.52, a step brighter so it keeps 4.5:1 on the selected row */
+	--dim: 0.6;
 	--tile: 47.7px;
 	position: absolute;
 	top: calc(var(--s-h) * 0.18);
@@ -159,7 +134,7 @@
 	border-radius: var(--radius);
 	color: var(--ink);
 	/* the theme's menu colour at 81%, as the real panel: the desktop shows through */
-	background: rgba(30, 25, 19, 0.81);
+	background: rgba(30, 25, 21, 0.81);
 	box-shadow: 0 28px 70px -24px rgba(0, 0, 0, 0.75);
 	transform: translateX(-50%);
 	transition:
@@ -196,7 +171,7 @@
 		system-ui,
 		sans-serif;
 	color: #ebe1cc;
-	background: rgba(30, 25, 19, 0.81);
+	background: rgba(30, 25, 21, 0.81);
 	box-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.8);
 	transform: translateX(-50%);
 	cursor: pointer;
@@ -258,7 +233,8 @@
 .ss .ssl-tile-name {
 	font-size: 14px;
 	line-height: 1.2;
-	color: #a3875c;
+	/* a neutral grey: through the panel it shows as faintly as on the real captures */
+	color: #787877;
 }
 
 .ss .ssl-field {
@@ -299,6 +275,33 @@
 	caret-color: var(--ink);
 	background: transparent;
 	appearance: none;
+}
+/* The launcher draws its own caret, as the real one does: 2px wide, the field's
+   height, steady while it moves and blinking once it rests. */
+.ss .ssl-qbox {
+	position: relative;
+	display: flex;
+	flex: 1;
+	min-width: 0;
+}
+.ss .ssl-qbox .ssl-q {
+	width: 100%;
+	caret-color: transparent;
+}
+.ss .ssl-caret {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 2px;
+	height: 100%;
+	background: var(--ink);
+	pointer-events: none;
+	animation: ssl-blink 1.06s steps(1) 0.53s infinite;
+}
+@keyframes ssl-blink {
+	50% {
+		opacity: 0;
+	}
 }
 .ss .ssl-q::placeholder {
 	color: var(--ink);
@@ -381,13 +384,11 @@
 	height: var(--photo);
 	border-radius: 2px;
 }
-/* the web row's icon, soft as the real one is at this size */
-.ss .ssl-soft {
-	filter: blur(0.3px);
-}
-/* the browser's icon is a small one drawn large on the real row: softer still */
-.ss .ssl-soft--web {
-	filter: blur(0.5px);
+/* the web row's icon is a small bitmap drawn large, as on the real row */
+.ss .ssl-icon > .ssl-raster {
+	display: block;
+	width: var(--icon);
+	height: var(--icon);
 }
 
 .ss .ssl-body {
@@ -427,7 +428,7 @@
 	font-size: var(--fs-small);
 	line-height: 1.3;
 	white-space: pre;
-	opacity: 0.52;
+	opacity: var(--dim);
 }
 .ss .ssl-sub-name,
 .ss .ssl-sub-where {
@@ -497,7 +498,7 @@
 	position: absolute;
 	top: 0;
 	white-space: nowrap;
-	opacity: 0.52;
+	opacity: var(--dim);
 }
 .ss .ssl-times .is-picked {
 	font-weight: 600;
@@ -514,8 +515,8 @@
 .ss .ssl-chip {
 	display: grid;
 	place-items: center;
-	min-width: 29px;
-	height: 25px;
+	min-width: 30px;
+	height: 26px;
 	padding: 0 9px;
 	border-radius: 6px;
 	font-size: var(--fs-small);
@@ -585,7 +586,7 @@
 	font-variant-numeric: tabular-nums;
 	white-space: nowrap;
 	text-overflow: ellipsis;
-	opacity: 0.52;
+	opacity: var(--dim);
 }
 .ss .ssl-place.is-figure {
 	height: calc(var(--fs-display) * 1.21);
@@ -625,7 +626,7 @@
 	margin-top: var(--xs);
 	font-size: var(--fs-small);
 	line-height: 1.4;
-	opacity: 0.52;
+	opacity: var(--dim);
 }
 
 /* an instant answer: what you typed → the result, one detail line under */
@@ -681,7 +682,7 @@
 	line-height: 1.21;
 	white-space: nowrap;
 	text-overflow: ellipsis;
-	opacity: 0.52;
+	opacity: var(--dim);
 }
 .ss .ssl-answer-detail {
 	margin: 0;
@@ -700,7 +701,7 @@
 	font-size: var(--fs-caption);
 	line-height: 1.21;
 	white-space: nowrap;
-	opacity: 0.58;
+	opacity: 0.52;
 }
 
 /* what Enter would have done, in the corner, as Omarchy's notifications show */
@@ -789,12 +790,33 @@
 .ss .ssl-try-chip[aria-current='true'] {
 	box-shadow: inset 0 0 0 1px rgba(236, 232, 225, 0.42);
 }
-/* the demo pictures' credits, which their licences ask for */
+/* the demo pictures' credits, which their licences ask for: folded under the chips */
 .ss .ssl-credits {
 	max-width: 60em;
-	margin: 22px auto 0;
+	margin: 18px auto 0;
 	font: 400 12px / 1.6 var(--ss-mono);
 	color: var(--ss-dim);
+}
+.ss .ssl-credits summary {
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
+	padding: 0 6px;
+	cursor: pointer;
+	text-decoration: underline;
+	text-decoration-color: var(--ss-line);
+	text-underline-offset: 3px;
+}
+.ss .ssl-credits summary:hover {
+	color: var(--ss-ink);
+}
+.ss .ssl-credits summary:focus-visible {
+	outline: 2px solid var(--ss-ink);
+	outline-offset: 2px;
+	border-radius: 4px;
+}
+.ss .ssl-credits p {
+	margin: 4px 0 0;
 	text-wrap: balance;
 }
 .ss .ssl-credits a {
@@ -803,6 +825,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+	.ss .ssl-caret {
+		animation: none;
+	}
 	.ss .ssl-card,
 	.ss .ssl-screen[data-closed] .ssl-card,
 	.ss .ssl-toast,
@@ -849,6 +874,10 @@
 		--tile: 38px;
 		top: 42px;
 		width: calc(100% - 16px);
+	}
+	/* the list grows to the screen's foot, rather than scroll in a short box over empty desktop */
+	.ss .ssl-list {
+		max-height: calc(var(--s-h) - 150px);
 	}
 	.ss .ssl-place.is-loud {
 		font-size: calc(var(--fs-display) * 0.9);

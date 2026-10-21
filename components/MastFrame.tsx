@@ -47,7 +47,7 @@ export function MastFrame({
 						href="/"
 						aria-label={backLabel}
 						scroll={false}
-						onNavigate={(e) => navigate(e, '/')}
+						onNavigate={(e) => navigate(e, '/', true)}
 					>
 						{backIcon}
 					</Link>
