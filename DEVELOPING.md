@@ -185,7 +185,8 @@ one does (2px, the field's height, steady while it moves); the web row's icon is
   a phone the examples are under a screen taller than the panel: one pressed when
   the panel is above the top of the window scrolls the page back up to it. The
   search row takes a press 44px tall (a `::before` past its edges), and a press
-  anywhere on it puts the caret in the field.
+  anywhere on it puts the caret in the field: a mouse's as it goes down, a finger's
+  only once it is a tap (a finger going down there may be scrolling the page).
 - The launcher's words (the field's name and placeholder, what screen readers hear,
   the empty notice) are `superSpace.demo.labels` in `content/superspace.ts`.
 - For screen readers the field is a labelled combobox over a listbox of results
@@ -256,7 +257,10 @@ Forward (a trackpad swipe included).
   1.2 s. A project opens at the top with its title focused; coming back puts the
   Projects page where it was when the project opened (as the browser's Back would),
   the sticker focused, and scrolls only as far as it takes to bring the whole sticker
-  on screen (to the middle only for one that would be off it).
+  on screen (to the middle only for one that would be off it). A page still coasting
+  from a flick when Back or Forward is pressed stops there (`stopCoasting`: the root
+  is held at `overflow: hidden` for two frames, which ends a fling), so the next page
+  lands where it puts itself.
 - Back or Forward pressed as the flight starts wins: the flight's own step is
   dropped; pressed during the flight, the flight ends where it is and the step
   happens at once. A flight longer than a screen (back from the foot of a long page,
@@ -310,14 +314,17 @@ bottom-right corner can be taken with a mouse or a finger and peeled back
   lifts on hover), centred where the corner lifts at rest and never less than 20px
   in from the box's corner, with a grab cursor; on the round Super Space badge it is
   round, on its rim. Every sticker shows its corner just lifted at rest (`--rest`),
-  so there is something to see to take.
+  so there is something to see to take; a little more on a touchscreen
+  (`pointer: coarse`), where nothing else shows it (no hover lift, no grab cursor).
 - A finger on the grip may just be scrolling the page, so its first 10px decide
   (`START_CONE` and `START_LEAN` in `usePeel.ts`): within 25° of the diagonal, up
   and in, and leaning at least 30° off the screen's vertical (a tilted sticker's
   diagonal can be nearly upright, and a thumb scrolling the page goes up the
-  screen), it peels; any other way it scrolls. A peel whose first 32px turn out to
-  go up the screen after all is handed back: the corner goes down and the page
-  scrolls. Down the screen the browser scrolls it itself (the grip has
+  screen), it peels; any other way it scrolls. A peel that turns up the screen
+  before it is far enough to come off (its last 40px, `TURN_SPAN`, within 30° of
+  the vertical: a thumb's arc that set off up the diagonal and curled up) is handed
+  back: the corner goes down and the page scrolls, making up the way the finger
+  went meanwhile without a jump (half again as fast as the finger, until level). Down the screen the browser scrolls it itself (the grip has
   `touch-action: pan-up pinch-zoom`, so two fingers zoom there as anywhere); up the
   screen, or anywhere where `pan-up` is not supported, `usePeel` scrolls the page
   with the finger and lets it glide on after a flick (until something else scrolls
@@ -330,7 +337,10 @@ bottom-right corner can be taken with a mouse or a finger and peeled back
   pull past that is dropped). The tip's travel gives less and less past a peel of
   0.46 (a rubber band that never quite stops: half of the first 0.15 of extra pull,
   less of any more). Pushed back from there, the corner comes back with the
-  pointer at once: what the band held back is let go of (`slack`). The geometry is in
+  pointer at once: what the band held back is let go of (`slack`). The corner then
+  works its way back under the pointer: pushed further back, the slack shrinks
+  with the pull (so the corner lies flat just as the pointer reaches where it lies
+  flat), and pulled in again, the corner gains half of each move on the pointer. The geometry is in
   `styles/stickers.css`: the face is clipped to the box on the near side of the
   fold and the backing past it is mirrored across it, both clipped to the box (a
   clip that reaches far outside it makes the view transition's capture of the
@@ -340,8 +350,11 @@ bottom-right corner can be taken with a mouse or a finger and peeled back
   or `hint`.
 - Let go with the tip pulled past 0.34 of the width (as a peel; the sticker rises a
   little there, about the tip so the tip stays under the pointer, `data-ready`, and
-  a phone that can gives a 10 ms tick), or flick it in (600 px/s up the diagonal,
-  within 30° of it, after 30 px), and it comes off: it keeps that pose (`--lift`)
+  a phone that can gives a 10 ms tick, once a press), or flick it in (600 px/s up
+  the diagonal, within 30° of it, after 30 px), and it comes off. Once far enough,
+  it stays so until pushed back 0.02 under the line (`READY_GIVE`, about 6px), so a
+  finger resting on the line does not flicker the cue, and letting go does what the
+  cue last said. Off, it keeps that pose (`--lift`)
   and flies into the header as soon as its page is in, without the click's lift
   first (`open(href, true)` in `DeskProvider`). The header
   sticker takes the same pose before the transition captures it (`takePose` in

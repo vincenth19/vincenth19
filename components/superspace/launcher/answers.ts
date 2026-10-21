@@ -1473,7 +1473,8 @@ export function answerWord(word: string): boolean {
 			[
 				'plus minus times multiplied by x divided over to the power of percent squared cubed square cube root mod off deg degree degrees',
 				'to in into as of water and what whats is how much many calculate calc convert equals',
-				'am pm noon midday midnight time now here home local current clock at me my',
+				// "what time is it in tokyo" (the crate's own first time prefix)
+				'am pm noon midday midnight time now here home local current clock at me my it',
 				Object.keys(FUNCS).join(' '),
 				Object.keys(CONSTS).join(' '),
 				Object.keys(ABBR).join(' '),

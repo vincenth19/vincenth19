@@ -38,6 +38,20 @@
 	--hover: 0.2;
 	--rest: 0.065;
 } /* 240 × 300 */
+/* On a touchscreen the corner at rest is the only sign that there is one to
+   take (no hover lift, no grab cursor): it is lifted a little more, enough for
+   Basilica's to read as a curl against its cream perforations. */
+@media (pointer: coarse) {
+	.stk--superspace {
+		--rest: 0.08;
+	}
+	.stk--basilica {
+		--rest: 0.085;
+	}
+	.stk--covid {
+		--rest: 0.09;
+	}
+}
 
 .stk-face {
 	position: absolute;

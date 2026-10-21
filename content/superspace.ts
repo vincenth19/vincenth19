@@ -628,7 +628,8 @@ export const superSpace = {
 			title: 'Never stores',
 			text: ['Clipboard copies a password manager marks as secret'],
 		},
-		{ title: 'Says', text: ['“Nothing found”, honestly'] },
+		// the real empty state's words (ui/ResultRow.qml), as the launcher here says them
+		{ title: 'Says', text: ['“Nothing on this computer matches”'] },
 		{ title: 'Web results', text: ['Never on top'] },
 	] satisfies { title: string; text: Marked[] }[],
 
@@ -754,7 +755,7 @@ export const superSpace = {
 		{
 			q: 'Is it fast?',
 			a: [
-				'First results in single-digit milliseconds; results by meaning land as soon as you pause typing. Indexing runs at idle priority, then only re-\u2060reads changed files.',
+				'First results in single-digit milliseconds on the Try Omarchy VM (Apple Silicon); results by meaning land as soon as you pause typing. Indexing runs at idle priority, then only re-\u2060reads changed files.',
 			],
 		},
 		{

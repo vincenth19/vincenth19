@@ -24,7 +24,7 @@ export type ViewState = {
 	mode: Mode;
 	/** The pointer over a row's timeline: the time under it. */
 	hover?: { key: string; t: number };
-	/** A timeline's width on screen, to keep its labels apart (measured once in the page). */
+	/** A timeline's width on screen, to keep its labels apart (measured in the page, from the timelines it shows). */
 	width?: number;
 	/** The demo's pictures this copy has: a small WebP for each photo and video frame. */
 	thumbs?: Thumbs;
@@ -726,17 +726,32 @@ export function Panel({
 	const listed = rows.length > 0 || !!shown.answer;
 	return (
 		<div className="ssl-card">
+			{/* biome-ignore lint/a11y/useKeyWithClickEvents lint/a11y/noStaticElementInteractions: the field in it takes the keys; the row only widens where a pointer can press it */}
 			<div
 				className={`ssl-field${shown.q ? ' has-text' : ''}`}
-				// a press anywhere on the search row (its mark, its pill, the space
-				// around them) is a press on the field
+				// A press anywhere on the search row (its mark, its pill, the space
+				// around them) is a press on the field. A mouse's, as it goes down
+				// (kept from the row, so the caret stays); a finger's or a pen's only
+				// once it is a tap (the click), as a finger going down may be
+				// scrolling the page.
 				onPointerDown={
 					handlers &&
 					((e) => {
 						const input = e.currentTarget.querySelector('input');
 						if (!input || e.target === input || e.button !== 0) return;
+						if (e.pointerType !== 'mouse') return;
 						e.preventDefault();
 						input.focus({ preventScroll: true });
+					})
+				}
+				onClick={
+					handlers &&
+					((e) => {
+						const input = e.currentTarget.querySelector('input');
+						if (!input || e.target === input) return;
+						if (document.activeElement !== input) {
+							input.focus({ preventScroll: true });
+						}
 					})
 				}
 			>

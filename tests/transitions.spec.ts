@@ -565,6 +565,66 @@ test('a page turn that does not open or leave a project stays instant', async ({
 	expect(await vts.all()).toEqual([]);
 });
 
+test.describe('on a phone', () => {
+	test.use({
+		viewport: { width: 390, height: 844 },
+		hasTouch: true,
+		isMobile: true,
+	});
+
+	test('Back pressed while the project still coasts from a flick lands where the Projects page was left', async ({
+		page,
+		context,
+	}) => {
+		const vts = await recordTransitions(page);
+		await page.goto('/');
+		const sticker = page.getByRole('link', {
+			name: 'Super Space, 2026. Open project',
+		});
+		await sticker.evaluate((el) =>
+			el.scrollIntoView({ block: 'center', behavior: 'instant' }),
+		);
+		const left = await scrollY(page);
+		await sticker.tap();
+		await expect(page).toHaveURL(at('/projects/super-space'));
+		await vts.settled();
+		// a flick up the project page, and Back while it still coasts
+		const cdp = await context.newCDPSession(page);
+		let t = Date.now() / 1000;
+		const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', y?: number) =>
+			cdp.send('Input.dispatchTouchEvent', {
+				type,
+				timestamp: t,
+				touchPoints: y === undefined ? [] : [{ x: 60, y, id: 1 }],
+			});
+		await touch('touchStart', 694);
+		for (let i = 1; i <= 6; i++) {
+			t += 0.01;
+			await touch('touchMove', 694 - i * 60);
+			await page.waitForTimeout(10);
+		}
+		t += 0.01;
+		await touch('touchEnd');
+		await page.waitForTimeout(60);
+		const coasting = await page.evaluate(async () => {
+			const from = window.scrollY;
+			await new Promise((r) =>
+				requestAnimationFrame(() => requestAnimationFrame(r)),
+			);
+			return window.scrollY !== from;
+		});
+		expect(coasting).toBe(true);
+		await page.evaluate(() => history.back());
+		await expect(page).toHaveURL(at('/'));
+		await vts.settled();
+		await page.waitForTimeout(800);
+		// where it was left, the sticker in view and focused: the coast stopped with the page it was on
+		expect(await scrollY(page)).toBe(left);
+		await expect(sticker).toBeFocused();
+		await expect(sticker).toBeInViewport({ ratio: 0.9 });
+	});
+});
+
 test.describe('with reduced motion', () => {
 	test.use({ reducedMotion: 'reduce' });
 

@@ -49,6 +49,14 @@ html {
 	color-scheme: dark;
 	-webkit-text-size-adjust: 100%;
 }
+/* no square flash on a tap (Android Chrome), as on the stickers
+   (styles/stickers.css): links and buttons show a press as they show a hover
+   (:active), or do what was pressed at once (a page turns, an answer opens) */
+a,
+button,
+summary {
+	-webkit-tap-highlight-color: transparent;
+}
 body {
 	margin: 0;
 	background: var(--desk);

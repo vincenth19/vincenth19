@@ -993,6 +993,24 @@
 	line-height: 1.6;
 	color: var(--ss-dim);
 }
+/* A command in an answer breaks only where it must: on its own line, whole,
+   where it fits there (the longest, the uninstall's second command, is about
+   510px), and otherwise at a space before its reverse-domain id (about 300px)
+   rather than after one of the id's dots. Those are <wbr>s (components/
+   Command.tsx), which Chrome breaks at even in nowrap: they are taken out. */
+@media (min-width: 370px) {
+	.ss-faq-item p code .cmd-id wbr {
+		display: none;
+	}
+}
+@media (min-width: 600px) {
+	.ss-faq-item p code {
+		white-space: nowrap;
+	}
+	.ss-faq-item p code wbr {
+		display: none;
+	}
+}
 .ss-faq-item p code {
 	padding: 3px 8px;
 	border-radius: 6px;

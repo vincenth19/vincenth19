@@ -29,6 +29,23 @@ export function Command({ text }: { text: string }) {
 			push(nw(chunk));
 		});
 	};
+	/** The same, held in a .cmd-id, which a stylesheet may keep whole where it fits. */
+	const id = (chunks: string[]) => {
+		const inner: ReactNode[] = [];
+		for (const chunk of chunks) {
+			if (inner.length) inner.push(<wbr key={inner.length} />);
+			inner.push(
+				<span key={inner.length} className="nw">
+					{chunk}
+				</span>,
+			);
+		}
+		return (
+			<span key={parts.length} className="cmd-id">
+				{inner}
+			</span>
+		);
+	};
 
 	text.split(' ').forEach((word, i) => {
 		if (i > 0) push(' ');
@@ -37,7 +54,7 @@ export function Command({ text }: { text: string }) {
 			chunked([url[1], ...url[2].split(/(?<=\/)/).filter(Boolean)]);
 		} else if (/^[a-z\d-]+(\.[a-z\d-]+){2,}$/i.test(word)) {
 			// a reverse-domain id (io.github.…): after its dots
-			chunked(word.split(/(?<=\.)/));
+			push(id(word.split(/(?<=\.)/)));
 		} else if (/[^\w]/.test(word)) {
 			// hyphens are break opportunities too, so keep flags and names whole
 			push(nw(word));

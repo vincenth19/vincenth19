@@ -236,6 +236,18 @@ export function Launcher({
 			: { ...v, sel: found + (l.last.answer ? 1 : 0) };
 	}
 
+	/**
+	 * The timeline's width, for its labels, from one on screen; with none there,
+	 * the last one stands (a timeline drawn later is measured as it is drawn).
+	 */
+	const measure = useCallback(() => {
+		const bar = card.current?.querySelector<HTMLElement>('.ssl-timeline');
+		if (bar?.offsetWidth) setWidth(bar.offsetWidth);
+	}, []);
+	// before the paint: a timeline is never shown spaced for another width
+	// biome-ignore lint/correctness/useExhaustiveDependencies: measured again whenever the rows change
+	useLayoutEffect(measure, [measure, view.shown]);
+
 	// once mounted: the clock in the bar, and the timeline's width for its labels
 	useEffect(() => {
 		const l = live.current;
@@ -253,10 +265,7 @@ export function Launcher({
 		tick();
 		const timer = setInterval(tick, 15_000);
 		const el = card.current;
-		const observer = new ResizeObserver(() => {
-			const bar = el?.querySelector('.ssl-timeline');
-			setWidth(bar ? bar.getBoundingClientRect().width : undefined);
-		});
+		const observer = new ResizeObserver(measure);
 		if (el) observer.observe(el);
 		return () => {
 			clearInterval(timer);
@@ -264,7 +273,7 @@ export function Launcher({
 			clearTimeout(l.final);
 			clearTimeout(l.typing);
 		};
-	}, []);
+	}, [measure]);
 
 	// a chip under the screen asks for a search: shown at once, as if typing had paused
 	useEffect(() => {

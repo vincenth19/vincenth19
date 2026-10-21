@@ -200,6 +200,43 @@ test.describe('Super Space product page', () => {
 			'superspace-setup uninstall',
 			'omarchy plugin remove io.github.vincenth19.superspace',
 		]);
+		// the speed is the VM's, as the speed beat says
+		await expect(items.filter({ hasText: 'Is it fast?' })).toContainText(
+			'First results in single-digit milliseconds on the Try Omarchy VM (Apple Silicon)',
+		);
+	});
+
+	test('a command in an answer breaks only where it must', async ({ page }) => {
+		await page.goto(path);
+		await page.evaluate(() => document.fonts.ready);
+		const remove = page
+			.locator('.ss-faq details')
+			.filter({ hasText: 'How do I remove it?' });
+		await remove.locator('summary').click();
+		const command = remove.locator('code').nth(1);
+		/** How many lines an inline element runs over. */
+		const lines = (el: Element) =>
+			new Set([...el.getClientRects()].map((r) => Math.round(r.top))).size;
+		// wide: on a line of its own, whole
+		await page.setViewportSize({ width: 1440, height: 900 });
+		expect(await command.evaluate(lines)).toBe(1);
+		await page.setViewportSize({ width: 768, height: 900 });
+		expect(await command.evaluate(lines)).toBe(1);
+		// on a phone: at a space, never inside the id
+		await page.setViewportSize({ width: 390, height: 844 });
+		expect(await command.locator('.cmd-id').evaluate(lines)).toBe(1);
+		await expect(command).toHaveText(
+			'omarchy plugin remove io.github.vincenth19.superspace',
+		);
+		// and nothing sticks out of the answer
+		const [answer, code] = await Promise.all([
+			remove.locator('p').boundingBox(),
+			command.boundingBox(),
+		]);
+		expect(answer && code).toBeTruthy();
+		if (answer && code) {
+			expect(code.x + code.width).toBeLessThanOrEqual(answer.x + answer.width);
+		}
 	});
 
 	test('never mentions what is not released yet', async ({ page }) => {
@@ -368,6 +405,10 @@ test.describe('Super Space product page', () => {
 		// under a sum, nothing found by its operator words ("times" is not "time")
 		await search(field, 'what is 12 times 12');
 		await expect(card).toContainText('144');
+		await expect(local).toHaveCount(1);
+		// nor under the time asked the most natural way ("it" is not a search)
+		await search(field, 'what time is it in tokyo');
+		await expect(card).toContainText('Tokyo');
 		await expect(local).toHaveCount(1);
 		await search(field, '100k idr in usd');
 		const text = (await card.textContent()) ?? '';
@@ -959,6 +1000,76 @@ test.describe('Super Space product page', () => {
 			await page.touchscreen.tap(row.x + 14, row.y - 10);
 			await expect(field).toBeFocused();
 		});
+
+		test('a swipe that starts on the search row scrolls the page, and leaves the field alone', async ({
+			page,
+			context,
+		}) => {
+			await page.goto(path);
+			const launcher = await openLauncher(page);
+			const field = launcher.getByRole('combobox');
+			await launcher
+				.locator('.ssl-field')
+				.evaluate((el) =>
+					el.scrollIntoView({ block: 'center', behavior: 'instant' }),
+				);
+			const mark = await launcher.locator('.ssl-mark').boundingBox();
+			if (!mark) throw new Error('no mark');
+			const from = { x: mark.x + mark.width / 2, y: mark.y + mark.height / 2 };
+			const before = await page.evaluate(() => window.scrollY);
+			const cdp = await context.newCDPSession(page);
+			const touch = (
+				type: 'touchStart' | 'touchMove' | 'touchEnd',
+				y?: number,
+			) =>
+				cdp.send('Input.dispatchTouchEvent', {
+					type,
+					touchPoints: y === undefined ? [] : [{ x: from.x, y, id: 1 }],
+				});
+			// up the screen, as a thumb scrolls down the page
+			await touch('touchStart', from.y);
+			for (let i = 1; i <= 12; i++) {
+				await touch('touchMove', from.y - i * 15);
+				await page.waitForTimeout(16);
+			}
+			await touch('touchEnd');
+			await expect
+				.poll(() => page.evaluate(() => window.scrollY))
+				.toBeGreaterThan(before + 100);
+			await expect(field).not.toBeFocused();
+		});
+	});
+
+	test('after the screen turns, the times under a video’s timeline stay apart', async ({
+		page,
+	}) => {
+		// a phone on its side, a search with no video, then upright
+		await page.setViewportSize({ width: 844, height: 390 });
+		await page.goto(path);
+		const launcher = await openLauncher(page);
+		const field = launcher.getByRole('combobox');
+		await search(field, 'wifi connect');
+		await expect(launcher.locator('.ssl-timeline')).toHaveCount(0);
+		await page.setViewportSize({ width: 390, height: 844 });
+		await page.waitForTimeout(200);
+		await search(field, 'anjing');
+		const times = launcher.locator('.ssl-times');
+		await expect(times.first()).toBeVisible();
+		const clashes = await times.evaluateAll((all) =>
+			all.flatMap((t) => {
+				const boxes = [...t.children].map((c) => {
+					const r = c.getBoundingClientRect();
+					return { s: c.textContent, l: r.left, r: r.right };
+				});
+				return boxes.flatMap((a, i) =>
+					boxes
+						.slice(i + 1)
+						.filter((b) => a.l < b.r && b.l < a.r)
+						.map((b) => `${a.s} over ${b.s}`),
+				);
+			}),
+		);
+		expect(clashes).toEqual([]);
 	});
 
 	test.describe('at 390px wide', () => {

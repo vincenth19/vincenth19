@@ -22,15 +22,16 @@ import { prefersReducedMotion } from './DeskProvider';
  * that and the corner springs back down.
  *
  * Pulled past PEEL_MAX the corner gives less and less, as a rubber band
- * does, but never stops; pushed back, it comes back with the pointer at once.
- * Let go while pushing it back down and it stays, however far it was.
+ * does, but never stops; pushed back, it comes back with the pointer at once,
+ * and works its way back under the pointer from there. Let go while pushing
+ * it back down and it stays, however far it was.
  *
  * A finger (or a pen) on the grip may also just be scrolling the page: the
  * first few pixels it moves decide. Up the diagonal, into the sticker, and
  * leaning off the screen's vertical, it peels; any other way it scrolls the
  * page, by hand here (the grip holds the touch), with the glide a flick
- * gives. A peel that goes on up the screen in its first few pixels was a
- * scroll after all, and is handed back.
+ * gives. A peel that turns up the screen before it is far enough to come off
+ * (a thumb's arc) was a scroll after all, and is handed back.
  *
  * The drag writes --drag and --fold on the sticker, and the sticker's
  * data-peel says who drives --peel: "drag" (the pointer), "spring" (the spring
@@ -40,6 +41,12 @@ import { prefersReducedMotion } from './DeskProvider';
 
 /** Let go with the corner pulled this far (its tip's travel, as a peel: a fraction of the width) and the sticker comes off. */
 const PEEL_OPEN = 0.34;
+/**
+ * Once far enough to come off, it stays so until pushed back this much under
+ * PEEL_OPEN (about 6px): a finger resting on the line, with its tremor, does
+ * not flicker the cue, and letting go does what the cue last said.
+ */
+const READY_GIVE = 0.02;
 /** How far the corner follows the pointer one to one; past it, it gives less and less. */
 const PEEL_MAX = 0.46;
 /**
@@ -59,8 +66,20 @@ const START_CONE = 25;
  * whatever the sticker's tilt: a thumb scrolling the page goes up the screen.
  */
 const START_LEAN = 30;
-/** Until a finger's peel has gone this far (px), it is handed back to scrolling if it turns out to go up the screen after all. */
-const START_SURE = 32;
+/**
+ * Until a finger's peel is far enough to come off, it is handed back to
+ * scrolling whenever its last this-many px go up the screen within START_LEAN
+ * of the vertical: a thumb's arc that set off up the diagonal and curled up.
+ */
+const TURN_SPAN = 40;
+/** How many of a finger's moves the trail recalls, for that. */
+const TRAIL = 96;
+/**
+ * Pulled in again with the corner short of the pointer (pushed back from past
+ * the band), the corner gains this much of each move on it, until it is under
+ * the pointer again; a page scrolled by hand gains as much on the finger.
+ */
+const CATCH_UP = 0.5;
 /**
  * How far (degrees) the fold may turn from square to the diagonal, at most;
  * the sideways part of a pull past it is dropped. It turns with the pull up to
@@ -113,13 +132,21 @@ type Press = {
 	reach: number;
 	/** the same before the rubber band: how far the pointer has pulled it, less `slack` */
 	raw: number;
+	/** how far the pointer has pulled the tip (as a peel), slack and all */
+	pull: number;
 	/**
 	 * How much of the pointer's pull (as a peel) the corner has let go of: a
 	 * pull past the band that came back again. The pointer slid on the paper
-	 * there; the corner follows it back from where it is, at once.
+	 * there; the corner follows it back from where it is, at once, and takes
+	 * the slack up again as the pointer moves on, either way.
 	 */
 	slack: number;
+	/** far enough to come off (data-ready): letting go now opens it */
 	ready: boolean;
+	/** the tick that says so has been felt, this press */
+	ticked: boolean;
+	/** a finger's peel: where it has been (on screen, from the press), for the way it went last */
+	trail: Point[];
 	/** the farthest (px) the pointer got from where it pressed */
 	far: number;
 	/** recent moves, for the speed at release: the pointer in the sticker's frame (or on screen, scrolling) */
@@ -127,6 +154,9 @@ type Press = {
 	/** scrolling by hand: the page's scroll and the finger's y when it started */
 	scroll0: number;
 	y0: number;
+	/** ... how far (px) the page has still to make up on the finger, and where the finger last was */
+	owed: number;
+	lastY: number;
 	/** the pointer is over the sticker when it lets go (the hover peel is where it settles) */
 	over: boolean;
 };
@@ -489,12 +519,17 @@ export function usePeel(
 				fold: 45,
 				reach: 0,
 				raw: 0,
+				pull: 0,
 				slack: 0,
 				ready: false,
+				ticked: false,
+				trail: [],
 				far: 0,
 				samples: [],
 				scroll0: 0,
 				y0: 0,
+				owed: 0,
+				lastY: 0,
 				over: true,
 			};
 			press.current = p;
@@ -523,6 +558,7 @@ export function usePeel(
 				const start = poseOf(p.flat, p.w, p.tip);
 				// a corner caught past the band (springing back from there) stays where it is
 				p.slack = start.pull > PEEL_MAX ? start.pull - unband(start.pull) : 0;
+				p.pull = start.pull;
 				p.raw = start.pull - p.slack;
 				p.reach = band(p.raw);
 				// from the press: a flick can be over in a frame or two
@@ -538,22 +574,49 @@ export function usePeel(
 			/**
 			 * Not a peel: the finger scrolls the page, from here on. As a browser
 			 * does, it scrolls by what the finger moved past the slop (all of it,
-			 * when the moves came in one frame).
+			 * when the moves came in one frame). The page makes that up over the
+			 * next moves rather than at once (a peel handed back may have gone a
+			 * way): it goes half again as fast as the finger until it has
+			 * (CATCH_UP), and glides what is left when the finger lifts.
 			 */
 			const scrollByHand = (e: globalThis.PointerEvent) => {
 				p.mode = 'scroll';
 				p.scroll0 = window.scrollY;
 				const slop = (SLOP[p.type] ?? 4) / Math.max(p.far, 1);
-				p.y0 = p.y + (e.clientY - p.y) * Math.min(1, slop);
+				p.y0 = e.clientY;
+				p.owed = p.y + (e.clientY - p.y) * Math.min(1, slop) - e.clientY;
+				p.lastY = e.clientY;
 				p.samples = [{ t: e.timeStamp, x: 0, y: e.clientY, peel: 0, reach: 0 }];
 				stopGlide();
+			};
+
+			/**
+			 * A finger's peel: true when the way it went last (its last TURN_SPAN
+			 * px, or all of it, if shorter) goes up the screen without leaning,
+			 * as a thumb scrolling the page does.
+			 */
+			const turnsUp = (dx: number, dy: number) => {
+				p.trail.push({ x: dx, y: dy });
+				if (p.trail.length > TRAIL) p.trail.shift();
+				// from the press, unless it has gone further than the trail recalls
+				let from: Point | null = p.trail.length < TRAIL ? { x: 0, y: 0 } : null;
+				for (let i = p.trail.length - 2; i >= 0; i--) {
+					const q = p.trail[i];
+					if (Math.hypot(dx - q.x, dy - q.y) >= TURN_SPAN) {
+						from = q;
+						break;
+					}
+				}
+				if (!from) return false;
+				const tx = dx - from.x;
+				const ty = dy - from.y;
+				return ty < 0 && Math.hypot(tx, ty) >= 1 && !leans(tx, ty);
 			};
 
 			const move = (e: globalThis.PointerEvent) => {
 				if (e.pointerId !== p.id) return;
 				const dx = e.clientX - p.x;
 				const dy = e.clientY - p.y;
-				const before = p.far;
 				p.far = Math.max(p.far, Math.hypot(dx, dy));
 				if (p.mode === 'native') return;
 				const m = local(dx, dy, p.tilt);
@@ -578,17 +641,25 @@ export function usePeel(
 				} else if (
 					p.mode === 'peel' &&
 					p.type !== 'mouse' &&
-					before < START_SURE &&
-					dy < 0 &&
-					!leans(dx, dy)
+					turnsUp(dx, dy) &&
+					!p.ready
 				) {
-					// It leaned at first but went on up the screen: it was scrolling
-					// after all. The corner goes back down and the page scrolls.
-					p.ready = false;
+					// It leaned at first but turned up the screen before it was far
+					// enough to come off: it was scrolling after all. The corner goes
+					// back down and the page scrolls.
 					springBack(el, p.peel, p.fold, 0, false);
 					scrollByHand(e);
 				}
 				if (p.mode === 'scroll') {
+					const gain =
+						Math.sign(p.owed) *
+						Math.min(
+							Math.abs(p.owed),
+							CATCH_UP * Math.abs(e.clientY - p.lastY),
+						);
+					p.y0 += gain;
+					p.owed -= gain;
+					p.lastY = e.clientY;
 					window.scrollTo({
 						top: p.scroll0 + p.y0 - e.clientY,
 						behavior: 'instant',
@@ -605,19 +676,27 @@ export function usePeel(
 				}
 				const tip = { x: p.tip.x + m.x, y: p.tip.y + m.y };
 				let pose = poseOf(p.flat, p.w, tip, p.slack);
-				if (pose.raw < p.raw && p.raw > PEEL_MAX) {
+				if (pose.pull < p.pull && p.raw > PEEL_MAX) {
 					// Pushed back from past the band: the corner comes back as far as
 					// the pointer does, at once. What the band kept back is let go of.
 					const back = Math.max(0, p.reach - (p.raw - pose.raw));
 					p.slack = pose.pull - unband(back);
-					pose = poseOf(p.flat, p.w, tip, p.slack);
+				} else if (p.slack > 0 && pose.pull < p.pull) {
+					// pushed back further: the slack shrinks with the pull, so the
+					// corner lies flat just as the pointer gets back to where it does
+					p.slack *= pose.pull / p.pull;
+				} else if (p.slack > 0 && pose.pull > p.pull) {
+					// pulled in again: the corner gains on the pointer, until it is under it
+					p.slack = Math.max(0, p.slack - CATCH_UP * (pose.pull - p.pull));
 				}
 				// pushed down flat (or past): pulled out again, it lifts at once
 				p.slack = Math.min(p.slack, pose.pull);
+				pose = poseOf(p.flat, p.w, tip, p.slack);
 				p.peel = pose.peel;
 				p.fold = pose.fold;
 				p.reach = pose.reach;
 				p.raw = pose.raw;
+				p.pull = pose.pull;
 				p.samples.push({
 					t: e.timeStamp,
 					x: m.x,
@@ -627,12 +706,16 @@ export function usePeel(
 				});
 				if (p.samples.length > 12) p.samples.shift();
 				show();
-				const ready = p.reach >= PEEL_OPEN;
+				const ready = p.reach >= PEEL_OPEN - (p.ready ? READY_GIVE : 0);
 				if (ready !== p.ready) {
 					p.ready = ready;
 					if (ready) {
 						el.dataset.ready = '';
-						if (p.type === 'touch') tick();
+						// felt once a press, however often the line is crossed
+						if (p.type === 'touch' && !p.ticked) {
+							p.ticked = true;
+							tick();
+						}
 					} else {
 						delete el.dataset.ready;
 					}
@@ -665,7 +748,8 @@ export function usePeel(
 				}
 				const speed = velocity(p.samples, at);
 				if (p.mode === 'scroll') {
-					if (commit) glide(-speed.y);
+					// a glide goes about its speed times GLIDE_TAU: what is owed rides on it
+					if (commit) glide(-speed.y + p.owed / GLIDE_TAU);
 					return;
 				}
 				// the flick: fast up the diagonal, far enough, and not off to one side
@@ -690,8 +774,8 @@ export function usePeel(
 				const outwards =
 					len > 1 ? (speed.x * out.x + speed.y * out.y) / len : along(flick);
 				const pushedBack = outwards <= -PUSH_BACK;
-				const opens =
-					commit && ((p.reach >= PEEL_OPEN && !pushedBack) || flung);
+				// far enough as the cue last said (data-ready), or flicked
+				const opens = commit && ((p.ready && !pushedBack) || flung);
 				if (opens) {
 					// It stays as peeled as it was let go (and as lifted, if it was
 					// far enough to say so) while it comes off and flies: the flight

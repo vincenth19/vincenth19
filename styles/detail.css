@@ -130,7 +130,8 @@ kbd {
 	width: 20px;
 	height: 20px;
 }
-.btn:hover {
+.btn:hover,
+.btn:active {
 	transform: translateY(-2px);
 	box-shadow:
 		0 1px 0 rgba(255, 255, 255, 0.5) inset,
@@ -142,7 +143,8 @@ kbd {
 	background: transparent;
 	box-shadow: inset 0 0 0 1.5px rgba(242, 233, 216, 0.3);
 }
-.btn--ghost:hover {
+.btn--ghost:hover,
+.btn--ghost:active {
 	box-shadow: inset 0 0 0 1.5px rgba(242, 233, 216, 0.55);
 }
 

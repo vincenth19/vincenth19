@@ -145,6 +145,37 @@ function onKeyInput() {
 	input = 'key';
 }
 
+/**
+ * The page coasting on after a flick: no finger on it, the last one let go,
+ * and it scrolled a moment ago. Read from the touches and the scrolls.
+ */
+let fingers = 0;
+let letGo = false;
+let scrolledAt = Number.NEGATIVE_INFINITY;
+function onTouches(event: TouchEvent) {
+	fingers = event.touches.length;
+	letGo = event.type !== 'touchstart' && fingers === 0;
+}
+function onScrolled() {
+	scrolledAt = performance.now();
+}
+
+/**
+ * Stops the page coasting on after a flick, so a step to another page lands
+ * where that page puts itself (the Projects page where it was left, a project
+ * at its top) rather than carried on past it. A fling ends when its scroller
+ * cannot scroll: the root is held still for a frame the browser draws.
+ */
+function stopCoasting() {
+	if (fingers > 0 || !letGo || performance.now() - scrolledAt > 100) return;
+	const root = document.documentElement;
+	if (root.style.overflow) return;
+	root.style.overflow = 'hidden';
+	requestAnimationFrame(() =>
+		requestAnimationFrame(() => root.style.removeProperty('overflow')),
+	);
+}
+
 /** The transition that runs now, so an older one that is skipped leaves the newer one's state alone. */
 let running: ViewTransition | null = null;
 
@@ -468,9 +499,18 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 		window.addEventListener('click', onClickDuringTransition, capture);
 		window.addEventListener('pointerdown', onPointerInput, capture);
 		window.addEventListener('keydown', onKeyInput, capture);
+		const watch = { capture: true, passive: true };
+		for (const type of ['touchstart', 'touchend', 'touchcancel'] as const) {
+			window.addEventListener(type, onTouches, watch);
+		}
+		window.addEventListener('scroll', onScrolled, watch);
 		return () => {
 			window.removeEventListener('pointerdown', onPointerInput, capture);
 			window.removeEventListener('keydown', onKeyInput, capture);
+			for (const type of ['touchstart', 'touchend', 'touchcancel'] as const) {
+				window.removeEventListener(type, onTouches, watch);
+			}
+			window.removeEventListener('scroll', onScrolled, watch);
 			window.removeEventListener(
 				'pointerdown',
 				onPressDuringTransition,
@@ -661,9 +701,13 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 			if (replaying) return;
 			cancelLift(); // Back or Forward wins over a sticker still lifting
 			const to = window.location.pathname;
-			// the page being left (the browser restores the next one's scroll after this event)
-			if (morphs(shown.current, to))
+			if (morphs(shown.current, to)) {
+				// the page being left (the browser restores the next one's scroll
+				// after this event); still coasting from a flick, it stops here,
+				// so the next page is where it puts itself
 				scrolled.set(shown.current, window.scrollY);
+				stopCoasting();
+			}
 			// Back or Forward during a flight: the flight ends where it is and the
 			// step happens at once, rather than a second flight after a pause
 			if (running) {
