@@ -963,8 +963,9 @@ test.describe('peeling a sticker on a phone', () => {
 			'none',
 		);
 		await expect.poll(() => peelOf(basilica)).toBeCloseTo(0.085, 2);
-		// a key, and the focus shows again, as the keyboard's does
-		await page.keyboard.press('Shift');
+		// a key, and the focus shows again, as the keyboard's does (not a lone
+		// modifier: newer Chromium does not count Shift alone as keyboard use)
+		await page.keyboard.press('Escape');
 		await expect(basilica).not.toHaveAttribute('data-quiet');
 		await expect(basilica.locator('.stk-face')).toHaveCSS(
 			'outline-style',
