@@ -501,6 +501,8 @@ export function typeWords(q: string): (Scope & { rest: string }) | null {
 		)
 	)
 		start = plural;
+	// a kind word at the end of a long sentence is a word of it, not a scope
+	if (end < w.length && start === 0 && end > 4) return null;
 	const typed = [...w.slice(0, start), ...w.slice(end)];
 	const scope = scopeOf(typed);
 	return scope.kinds.length && start < end
@@ -1037,12 +1039,16 @@ function toRow(item: Item, name: number, matched: Scored[], ts: Term[]): Row {
 	return row;
 }
 
-/** Emoji typed into the query, as their names: "🐶" searches for "Dog face". */
+/**
+ * Emoji typed into the query, as what they show: "🐶" searches for "dog" (the
+ * first of its words), not for its name's words ("Dog face" would find a
+ * photo's face before the other dogs).
+ */
 function emojiNames(q: string): string {
 	let out = q;
 	for (const item of items) {
 		if (item.kind === 'emoji' && item.emoji && out.includes(item.emoji)) {
-			out = out.replaceAll(item.emoji, ` ${item.title} `);
+			out = out.replaceAll(item.emoji, ` ${item.names[1] ?? item.title} `);
 		}
 	}
 	return out.replace(/\s+/g, ' ').trim();
@@ -1248,10 +1254,14 @@ function order(rows: Row[], kinds: Kind[] | null): Row[] {
 	const pending = [...kept];
 	while (pending.length && out.length < 12) {
 		const others = new Set(pending.map((r) => r.kind));
+		const free = (r: Row) =>
+			(placed[r.kind] ?? 0) < 4 ||
+			[...others].every((k) => k === r.kind || (placed[k] ?? 0) > 0);
+		// past a better row held back (a fifth of its kind), only the best of a
+		// kind not yet shown goes ahead of it
+		const held = pending.findIndex((r) => !free(r));
 		const i = pending.findIndex(
-			(r) =>
-				(placed[r.kind] ?? 0) < 4 ||
-				[...others].every((k) => k === r.kind || (placed[k] ?? 0) > 0),
+			(r, j) => free(r) && (held < 0 || j < held || !placed[r.kind]),
 		);
 		const [r] = pending.splice(Math.max(0, i), 1);
 		placed[r.kind] = (placed[r.kind] ?? 0) + 1;

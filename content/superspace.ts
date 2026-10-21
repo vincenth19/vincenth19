@@ -195,7 +195,7 @@ export const superSpace = {
 		/** The credit line for the demo's pictures: before the list, between title and author, after a video's frame. */
 		credit: {
 			summary: 'Picture credits',
-			lead: 'Pictures in the demo, via Wikimedia Commons, scaled down:',
+			lead: 'Pictures in the demo, via Wikimedia Commons, cropped and scaled down:',
 			by: 'by',
 			frame: '(a frame)',
 		},
@@ -733,7 +733,7 @@ export const superSpace = {
 		{
 			q: 'What hardware?',
 			a: [
-				'Any Omarchy 4 machine, arm64 or x86_64. It’s built to run on a Raspberry Pi 5.',
+				'Any Omarchy 4 machine on arm64, which is what it’s built and tested on (a Raspberry Pi 5). There is an x86_64 build too, but it has not been run on x86 hardware yet.',
 			],
 		},
 		{

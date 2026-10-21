@@ -500,6 +500,22 @@ test.describe('Super Space product page', () => {
 		await expect(rows).toHaveCount(2);
 		await search(field, 'folder');
 		await expect(list).not.toContainText('Folded hands');
+		// an emoji is what it shows: 🐶 finds the dogs, not a face
+		await search(field, '🐶');
+		await expect(rows.filter({ hasText: 'IMG_2041.jpg' })).toHaveCount(1);
+		await expect(rows.filter({ hasText: 'IMG_2078.jpg' })).toHaveCount(1);
+		// a kind's word at the end of a long sentence is a word of it, not a scope
+		await search(field, 'the moon keeps whispering about yesterday text');
+		await expect(launcher.locator('.ssl-pill')).toHaveCount(0);
+		await expect(rows.first()).toContainText('Search the web');
+		// past four photos, other kinds' best come first, then the photos again:
+		// not the rest of the files
+		await search(field, 'cute dog');
+		const titles = await rows.allTextContents();
+		const last = titles.findIndex((t) => t.includes('IMG_2111'));
+		const lease = titles.findIndex((t) => t.includes('apartment-lease'));
+		expect(last).toBeGreaterThan(0);
+		if (lease >= 0) expect(lease).toBeGreaterThan(last);
 		// hexadecimal is not read as a sum
 		await search(field, '0x10 + 1');
 		await expect(card).toHaveCount(0);
@@ -573,6 +589,8 @@ test.describe('Super Space product page', () => {
 			'https://commons.wikimedia.org/wiki/File:Golden_retriever_swimming_the_doggy_paddle.webm',
 		);
 		await expect(credits).toContainText('by Golden Woofs');
+		// they are cropped to fit their tiles, and the credit says so
+		await expect(credits).toContainText('cropped and scaled down');
 		await expect(
 			credits
 				.locator('span', { hasText: 'Golden Woofs' })
@@ -708,6 +726,11 @@ test.describe('Super Space product page', () => {
 			{ width: 1440, height: 900 },
 			{ width: 1280, height: 800 },
 			{ width: 1920, height: 1080 },
+			// laptops' windows, less the browser's bars
+			{ width: 1366, height: 657 },
+			{ width: 1280, height: 649 },
+			{ width: 1536, height: 730 },
+			{ width: 1024, height: 640 },
 		]) {
 			await page.setViewportSize(viewport);
 			await page.goto(path);
@@ -861,6 +884,58 @@ test.describe('Super Space product page', () => {
 			}
 		});
 	}
+
+	test.describe('at 375 × 667, touch', () => {
+		test.use({
+			viewport: { width: 375, height: 667 },
+			hasTouch: true,
+			isMobile: true,
+		});
+
+		test('an example tapped under the screen brings the panel back into view', async ({
+			page,
+		}) => {
+			await page.goto(path);
+			await openLauncher(page);
+			const chip = page.getByRole('button', { name: 'songs about a breakup' });
+			// scrolled down to the chips: the panel has gone up off the screen
+			await chip.evaluate((el) =>
+				el.scrollIntoView({ block: 'end', behavior: 'instant' }),
+			);
+			const card = page.locator('.ssl-card');
+			expect((await card.boundingBox())?.y ?? 0).toBeLessThan(0);
+			await chip.tap();
+			await expect(page.getByRole('combobox')).toHaveValue(
+				'songs about a breakup',
+			);
+			await expect
+				.poll(async () => (await card.boundingBox())?.y ?? -1)
+				.toBeGreaterThanOrEqual(0);
+		});
+
+		test('the search row takes a finger: a tap beside the field puts the caret in it', async ({
+			page,
+		}) => {
+			await page.goto(path);
+			const launcher = await openLauncher(page);
+			const field = launcher.getByRole('combobox');
+			await launcher
+				.locator('.ssl-field')
+				.evaluate((el) =>
+					el.scrollIntoView({ block: 'center', behavior: 'instant' }),
+				);
+			const hit = await launcher
+				.locator('.ssl-field')
+				.evaluate((el) => getComputedStyle(el, '::before').height);
+			expect(Number.parseFloat(hit)).toBeGreaterThanOrEqual(44);
+			const row = await launcher.locator('.ssl-field').boundingBox();
+			expect(row).toBeTruthy();
+			if (!row) return;
+			// 10px above the row, over its mark: still the search row
+			await page.touchscreen.tap(row.x + 14, row.y - 10);
+			await expect(field).toBeFocused();
+		});
+	});
 
 	test.describe('at 390px wide', () => {
 		test.use({ viewport: { width: 390, height: 844 } });

@@ -287,6 +287,21 @@ export function Launcher({
 			el.setSelectionRange(request.q.length, request.q.length);
 			l.caret = [request.q.length, request.q.length];
 		}
+		// The chips are under the screen: on a phone, the panel can be above the
+		// top of the window by the time one is pressed, and the search would
+		// change where it cannot be seen. The page scrolls back up to it, only
+		// as far as it takes.
+		const frame = requestAnimationFrame(() => {
+			const panel = card.current?.querySelector<HTMLElement>('.ssl-card');
+			const top = panel?.getBoundingClientRect().top;
+			if (top === undefined || top >= 12) return;
+			const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+			window.scrollBy({
+				top: top - 12,
+				behavior: still ? 'instant' : 'smooth',
+			});
+		});
+		return () => cancelAnimationFrame(frame);
 	}, [request, rates, thumbs, labels]);
 
 	// a row chosen with ↓/↑ scrolls into the list's view, the list only

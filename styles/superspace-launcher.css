@@ -238,9 +238,17 @@
 }
 
 .ss .ssl-field {
+	position: relative;
 	display: flex;
 	align-items: center;
 	padding: 0 var(--rowx);
+}
+/* the search row takes a press as tall as a finger (44px) without growing: a
+   press on it, the field's own aside, puts the caret in the field (Panel) */
+.ss .ssl-field::before {
+	content: '';
+	position: absolute;
+	inset: -15px 0 -8px;
 }
 .ss .ssl-mark {
 	display: grid;
@@ -930,6 +938,17 @@
 		right: 8px;
 		bottom: 10px;
 		max-width: calc(100% - 16px);
+	}
+}
+
+/* the narrowest phones: a document's page chips a step smaller, so five stay on one line */
+@container screen (max-width: 340px) {
+	.ss .ssl-chips {
+		gap: 4px;
+	}
+	.ss .ssl-chip {
+		min-width: 24px;
+		padding: 0 6px;
 	}
 }
 

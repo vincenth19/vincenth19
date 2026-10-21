@@ -126,6 +126,20 @@ export function stickerName(key: string): string {
 	return `stk-${key}`;
 }
 
+/**
+ * What the reader last used on the page: a pointer (a click, a tap, a peel)
+ * or the keyboard. A sticker focused back by the page after its project was
+ * opened with a pointer shows no focus ring (StickerLink).
+ */
+let input: 'pointer' | 'key' = 'pointer';
+export const lastInput = () => input;
+function onPointerInput() {
+	input = 'pointer';
+}
+function onKeyInput() {
+	input = 'key';
+}
+
 /** The transition that runs now, so an older one that is skipped leaves the newer one's state alone. */
 let running: ViewTransition | null = null;
 
@@ -345,10 +359,66 @@ function shortenFlight() {
 	}
 }
 
+/** How a sticker's corner is peeled: --peel, and the angle (degrees) it folds along. */
+type Pose = { peel: number; fold: number };
+
+/** The pose the Projects page's flying sticker is in now (lifted, or peeled off by hand), or null. */
+function bookPose(): Pose | null {
+	const el = flyingSticker();
+	if (!el?.classList.contains('stk')) return null;
+	const style = getComputedStyle(el);
+	const peel = Number.parseFloat(style.getPropertyValue('--peel'));
+	const fold = Number.parseFloat(style.getPropertyValue('--fold'));
+	if (!Number.isFinite(peel)) return null;
+	return { peel, fold: Number.isFinite(fold) ? fold : 45 };
+}
+
+/**
+ * The header sticker, flying in from the Projects page, takes the pose that
+ * sticker was captured in, so the two images the transition cross-fades are
+ * one and the same: the corner never dissolves from one pose to the other.
+ * It lays the corner down once it has landed (`pressDown`).
+ */
+function takePose(pose: Pose | null): HTMLElement | null {
+	const el = flyingSticker();
+	if (!pose || !el?.classList.contains('slap-stk')) return null;
+	delete el.dataset.press;
+	el.dataset.posed = '';
+	el.style.setProperty('--peel', pose.peel.toFixed(4));
+	el.style.setProperty('--fold', `${pose.fold.toFixed(2)}deg`);
+	// the backing, folded over, is in the picture now
+	const flap = el.querySelector<HTMLImageElement>('.stk-flap');
+	if (flap) flap.loading = 'eager';
+	return el;
+}
+
+/**
+ * The header sticker has landed: its corner is pressed down flat (data-press
+ * eases it, styles/masthead.css); then the flap is put away.
+ */
+function pressDown(el: HTMLElement) {
+	delete el.dataset.posed;
+	el.dataset.press = '';
+	el.style.removeProperty('--peel');
+	el.style.removeProperty('--fold');
+	const done = (event?: TransitionEvent) => {
+		if (event && event.propertyName !== '--peel') return;
+		window.clearTimeout(timer);
+		el.removeEventListener('transitionend', done);
+		el.removeEventListener('transitioncancel', done);
+		if (!('posed' in el.dataset)) delete el.dataset.press;
+	};
+	el.addEventListener('transitionend', done);
+	el.addEventListener('transitioncancel', done);
+	const timer = window.setTimeout(done, 1000);
+}
+
 /** Resolves once the stickers on screen have decoded, so the transition never captures a blank one. */
 function stickersDecoded(): Promise<unknown> {
-	// the header sticker's and the Projects page's
-	const images = document.querySelectorAll<HTMLImageElement>('.stk-face img');
+	// the header sticker's and the Projects page's, and a header sticker's flap that shows
+	const images = document.querySelectorAll<HTMLImageElement>(
+		'.stk-face img, .slap-stk[data-posed] .stk-flap',
+	);
 	return Promise.race([
 		Promise.all([...images].map((img) => img.decode().catch(() => {}))),
 		new Promise((resolve) => window.setTimeout(resolve, DECODE_TIMEOUT_MS)),
@@ -391,7 +461,11 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 		const capture = { capture: true };
 		window.addEventListener('pointerdown', onPressDuringTransition, capture);
 		window.addEventListener('click', onClickDuringTransition, capture);
+		window.addEventListener('pointerdown', onPointerInput, capture);
+		window.addEventListener('keydown', onKeyInput, capture);
 		return () => {
+			window.removeEventListener('pointerdown', onPointerInput, capture);
+			window.removeEventListener('keydown', onKeyInput, capture);
 			window.removeEventListener(
 				'pointerdown',
 				onPressDuringTransition,
@@ -432,6 +506,8 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 					busy.current = false;
 					return;
 				}
+				// the sticker that flies, as the transition captured it
+				const pose = projectPath.test(to()) ? bookPose() : null;
 				// Unless a newer step (Back pressed twice in a row) already put that
 				// page on screen, change the page and wait until it is in.
 				if (shown.current !== to()) {
@@ -471,6 +547,10 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 					Math.abs(bookAfter - bookBefore) > window.innerHeight * 0.4
 				) {
 					root.dataset.vtBookFar = '';
+				}
+				const landing = takePose(pose);
+				if (landing) {
+					running?.finished.catch(() => {}).finally(() => pressDown(landing));
 				}
 				await stickersDecoded();
 			};

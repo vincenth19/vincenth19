@@ -24,6 +24,20 @@
 .desk:has(> .ss) .mast[data-open] .socials {
 	margin-top: 8px;
 }
+/* a laptop's short window (under 760px tall, less the browser's own bars): the
+   sticker gets smaller still, and the hero's gaps tighten, so the install
+   command keeps to the first screen */
+@media (max-height: 760px) and (min-width: 761px) {
+	.desk:has(> .ss) .slap .stk--superspace .stk-body {
+		--sh: clamp(120px, 40vh - 120px, 260px);
+	}
+	.ss .ss-sub {
+		margin-top: clamp(14px, 2.6vh, 32px);
+	}
+	.ss .ss-actions {
+		margin-top: clamp(16px, 2.8vh, 44px);
+	}
+}
 
 .ss {
 	--ss-bg: #0c0c0e;

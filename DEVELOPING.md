@@ -69,7 +69,8 @@ keeps it mounted); below it, in place of the book, a dark stage that the desk's 
 light fades into. On this page the header sticker is smaller than on the other
 projects (it scales with the screen's height; the rules are at the top of
 `styles/superspace.css`), so the headline and the install command make the first
-screen.
+screen; in a window under 760px tall (a laptop's, less the browser's bars) it gets
+smaller still and the hero's gaps tighten, down to a 600px-tall window.
 
 - Copy and numbers are typed data in `content/superspace.ts`. Keep each number
   exactly as measured, with its qualifier ("in our test", "measured on the Pi", "on
@@ -122,11 +123,15 @@ one does (2px, the field's height, steady while it moves); the web row's icon is
   three letters only as a swap, one of four never as a changed letter, so "node" is
   not "note"; small words like "up" and "to" count only inside a group's phrase,
   "pick up", "set up"; an emoji's names are matched whole or from four letters, never
-  as a typo, and an emoji typed into the query comes first; a clipboard copy is found
+  as a typo, and an emoji typed into the query comes first and searches for what it
+  shows, the first of its words ("🐶" for "dog", not "Dog face"); a clipboard copy is found
   by where it came from, a page of history by its browser, Chrome being Chromium;
   scope words narrow by extension, "pdf", and "songs" to songs, "voice memos" to
   recordings, while "notes" and "application" next to other words are what the search
-  is about, "rust notes", "job application"),
+  is about, "rust notes", "job application", and a kind word at the end of a sentence
+  of more than four words is a word of it, not a scope; the order allows four rows of
+  a kind before the best row of each other kind, and only those best rows go ahead of
+  a better row held back),
   `answers.ts` the
   quick answers (maths, units, currency and time zones ported from the daemon's
   `crates/answers`; "0x10" and "1.000,5" are not read as sums, and a home zone the
@@ -159,7 +164,8 @@ one does (2px, the field's height, steady while it moves); the web row's icon is
   (`pictures`), and they come back by themselves once the files are added.
   16 of the 31 are there: the same Commons files, taken from copies that other
   projects host on GitHub (Commons itself could not be reached when they were made),
-  checked by eye against their titles and scaled down; the cat chasing the laser is
+  checked by eye against their titles, cropped (a photo to its middle square, a
+  frame to 16:9) and scaled down, which the credit says; the cat chasing the laser is
   a frame of the real clip, at 10 s. `bun scripts/demo-pictures.ts` makes the rest
   from Commons itself (it needs the network and ffmpeg; check each before you commit
   it; `--force` remakes them all from the originals). The dog swimming
@@ -175,7 +181,11 @@ one does (2px, the field's height, steady while it moves); the web row's icon is
   own, about 57 KB gzipped) when they come within 300 px of the screen, or when an
   example search under the screen is pressed, and swaps them in (a failed load is
   tried again on the next press). The field never takes the focus by itself; an
-  example pressed with a mouse or a key puts the caret at the end of its search.
+  example pressed with a mouse or a key puts the caret at the end of its search. On
+  a phone the examples are under a screen taller than the panel: one pressed when
+  the panel is above the top of the window scrolls the page back up to it. The
+  search row takes a press 44px tall (a `::before` past its edges), and a press
+  anywhere on it puts the caret in the field.
 - The launcher's words (the field's name and placeholder, what screen readers hear,
   the empty notice) are `superSpace.demo.labels` in `content/superspace.ts`.
 - For screen readers the field is a labelled combobox over a listbox of results
@@ -291,34 +301,65 @@ Forward (a trackpad swipe included).
 bottom-right corner can be taken with a mouse or a finger and peeled back
 (`components/usePeel.ts`, used by `StickerLink`).
 
-- The corner to take hold of is `.stk-grip` (`styles/stickers.css`): a square over
-  the art's corner and 8px past it, at least 48px (more with a mouse, which can
-  take the corner as far in as it lifts on hover), with a grab cursor. It alone
-  has `touch-action: none`, so a peel can only start there; a swipe anywhere else
-  on a sticker scrolls the page. Every sticker shows its corner just lifted at
-  rest (`--rest`), so there is something to see to take.
-- The drag is read in the sticker's own (tilted) frame and projected onto the
-  diagonal the corner folds along; the corner's tip stays under the pointer (the
-  fold moves half as far as the tip) and gives less and less past a peel of 0.46
-  (a rubber band). It writes `--drag`, and the sticker's `data-peel` says what
-  drives `--peel`: `drag`, `spring` (laid back down), `off` (let go to open) or
-  `hint`.
-- Let go with the corner peeled past 0.34 of the width (the sticker lifts a little
-  there, `data-ready`, and a phone that can gives a 10 ms tick), or flick it in
-  (600 px/s after 30 px), and it comes off: it keeps that pose (`--lift`) while it
-  lifts and flies into the header, so the view transition starts from it. Let go
-  sooner, or push it back down, and a short spring (stiffness 520, damping 0.6)
-  lays it back to rest (or to the hover peel, under a mouse still on it).
-- A press that does not move is a tap or a click and opens the sticker as before;
-  so do Enter and Space; a modifier or middle click opens a new tab. A second
-  finger ends a peel without opening anything.
+- The corner to take hold of is `.stk-grip` (`styles/stickers.css`): a square at
+  least 56px across (more with a mouse, which can take the corner as far in as it
+  lifts on hover), centred where the corner lifts at rest and never less than 20px
+  in from the box's corner, with a grab cursor; on the round Super Space badge it is
+  round, on its rim. Every sticker shows its corner just lifted at rest (`--rest`),
+  so there is something to see to take.
+- A finger on the grip may just be scrolling the page, so its first 10px decide
+  (`START_CONE` in `usePeel.ts`): within 25° of the diagonal, up and in, it peels;
+  any other way it scrolls. Down the screen the browser scrolls it itself (the grip
+  has `touch-action: pan-up`); up the screen, or anywhere where `pan-up` is not
+  supported, `usePeel` scrolls the page with the finger and lets it glide on after
+  a flick. Off the grip a sticker is the page: a swipe across it scrolls natively. A
+  mouse has nothing to scroll and takes the corner whichever way it pulls.
+- The corner's tip follows the pointer (in the sticker's own, tilted frame): the
+  fold is the line halfway between where the tip lies flat and where it is now, so
+  it turns with the pull (`--fold`, up to 30° either side of square to the
+  diagonal; past that the sideways part of the pull is dropped). The tip's travel
+  gives less and less past a peel of 0.46 (a rubber band). The geometry is in
+  `styles/stickers.css`: the face is clipped to the box on the near side of the
+  fold and the backing past it is mirrored across it, both clipped to the box (a
+  clip that reaches far outside it makes the view transition's capture of the
+  sticker huge and slow). A browser without CSS trig functions keeps the fixed 45°
+  fold. The drag writes `--drag` and `--fold`, and the sticker's `data-peel` says
+  what drives `--peel`: `drag`, `spring` (laid back down), `off` (let go to open)
+  or `hint`.
+- Let go with the tip pulled past 0.34 of the width (as a peel; the sticker lifts a
+  little there, `data-ready`, and a phone that can gives a 10 ms tick), or flick it
+  in (600 px/s up the diagonal, within 30° of it, after 30 px), and it comes off: it
+  keeps that pose (`--lift`) while it lifts and flies into the header. The header
+  sticker takes the same pose before the transition captures it (`takePose` in
+  `DeskProvider`), so the cross-fade between the two images is between two of the
+  same; once it has landed its corner is pressed down flat (`data-press`,
+  `styles/masthead.css`). A click's lift hands over the same way. Let go sooner, or
+  push it back down, and a short spring (stiffness 520, damping 0.6) lays it back to
+  rest (or to the hover peel, under a mouse still on it), the fold turning back
+  square with it.
+- A press that does not move, or wanders less than a tap does (15px for a finger,
+  6px for a mouse), is a tap or a click and opens the sticker as before; so do
+  Enter and Space; a modifier or middle click opens a new tab. A drag's own click
+  is dropped, but only until the next press. A second finger ends a peel without
+  opening anything.
+- Space opens a sticker, as Enter does, though it is a link: the brief asked for
+  "Enter/Space" to open a sticker, so a sticker behaves as a button does there,
+  where a link would scroll the page. Every other link keeps the link's keys.
 - Once a visit (`sessionStorage`), when the stickers first come into full view,
   the first of them lifts its corner and lays it back down (`stk-hint`): not with
-  reduced motion, and not once a sticker has been peeled.
+  reduced motion, and not once a sticker has been peeled. A pointer or the focus
+  arriving on it while it plays ends it, and the corner goes from where it was to
+  the hover (or rest) peel, with the spring.
+- After a project opened with a pointer (a click, a tap or a peel), the sticker
+  that comes back is focused but quiet (`data-quiet`): no ring and no lift until a
+  key is pressed. Chrome would show the ring there after a peel, which focuses
+  nothing, so its script focus counts as the keyboard's (`lastInput` in
+  `DeskProvider`).
 - With reduced motion the corner still follows the pointer (the reader moves it),
   but it goes back down without the spring and opens without the view transition.
 - `tests/peel.spec.ts` drags with a mouse, and with touches sent through Chrome's
-  own input (CDP), so touch-action and scrolling are real.
+  own input (CDP), so touch-action and scrolling are real; a flick's touches carry
+  their own times, so its speed does not depend on how busy the machine is.
 
 ## Where the site differs from the design prototype
 

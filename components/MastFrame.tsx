@@ -64,6 +64,15 @@ export function MastFrame({
 									fetchPriority="high"
 								/>
 							</span>
+							{/* the corner it lands with, if it was peeled (DeskProvider); flat, nothing shows */}
+							<span className="stk-flapwrap">
+								<img
+									className="stk-flap"
+									src={open.sticker.back}
+									alt=""
+									loading="lazy"
+								/>
+							</span>
 						</span>
 					</figure>
 				</div>

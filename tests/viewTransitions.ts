@@ -17,6 +17,11 @@ export type Recorded = {
 	 * the transition captured it, or null when none of them flew.
 	 */
 	peel: number | null;
+	/**
+	 * How far the header sticker was peeled (its --peel) when the transition
+	 * captured the new page, or null on a page without one.
+	 */
+	landed: number | null;
 	/** Every name the transition animated. */
 	names: string[];
 	/** The names with an old and a new image: shared elements that morph. */
@@ -61,6 +66,7 @@ export async function recordTransitions(page: Page) {
 					null,
 				named,
 				peel,
+				landed: null,
 				names: [],
 				pairs: [],
 				flights: {},
@@ -76,6 +82,12 @@ export async function recordTransitions(page: Page) {
 			};
 			vt.ready
 				.then(() => {
+					const header = document.querySelector('.slap-stk');
+					if (header) {
+						rec.landed = Number.parseFloat(
+							getComputedStyle(header).getPropertyValue('--peel'),
+						);
+					}
 					const old = new Set<string>();
 					const fresh = new Set<string>();
 					for (const a of document.documentElement.getAnimations({

@@ -722,7 +722,20 @@ export function Panel({
 	const listed = rows.length > 0 || !!shown.answer;
 	return (
 		<div className="ssl-card">
-			<div className={`ssl-field${shown.q ? ' has-text' : ''}`}>
+			<div
+				className={`ssl-field${shown.q ? ' has-text' : ''}`}
+				// a press anywhere on the search row (its mark, its pill, the space
+				// around them) is a press on the field
+				onPointerDown={
+					handlers &&
+					((e) => {
+						const input = e.currentTarget.querySelector('input');
+						if (!input || e.target === input || e.button !== 0) return;
+						e.preventDefault();
+						input.focus({ preventScroll: true });
+					})
+				}
+			>
 				<span className="ssl-mark">
 					<OmarchyMark />
 				</span>

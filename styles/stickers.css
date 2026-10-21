@@ -4,12 +4,16 @@
      --ratio  height / width of the art's viewBox
      --d0     how far in from the bottom-right box corner the die-cut outline
               starts, along the 45° diagonal, as a fraction of the width.
-              The peel line is x + y = --k.
      --rest   peel at rest: a corner just lifted, to show there is one to take
      --hover  peel on hover / focus
-   Peeling one by hand (components/usePeel.ts) drives --peel from --drag.     */
+   The corner folds along a straight line: it crosses the diagonal --peel (a
+   fraction of the width) in from where the outline starts, and its normal
+   points out to the corner at --fold (45deg: square to the diagonal). Peeling
+   one by hand (components/usePeel.ts) drives --peel from --drag and turns
+   --fold with the pull, so the corner's tip stays under the pointer.        */
 .stk-body {
 	--w: calc(var(--sh) / var(--ratio));
+	/* the 45° fold, x + y = k: where the turning fold below is not supported */
 	--k: calc(var(--w) + var(--sh) - var(--w) * (var(--d0) + var(--peel)));
 	position: relative;
 	display: block;
@@ -79,6 +83,62 @@
 	);
 }
 
+/* The fold that turns: the line n · X = c, n = (cos, sin of --fold), through
+   the point where it crosses the diagonal. The face keeps the part of the box
+   on the near side of it; the backing's part past it is mirrored across it
+   (the reflection X − 2(n · X − c) n) to make the flap. Each part is the box
+   cut by the line, drawn as five points (some of them the same) through where
+   the line meets the box's edges: --xt and --xb across the top and bottom,
+   --yl and --yr down the left and right. The clips stay inside the box: a
+   view transition captures everything a clip reaches. */
+@supports (width: calc(1px * cos(45deg))) {
+	.stk-body {
+		--nx: cos(var(--fold, 45deg));
+		--ny: sin(var(--fold, 45deg));
+		--dd: calc(var(--w) * (var(--d0) + var(--peel)) / 2);
+		--c: calc(
+			var(--nx) *
+			(var(--w) - var(--dd)) +
+			var(--ny) *
+			(var(--sh) - var(--dd))
+		);
+		--xt: calc(var(--c) / var(--nx));
+		--xb: calc((var(--c) - var(--ny) * var(--sh)) / var(--nx));
+		--yl: calc(var(--c) / var(--ny));
+		--yr: calc((var(--c) - var(--nx) * var(--w)) / var(--ny));
+	}
+	.stk-face img {
+		clip-path: polygon(
+			0 0,
+			min(var(--xt), var(--w)) 0,
+			min(var(--xt), var(--w)) clamp(0px, var(--yr), var(--sh)),
+			clamp(0px, var(--xb), var(--w)) min(var(--yl), var(--sh)),
+			0 min(var(--yl), var(--sh))
+		);
+	}
+	.stk-flap {
+		transform: translate(
+				calc(2 * var(--c) * var(--nx)),
+				calc(2 * var(--c) * var(--ny))
+			)
+			matrix(
+				calc(1 - 2 * var(--nx) * var(--nx)),
+				calc(-2 * var(--nx) * var(--ny)),
+				calc(-2 * var(--nx) * var(--ny)),
+				calc(1 - 2 * var(--ny) * var(--ny)),
+				0,
+				0
+			);
+		clip-path: polygon(
+			var(--w) var(--sh),
+			max(var(--xb), 0px) var(--sh),
+			max(var(--xb), 0px) clamp(0px, var(--yl), var(--sh)),
+			clamp(0px, var(--xt), var(--w)) max(var(--yr), 0px),
+			var(--w) max(var(--yr), 0px)
+		);
+	}
+}
+
 /* the sticker as a link on the Projects page */
 .stk {
 	--peel: var(--rest, 0);
@@ -89,24 +149,42 @@
 	rotate: var(--tilt, 0deg);
 	transition:
 		--peel 0.35s var(--ease-out),
+		--fold 0.35s var(--ease-out),
 		translate 0.3s var(--ease-out);
 	-webkit-tap-highlight-color: transparent;
 	user-select: none;
 }
-/* The corner to take hold of (usePeel), over the art's bottom-right corner and
-   a little past it: at least 48px square (56px with the margin) on a phone,
-   more with a mouse, which can take the corner as far in as it lifts on hover.
-   Only here does a touch not scroll the page: a drag starts here or nowhere. */
+/* The corner to take hold of (usePeel): a square at least 56px across on a
+   phone (more with a mouse, which can take the corner as far in as it lifts on
+   hover), centred where the corner lifts at rest, and never less than 20px in
+   from the box's corner, so it reaches a little past a square sticker's edge.
+   A drag starts here or nowhere. A finger going down here scrolls the page as
+   anywhere else (pan-up); one going up has to be read first: up the diagonal
+   it peels, and anything else scrolls the page by hand (usePeel). Where pan-up
+   is not supported, every touch here is read that way. */
 .stk-grip {
 	--g: max(48px, calc(var(--w) * 0.24));
+	--gi: max(
+		calc(var(--g) / 2 - 4px),
+		calc(var(--w) * (var(--d0) + var(--rest, 0)) / 2)
+	);
 	position: absolute;
-	right: -8px;
-	bottom: -8px;
+	right: calc(var(--gi) - var(--g) / 2 - 4px);
+	bottom: calc(var(--gi) - var(--g) / 2 - 4px);
 	width: calc(var(--g) + 8px);
 	height: calc(var(--g) + 8px);
 	touch-action: none;
 	cursor: grab;
 	-webkit-touch-callout: none;
+}
+@supports (touch-action: pan-up) {
+	.stk-grip {
+		touch-action: pan-up;
+	}
+}
+/* the round badge: a round grip, on its rim, so its corners are not empty desk */
+.stk--superspace .stk-grip {
+	border-radius: 50%;
 }
 @media (hover: hover) and (pointer: fine) {
 	.stk:hover {
@@ -117,19 +195,25 @@
 		--g: max(48px, calc(var(--w) * 0.26));
 	}
 }
+/* focused from the keyboard: lifted and ringed. Focused back by the page after a
+   project opened from a tap or a peel (data-quiet, StickerLink), it shows
+   neither until a key is pressed, as a tap's own focus would not. */
 .stk:focus-visible {
-	--peel: var(--hover);
 	outline: none;
 }
-.stk:focus-visible .stk-face {
+.stk:focus-visible:not(:where([data-quiet])) {
+	--peel: var(--hover);
+}
+.stk:focus-visible:not(:where([data-quiet])) .stk-face {
 	outline: 2px dashed var(--ink);
 	outline-offset: 10px;
 	border-radius: 4px;
 }
 
-/* Peeled by hand (usePeel): the corner follows the pointer (--drag) with no
-   easing of its own; then a spring lays it back down ("spring"), or, let go
-   to come off ("off"), it keeps that pose while it lifts and flies. */
+/* Peeled by hand (usePeel): the corner follows the pointer (--drag, and --fold
+   set inline) with no easing of its own; then a spring lays it back down
+   ("spring"), or, let go to come off ("off"), it keeps that pose while it
+   lifts and flies, and the header sticker takes it over (DeskProvider). */
 .stk[data-peel='drag'],
 .stk[data-peel='spring'],
 .stk[data-peel='off'] {
@@ -184,6 +268,7 @@
 	scale: 1.03;
 	transition:
 		--peel 0.1s var(--ease-out),
+		--fold 0.1s var(--ease-out),
 		translate 0.1s var(--ease-out),
 		scale 0.1s var(--ease-out);
 }

@@ -10,7 +10,13 @@ import {
 	useRef,
 } from 'react';
 import type { Project } from '@/content/projects';
-import { canAnimate, keepScroll, stickerName, useDesk } from './DeskProvider';
+import {
+	canAnimate,
+	keepScroll,
+	lastInput,
+	stickerName,
+	useDesk,
+} from './DeskProvider';
 import { usePeel, usePeelHint } from './usePeel';
 
 type Props = Pick<Project, 'sticker'> & {
@@ -35,8 +41,8 @@ type Props = Pick<Project, 'sticker'> & {
  * It can also be peeled by hand: its bottom-right corner (the grip) follows a
  * mouse or a finger that pulls it, and let go far enough in (or flicked) the
  * sticker comes off and flies from there; let go sooner and the corner springs
- * back down (components/usePeel.ts). Only the grip keeps a touch from
- * scrolling the page.
+ * back down (components/usePeel.ts). A finger on the grip that goes any
+ * other way than up the diagonal scrolls the page, as anywhere else on it.
  */
 export function StickerLink({
 	href,
@@ -89,7 +95,13 @@ export function StickerLink({
 		};
 		fit();
 		keepScroll();
-		el.focus({ preventScroll: true });
+		// Opened with a pointer (a click, a tap, a peel), it comes back focused
+		// but quiet: no ring and no lift until a key is pressed, as the focus a
+		// tap gives shows none. (Chrome takes a script's focus for the
+		// keyboard's when a drag, which focuses nothing, opened the project.)
+		const quiet = lastInput() === 'pointer';
+		if (quiet) el.dataset.quiet = '';
+		el.focus({ preventScroll: true, focusVisible: !quiet } as FocusOptions);
 		// the page may still settle (or the browser restore its own scroll) a frame on
 		requestAnimationFrame(() => requestAnimationFrame(fit));
 	}, []);
@@ -117,6 +129,7 @@ export function StickerLink({
 	// not scroll the page while a sticker has the focus.
 	const space = useRef(false);
 	function onKeyDown(e: KeyboardEvent<HTMLAnchorElement>) {
+		delete e.currentTarget.dataset.quiet; // a key: the focus shows
 		if (e.key !== ' ' || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) {
 			return; // Shift+Space and the rest keep their own meaning
 		}
@@ -133,6 +146,15 @@ export function StickerLink({
 		intent?.();
 		peel.onPointerDown(e);
 	}
+	// a pointer or the focus arriving while the hint plays: the hint gives way
+	function onPointerEnter() {
+		intent?.();
+		peel.calm();
+	}
+	function onFocus() {
+		intent?.();
+		peel.calm();
+	}
 
 	return (
 		<Link
@@ -148,13 +170,14 @@ export function StickerLink({
 			onClick={onClick}
 			onKeyDown={onKeyDown}
 			onKeyUp={onKeyUp}
-			onBlur={() => {
+			onBlur={(e) => {
 				space.current = false;
+				delete e.currentTarget.dataset.quiet;
 			}}
-			onPointerEnter={intent}
+			onPointerEnter={onPointerEnter}
 			onPointerDown={onPointerDown}
 			onDragStart={peel.onDragStart}
-			onFocus={intent}
+			onFocus={onFocus}
 		>
 			<span className="stk-body">
 				<span className="stk-face">

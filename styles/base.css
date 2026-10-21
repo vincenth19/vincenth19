@@ -4,6 +4,12 @@
 	inherits: true;
 	initial-value: 0;
 }
+/* the angle a sticker's corner folds along (styles/stickers.css): the diagonal unless a hand turns it */
+@property --fold {
+	syntax: '<angle>';
+	inherits: true;
+	initial-value: 45deg;
+}
 
 :root {
 	--desk: #150e0a;
