@@ -46,11 +46,27 @@ export function StickerLink({
 	useLayoutEffect(() => {
 		const el = ref.current;
 		if (!returning || !el) return;
-		// Back from this sticker's project: bring it into view and focus it, before
-		// the transition captures the page, so the sticker lands centred.
-		el.scrollIntoView({ block: 'center' });
+		// Back from this sticker's project: the page is where it was when the
+		// project opened (as the browser's Back would leave it), and the sticker,
+		// focused, is in view; only one that would be off screen is brought in.
+		// All before the transition captures the page, so it lands there.
+		window.scrollTo({
+			top: desk.scrollOf(window.location.pathname) ?? 0,
+			behavior: 'instant',
+		});
+		const fit = () => {
+			const r = el.getBoundingClientRect();
+			if (r.bottom <= 0 || r.top >= window.innerHeight) {
+				el.scrollIntoView({ block: 'center', behavior: 'instant' });
+			} else if (r.top < 0 || r.bottom > window.innerHeight) {
+				el.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+			}
+		};
+		fit();
 		keepScroll();
 		el.focus({ preventScroll: true });
+		// the page may still settle (or the browser restore its own scroll) a frame on
+		requestAnimationFrame(() => requestAnimationFrame(fit));
 	}, []);
 
 	function onClick(e: MouseEvent<HTMLAnchorElement>) {

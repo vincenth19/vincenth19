@@ -24,6 +24,8 @@ test('Super Space flies into the header as its page opens, and Back flies it hom
 	const sticker = page.getByRole('link', {
 		name: 'Super Space, 2026. Open project',
 	});
+	await sticker.scrollIntoViewIfNeeded();
+	const left = await page.evaluate(() => window.scrollY);
 	await sticker.click();
 	// it lifts off the page before it flies
 	await expect(sticker).toHaveClass(/is-lifting/);
@@ -55,13 +57,8 @@ test('Super Space flies into the header as its page opens, and Back flies it hom
 	await expect(sticker).toBeFocused();
 	await expect(sticker).toBeInViewport();
 	await expect(sticker).not.toHaveClass(/is-lifting/);
-	// it comes to rest in the middle of the screen (give or take the 2px hover
-	// lift, as the pointer may be over it, and whole-pixel scrolling)
-	const offCentre = await sticker.evaluate((el) => {
-		const r = el.getBoundingClientRect();
-		return Math.abs(r.top + r.height / 2 - window.innerHeight / 2);
-	});
-	expect(offCentre).toBeLessThanOrEqual(4);
+	// it comes to rest where it was: the page is scrolled as it was left
+	await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(left);
 
 	// both ways the sticker morphed: the page's and the header's were one element
 	await vts.settled();
@@ -78,11 +75,12 @@ test('Super Space flies into the header as its page opens, and Back flies it hom
 	expect(problems).toEqual([]);
 });
 
-/** How far the middle of `el` sits from the middle of the viewport, in px. */
-async function offCentre(page: Page, selector: string) {
+/** How much of `el` is on screen, 0 to 1. */
+async function onScreen(page: Page, selector: string) {
 	return page.locator(selector).evaluate((el) => {
 		const r = el.getBoundingClientRect();
-		return Math.abs(r.top + r.height / 2 - window.innerHeight / 2);
+		const seen = Math.min(r.bottom, window.innerHeight) - Math.max(r.top, 0);
+		return Math.max(0, seen) / r.height;
 	});
 }
 
@@ -108,7 +106,7 @@ test('the Projects tab from a project flies its sticker back into view', async (
 	await expect(page).toHaveURL(at('/'));
 	await expect(sticker).toBeFocused();
 	await expect(sticker).toBeInViewport();
-	expect(await offCentre(page, '.stk--covid')).toBeLessThanOrEqual(4);
+	await expect.poll(() => onScreen(page, '.stk--covid')).toBeGreaterThan(0.99);
 	await vts.settled();
 	const close = (await vts.take()).at(-1);
 	expect(close?.direction).toBe('close');
@@ -120,7 +118,7 @@ test("the browser's Back and Forward fly the sticker and keep it in view", async
 }) => {
 	const vts = await recordTransitions(page);
 	await page.goto('/');
-	// click the sticker while it sits low on the screen: Back must not return there
+	// click the sticker while it sits low on the screen, partly off it
 	const box = await page.locator('.stk--covid').evaluate((el) => {
 		const r = el.getBoundingClientRect();
 		window.scrollBy(0, r.top - (window.innerHeight - 140));
@@ -132,6 +130,8 @@ test("the browser's Back and Forward fly the sticker and keep it in view", async
 	await expect(
 		page.getByRole('heading', { level: 2, name: 'CovidTracker' }),
 	).toBeFocused();
+	// once it has landed (Back during the flight steps back at once, without one)
+	await vts.settled();
 
 	await page.goBack();
 	await expect(page).toHaveURL(at('/'));
@@ -139,7 +139,9 @@ test("the browser's Back and Forward fly the sticker and keep it in view", async
 		name: 'CovidTracker, 2021. Open project',
 	});
 	await expect(sticker).toBeFocused();
-	expect(await offCentre(page, '.stk--covid')).toBeLessThanOrEqual(4);
+	// Back returns the page where it was, just far enough for the whole sticker
+	await expect.poll(() => onScreen(page, '.stk--covid')).toBeGreaterThan(0.99);
+	await vts.settled();
 
 	// Forward opens the project at the top again, where the sticker lands
 	await page.goForward();

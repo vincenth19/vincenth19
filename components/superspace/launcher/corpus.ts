@@ -4,10 +4,11 @@
  * Omarchy settings, emoji, clipboard and browser history, folders).
  *
  * Names, folders, times and texts come from omarchy-super-space's demo
- * (demo/make_docs.py, demo/make_media.py, demo/CREDITS.md). The pictures are
- * other people's photos (Wikimedia Commons), so here they are drawn scenes
- * (`scene`) described in words (`sense`), which is what matching by meaning
- * reads. The clipboard's sources and the browser history are made up for the
+ * (demo/make_docs.py, demo/make_media.py, demo/CREDITS.md). A photo or video
+ * frame is found by what it shows, in words (`sense`), which is what matching
+ * by meaning reads; its `scene` names its small picture, shown when the page
+ * has it (public/projects/super-space/demo/<scene>.webp, credited under the
+ * screen). The clipboard's sources and the browser history are made up for the
  * demo, in the shapes Super Space shows them. Like install-to-home.sh on a home
  * that demos these searches, it leaves out the walkthrough video and the run
  * sheet, which spell them out.
@@ -98,12 +99,12 @@ const photos: Item[] = [
 	photo(
 		'Pictures/Camera/IMG_2047.jpg',
 		'retriever-grass',
-		'a golden retriever dog sitting on the grass, portrait',
+		'a golden retriever dog lying on the grass in a garden',
 	),
 	photo(
 		'Pictures/Camera/IMG_2052.jpg',
 		'retriever-stick',
-		'a golden retriever dog carrying a stick in its mouth',
+		'a golden retriever dog lying in dry grass with a stick',
 	),
 	photo(
 		'Pictures/Camera/IMG_2063.jpg',
@@ -118,7 +119,7 @@ const photos: Item[] = [
 	photo(
 		'Pictures/Camera/IMG_2090.jpg',
 		'retriever-field',
-		'a golden retriever dog standing in a green field',
+		'the head of a golden retriever dog, a portrait',
 	),
 	photo(
 		'Pictures/Camera/IMG_2104.jpg',

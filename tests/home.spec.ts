@@ -45,7 +45,7 @@ test.describe('home (Projects)', () => {
 	}) => {
 		const lines = page.locator('.tagline .cl');
 		await expect(lines).toHaveText([
-			'Build web and mobile apps, front to back.',
+			'Build full-stack web and mobile apps.',
 			'Ship AI features people actually use.',
 			'Design with taste and a product mind.',
 		]);

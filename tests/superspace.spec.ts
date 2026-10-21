@@ -262,7 +262,9 @@ test.describe('Super Space product page', () => {
 			'Search the web for “apartment lease bond document”',
 		);
 		await expect(rows.last()).toContainText('DuckDuckGo');
-		await expect(launcher.locator('.ssl-hints')).toContainText('→ pages');
+		await expect(launcher.locator('.ssl-hints')).toContainText(
+			'↵ open→ pages↓ ↑ rowstab list themctrl ↵ revealesc close',
+		);
 		// → at the end of the text steps the pages; Enter opens there
 		await field.press('ArrowRight');
 		await expect(rows.first().locator('.ssl-place')).toHaveText('p. 4');
@@ -277,14 +279,21 @@ test.describe('Super Space product page', () => {
 		await expect(rows.first()).toContainText('dog swimming');
 		await expect(rows.first().locator('.ssl-place')).toHaveText('0:45–0:59');
 		await expect(rows.first().locator('.ssl-times')).toContainText('0:10–0:30');
-		// once ↓ has chosen the row, Tab lists its sections; Shift+Tab puts them away
-		await field.press('ArrowDown');
+		// Tab lists the top row's sections, as the real one does; Shift+Tab puts them away
 		await field.press('Tab');
 		await expect(rows.first().locator('.ssl-part')).toHaveCount(2);
 		await expect(field).toBeFocused();
 		await field.press('Shift+Tab');
 		await expect(rows.first().locator('.ssl-part')).toHaveCount(0);
 		await expect(field).toBeFocused();
+		// and from a row chosen with ↓; Tab again moves on through the page
+		await field.press('ArrowDown');
+		await field.press('Tab');
+		await expect(rows.first().locator('.ssl-part')).toHaveCount(2);
+		await field.press('Tab');
+		await expect(field).not.toBeFocused();
+		await expect(rows.first().locator('.ssl-part')).toHaveCount(0);
+		await field.focus();
 
 		// songs by their lyrics
 		await search(field, 'songs about a breakup');
@@ -396,7 +405,7 @@ test.describe('Super Space product page', () => {
 		expect(name.length).toBeLessThan(160);
 	});
 
-	test('it says when nothing matches, and Esc clears the field', async ({
+	test('it says when nothing matches, and Esc closes it, as the real one does', async ({
 		page,
 	}) => {
 		await page.goto(path);
@@ -406,17 +415,57 @@ test.describe('Super Space product page', () => {
 		await expect(launcher.locator('.ssl-notice p').first()).toHaveText(
 			'Nothing on this computer matches',
 		);
-		// and that this copy, unlike Super Space, only knows so many words
-		await expect(launcher.locator('.ssl-notice-note')).toContainText(
-			'Super Space reads any language',
-		);
+		// gibberish or an English word is just not here: no word about languages
+		await expect(launcher.locator('.ssl-notice-note')).toHaveCount(0);
 		await expect(launcher.getByRole('option')).toHaveCount(1);
 		await expect(launcher.getByRole('status').last()).toContainText(
 			'Nothing on this computer matches',
 		);
+		// a language this copy has not the words of: it says so
+		await search(field, 'Hündchen');
+		await expect(launcher.locator('.ssl-notice-note')).toHaveText(
+			'This copy knows the demo’s words in English and Indonesian, and the main ones in ten other languages.',
+		);
+		// Esc closes the launcher: the desktop, and the keys that open it again
 		await field.press('Escape');
+		await expect(launcher.locator('.ssl-card')).toBeHidden();
+		const reopen = launcher.getByRole('button', {
+			name: 'Open the launcher again (Super+Space)',
+		});
+		await expect(reopen).toBeFocused();
+		await reopen.press('Enter');
+		await expect(field).toBeFocused();
 		await expect(field).toHaveValue('');
 		await expect(launcher.getByRole('option')).toHaveCount(0);
+	});
+
+	test('free searches find what they mean, not a word one letter off', async ({
+		page,
+	}) => {
+		await page.goto(path);
+		const launcher = await openLauncher(page);
+		const field = launcher.getByRole('combobox');
+		const list = launcher.locator('.ssl-list');
+		const rows = launcher.getByRole('option');
+		// "cute" is not "cut", and says how it looks, not what it is
+		for (const q of ['cute dog', 'anjing lucu']) {
+			await search(field, q);
+			await expect(list, q).toContainText('IMG_2041.jpg');
+			await expect(list, q).not.toContainText('okrs-2026-q4.md');
+		}
+		await search(field, 'tax return');
+		await expect(rows.first()).toContainText(
+			'tax-2025-26-home-office-notes.md',
+		);
+		await search(field, 'what did i say about rent');
+		await expect(list).toContainText('apartment-lease-new-farm-2026.pdf');
+		await expect(list).toContainText('2026-10-12 pengingat.m4a');
+		await expect(list).not.toContainText('best-man-speech');
+		// not "paste": there is no pasta in the demo
+		await search(field, 'pasta');
+		await expect(launcher.locator('.ssl-notice p').first()).toHaveText(
+			'Nothing on this computer matches',
+		);
 	});
 
 	test('the example searches under it run in the launcher', async ({
@@ -464,8 +513,27 @@ test.describe('Super Space product page', () => {
 		);
 		await expect(credits).toContainText('by Golden Woofs');
 		await expect(
-			credits.getByRole('link', { name: 'CC BY 3.0' }),
+			credits
+				.locator('span', { hasText: 'Golden Woofs' })
+				.getByRole('link', { name: 'CC BY 3.0' }),
 		).toHaveAttribute('href', 'https://creativecommons.org/licenses/by/3.0/');
+		// a photo is its own picture, never a drawing of one
+		const field = launcher.getByRole('combobox');
+		await search(field, 'golden retriever');
+		const photo = launcher
+			.getByRole('option')
+			.filter({ hasText: 'IMG_2041.jpg' })
+			.locator('.ssl-icon img');
+		await expect(photo).toHaveAttribute(
+			'src',
+			'/projects/super-space/demo/retriever-market.webp',
+		);
+		await expect(
+			credits.getByRole('link', {
+				name: 'Golden retriever gnawing at the farmer’s market',
+			}),
+		).toBeVisible();
+		await expect(launcher.locator('.ssl-fig')).toHaveCount(0);
 	});
 
 	test('before it loads, the page already draws its first frame', async ({
@@ -562,7 +630,10 @@ test.describe('Super Space product page', () => {
 		);
 		await expect(
 			credit.getByRole('link', { name: 'Wikimedia Commons' }),
-		).toHaveAttribute('href', /^https:\/\/commons\.wikimedia\.org\//);
+		).toHaveAttribute(
+			'href',
+			'https://commons.wikimedia.org/wiki/File:Raspberry_Pi_5_Board.jpg',
+		);
 		// small, but as legible as the notes beside it
 		expect(await credit.evaluate((el) => getComputedStyle(el).color)).toBe(
 			'rgb(138, 133, 125)',

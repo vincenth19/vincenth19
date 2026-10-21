@@ -112,7 +112,7 @@ export function Hero() {
  */
 export function Demo({ film, rates }: { film?: Film; rates?: Rates | null }) {
 	const d = s.demo;
-	const thumbs = getDemoThumbs(d.pictures.map((p) => p.scene));
+	const thumbs = getDemoThumbs([...d.pictures.map((p) => p.scene), ...d.own]);
 	const credited = d.pictures.filter((p) => thumbs[p.scene]);
 	return (
 		<section className="ss-beat ss-demo" aria-labelledby="ss-demo-title">

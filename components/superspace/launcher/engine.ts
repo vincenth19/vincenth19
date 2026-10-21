@@ -8,7 +8,7 @@
  * so a search can find nothing, and says so. The web row is always last.
  */
 import { answerWord, answer as quickAnswer, type Rates } from './answers';
-import { GROUPS } from './concepts';
+import { GROUPS, MODIFIERS, SAME } from './concepts';
 import { items } from './corpus';
 import type { Answer, Hit, Item, Kind, Part, Response, Row } from './types';
 
@@ -21,7 +21,9 @@ const STOP = new Set(
 		'where when how why do does did done much many and or but if then so can could should would ' +
 		'will shall may might any some all get got have has had need needs want show find look ' +
 		'please one just really very go going went take takes taking took di ke dari yang untuk saat dan atau ini itu dengan pada hari ' +
-		'saya aku kami'
+		'saya aku kami ' +
+		// "what did I say about rent": saying is how it was kept, not what it is about
+		'say says said saying tell tells told telling mention mentions mentioned bilang'
 	).split(' '),
 );
 // "why" and "how long" carry meaning for a few questions; they stay words for the concepts
@@ -54,7 +56,30 @@ const NOUN_ING = new Set([
 	'thing',
 ]);
 
-/** A light stemmer: "costs" → "cost", "running" → "run", "tenancies" → "tenancy", "lease" → "leas". */
+/** Porter's measure of a stem: how many vowel-consonant runs it has ("cut" 1, "minut" 2). */
+function measure(w: string): number {
+	let form = '';
+	for (let i = 0; i < w.length; i++) {
+		const vowel =
+			/[aeiou]/.test(w[i]) ||
+			(w[i] === 'y' && i > 0 && !/[aeiou]/.test(w[i - 1]));
+		const c = vowel ? 'v' : 'c';
+		if (form[form.length - 1] !== c) form += c;
+	}
+	return form.split('vc').length - 1;
+}
+
+/** A short stem that ends consonant, vowel, consonant ("cut", "hop", "mov"): its -e is part of the word. */
+function shortCvc(w: string): boolean {
+	return measure(w) === 1 && /[^aeiou][aeiouy][^aeiouwxy]$/.test(w);
+}
+
+/**
+ * A light stemmer: "costs" → "cost", "running" → "run", "tenancies" →
+ * "tenancy", "lease" → "leas". A final -e goes as Porter's stemmer drops it:
+ * not from a short word that would end consonant, vowel, consonant ("cute"
+ * stays "cute", never "cut"; "moving" is "move").
+ */
 export function stem(word: string): string {
 	let w = word.toLowerCase().replace(/['’]s$/, '');
 	if (w.length <= 3 || /\d/.test(w)) return w;
@@ -62,19 +87,21 @@ export function stem(word: string): string {
 	if (w.endsWith('sses')) w = w.slice(0, -2);
 	else if (/(ch|sh|x|zz)es$/.test(w)) w = w.slice(0, -2);
 	else if (w.endsWith('s') && !/(ss|us|is)$/.test(w)) w = w.slice(0, -1);
+	const unsuffixed = (root: string) => {
+		if (/([^aeiouls])\1$/.test(root)) return root.slice(0, -1);
+		return shortCvc(root) ? `${root}e` : root;
+	};
 	if (w.endsWith('ing') && w.length > 5 && !NOUN_ING.has(w)) {
 		const root = w.slice(0, -3);
 		if (!/[aeiouy]/.test(root)) return w;
-		w = root;
-		if (/([^aeiouls])\1$/.test(w)) w = w.slice(0, -1);
-		return w;
+		return unsuffixed(root);
 	}
-	if (w.endsWith('ed') && w.length > 4) {
-		w = w.slice(0, -2);
-		if (/([^aeiouls])\1$/.test(w)) w = w.slice(0, -1);
-		return w;
+	if (w.endsWith('ed') && w.length > 4) return unsuffixed(w.slice(0, -2));
+	if (w.endsWith('e') && w.length > 3) {
+		const root = w.slice(0, -1);
+		const m = measure(root);
+		if (m > 1 || (m === 1 && !shortCvc(root))) w = root;
 	}
-	if (w.endsWith('e') && w.length > 3) w = w.slice(0, -1);
 	return w;
 }
 
@@ -484,7 +511,9 @@ type Term = {
 /**
  * A word this copy does not know, read as the word it is one typo from:
  * one insertion, deletion, change or swap, from the same first letter (for a
- * word of three letters, only a swap: "dgo" is "dog"). The groups' words come
+ * word of three letters, only a swap: "dgo" is "dog"). Short words are often
+ * other real words one letter apart ("pasta" is not "paste"), so a word under
+ * six letters is read only as one of the groups' words; the groups' words come
  * first, then the words the demo files use most. Its stem, or null.
  */
 function correct(w: string): string | null {
@@ -495,6 +524,7 @@ function correct(w: string): string | null {
 	for (const [v, st] of spelled) {
 		if (v[0] !== w[0] || Math.abs(v.length - w.length) > 1) continue;
 		if (w.length === 3 ? !swapped(w, v) : !oneEdit(w, v)) continue;
+		if (w.length < 6 && !member.has(st)) continue;
 		const s = (member.has(st) ? 1e6 : 0) + (vocab.get(st) ?? 0);
 		if (s > score) {
 			best = st;
@@ -518,15 +548,25 @@ function segment(run: string): string[] {
 	return out;
 }
 
+/** Words that say how a thing looks, not what it is (concepts.ts): they weigh this much of the others. */
+const MODIFIER = new Set(MODIFIERS.map(stem));
+const MODIFIER_WEIGHT = 0.2;
+
 /**
  * The query's words, a phrase in a group kept whole ("fried rice", "golden
  * retriever"), each as this copy knows it: as written, or one typo away. A
  * word it does not know still counts (a search for a thesis finds no slides),
- * as an ordinary word rather than the rarest of all, and `unknown` counts them.
+ * as an ordinary word rather than the rarest of all; a word that only says
+ * how a thing looks ("cute") counts little. `unknown` counts the words it does
+ * not know that are written in another script or with accents: a language
+ * this copy may not have the words of.
  */
 function terms(q: string): { list: Term[]; unknown: number } {
 	const { groups, member, phrases, parts, vocab } = index();
+	const same = SAME.map(([p, w]) => [stems(p).join(' '), stems(w).join(' ')]);
 	let unknown = 0;
+	// letters past ASCII as typed (before accents are folded off): "épave", "Hündchen", "собака"
+	const foreign = /\p{L}/u.test(q.replace(/\p{ASCII}/gu, ''));
 	// small numbers ("2+2*3", "3pm") are in every document: they are not what a search is about
 	const ws = words(q)
 		.flatMap((w) => (CJK.test(w) ? segment(w) : [w]))
@@ -534,10 +574,10 @@ function terms(q: string): { list: Term[]; unknown: number } {
 		.filter((w) => (w.length > 1 || CJK.test(w)) && !/^\d{1,2}$/.test(w))
 		.map((w) => {
 			const s = stem(w);
-			if (vocab.has(s) || member.has(s)) return s;
+			if (vocab.has(s) || member.has(s) || MODIFIER.has(s)) return s;
 			const fix = correct(w);
 			if (fix) return fix;
-			if (/\p{L}/u.test(w)) unknown++;
+			if (foreign && /\p{L}/u.test(w)) unknown++;
 			return s;
 		});
 	const out: Term[] = [];
@@ -552,6 +592,7 @@ function terms(q: string): { list: Term[]; unknown: number } {
 		for (const g of member.get(self) ?? []) {
 			for (const p of groups[g]) if (!alts.has(p)) alts.set(p, weight);
 		}
+		for (const [p, w] of same) if (p === self) alts.set(w, 1);
 		out.push({ self, alts, idf: 0, figure: /^\d+$/.test(self) });
 	}
 	// rarer words weigh more: in how many parts any of a term's words are written
@@ -577,7 +618,22 @@ function terms(q: string): { list: Term[]; unknown: number } {
 		? found.reduce((sum, t) => sum + t.idf, 0) / found.length
 		: 1;
 	for (const t of missing) t.idf = mean;
-	return { list: found.length ? out : [], unknown };
+	// under what the query is about, how it looks weighs little
+	const about = out.filter((t) => !MODIFIER.has(t.self));
+	if (about.length && about.length < out.length) {
+		const weight = about.reduce((sum, t) => sum + t.idf, 0) / about.length;
+		for (const t of out)
+			if (MODIFIER.has(t.self)) t.idf = MODIFIER_WEIGHT * weight;
+	}
+	return {
+		list:
+			found.some((t) => !MODIFIER.has(t.self)) || !about.length
+				? found.length
+					? out
+					: []
+				: [],
+		unknown,
+	};
 }
 
 /** 0 to 1: how much of the query a part holds, the rare words counting most. */

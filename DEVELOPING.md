@@ -99,13 +99,18 @@ is 737px wide at 1x), in the dark warm theme they use.
 - `components/superspace/launcher/`: `View.tsx` draws the panel (no state; shared by
   the server and the browser), `Launcher.tsx` runs it (the instant phase on each key,
   the final phase 150 ms after typing pauses, "calm" typing that only adds rows until
-  400 ms after the last key, ↑/↓, →/←, Enter, Esc, Ctrl+1–9; Tab lists a row's parts
-  only once ↓/↑ have chosen it, and otherwise moves on through the page), `engine.ts`
+  400 ms after the last key, ↑/↓, →/←, Enter, Ctrl+1–9; Tab lists the selected (or top)
+  row's parts, as the real one does, and Tab again, or Tab on a row with nothing to
+  list, moves on through the page, so it never keeps the keyboard; Esc closes the
+  launcher, as v0.1.4's does, and a "Super + Space" button opens it again, empty), `engine.ts`
   is the search (names, with the daemon's title-only typo rule; scope words ported
   from the daemon's `type_words`, a lone plural kind word such as "photos" listing
   that kind; and "meaning": the query's words, a word it does not know read as the
   word one typo away, and the words in `concepts.ts` that mean the same, weighed by
-  how rare they are, with cut-offs so a search can find nothing), `answers.ts` the
+  how rare they are, with cut-offs so a search can find nothing; words that only say
+  how a thing looks, `MODIFIERS` ("cute", "lucu"), weigh little, and a word under six
+  letters is read as a typo only of a group's word, so "pasta" is not "paste"),
+  `answers.ts` the
   quick answers (maths, units, currency and time zones ported from the daemon's
   `crates/answers`), and `corpus.ts` / `documents.ts` the demo home (from the demo's
   `make_docs.py` and `make_media.py`). Under an answer the search reads only the words
@@ -114,23 +119,32 @@ is 737px wide at 1x), in the dark warm theme they use.
   (dog, cat, beach, coffee, money, breakup, …) in ten more languages (`WORLD`); the
   emoji have their names in those languages too (`corpus.ts`). A translation that is
   also an English word ("chat", "pain", "mar") is left out. When nothing matches and
-  the query has words this copy does not know, the panel says so under "Nothing on
-  this computer matches".
+  the query has words this copy does not know written past ASCII ("Hündchen",
+  "собака"), the panel says under "Nothing on this computer matches" which languages
+  this copy knows; gibberish and English words get the plain notice.
 - Currency uses the ECB's euro reference rates (`lib/ecbRates.ts`), fetched when the
   page is built and again once a day (the page revalidates daily); the card names the
-  day ("ECB rate of 20 Oct 2026"). Built without them (offline), the card says it
-  cannot convert. To check the answers against the real crate, run the cases in
+  day ("ECB rate of 20 Oct 2026"). A build that cannot reach the ECB uses the dated
+  snapshot in `lib/ecbFallback.ts` (the rates of 20 Oct 2026, as published; refresh it
+  now and then), and a daily refresh that cannot reach it fails on purpose, so Next.js
+  keeps serving the page it has. To check the answers against the real crate, run the cases in
   omarchy-super-space's `crates/answers/tests/table.rs` through `answer()` with that
   test's rates: all 296 match.
 - The demo's photos and video frames are other people's (Wikimedia Commons, listed
   with their licences in `content/superspace.ts` as `demo.pictures`). Each one shows
-  as its real picture once `public/projects/super-space/demo/<scene>.webp` is there,
-  with its credit under the screen; until then it is a drawn scene (`icons.tsx`,
-  `.ssl-scene--*`). `bun scripts/demo-pictures.ts` makes them from Commons (it needs
-  the network and ffmpeg; check each before you commit it). The dog swimming
+  as its real picture once `public/projects/super-space/demo/<scene>.webp` is there
+  (122 × 122 for a photo, 174 × 98 for a frame), with its credit under the screen;
+  until then its row shows a plain tile with an image sign, never a drawing of it.
+  16 of the 31 are there: the same Commons files, taken from copies that other
+  projects host on GitHub (Commons itself could not be reached when they were made),
+  checked by eye against their titles and scaled down; the cat chasing the laser is
+  a frame of the real clip, at 10 s. `bun scripts/demo-pictures.ts` makes the rest
+  from Commons itself (it needs the network and ffmpeg; check each before you commit
+  it; `--force` remakes them all from the originals). The dog swimming
   (`dog-swimming.webp`) is a frame of the real video, from Super Space's own
-  screenshot. The screen's wallpaper (`demo/wallpaper.webp`) is generated, not a
-  photo.
+  screenshot. The scanned receipt and the terminal screenshot (`scan`, `terminal`,
+  `demo.own`) are drawn as the demo's own make_media.py draws them (CC0, no credit
+  needed). The screen's wallpaper (`demo/wallpaper.webp`) is generated, not a photo.
 - Opening anything only says, in a toast (a polite live region), what the real
   launcher would do ("Would open apartment-lease-new-farm-2026.pdf at page 3");
   Enter on an answer copies it.
@@ -164,14 +178,13 @@ is 737px wide at 1x), in the dark warm theme they use.
   speed in a beat of its own, as it was measured on the VM), so the page builds
   instead of repeating one block.
 - "Runs on a Raspberry Pi 5" is the Pi itself: a photo by Simon Waldherr (CC BY-SA
-  4.0, via Wikimedia Commons), cropped (x 104, y 0, 1680 × 1170 of the 1920 × 1280
-  original) and saved as WebP in `components/superspace/raspberry-pi-5.webp` and
-  served through `next/image` (it loads as you near it), with the measured numbers
-  set over its foot. Its licence asks for the credit under it (and to say it was
-  cropped): keep it there. The credit links "Wikimedia Commons" to a Commons search
-  for the photo (`superSpace.pi.photo.credit.source`), because the file's own page
-  could not be looked up when the page was built: put the photo's
-  `commons.wikimedia.org/wiki/File:…` address there.
+  4.0, via Wikimedia Commons, "Raspberry Pi 5 Board.jpg"), cropped (x 104, y 0,
+  1680 × 1170 of the 1920 × 1280 original) and saved as WebP in
+  `components/superspace/raspberry-pi-5.webp` and served through `next/image` (it
+  loads as you near it), with the measured numbers set over its foot. Its licence
+  asks for the credit under it (and to say it was cropped): keep it there. The credit
+  links "Wikimedia Commons" to the photo's own file page
+  (`superSpace.pi.photo.credit.source`).
 - Media slots: the screenshots and demo clip appear once their files are in
   `public/projects/super-space/` (`demo.webm` and/or `demo.mp4` with `poster.webp`;
   `lease.webp`, `video.webp`, `songs.webp`). The page checks at build time, so add the
@@ -204,11 +217,24 @@ Forward (a trackpad swipe included).
   (`?_rsc=`) as they go through `fetch`. A page that takes more than 1.5 s opens as a
   plain navigation instead, and a transition never holds the screen for more than
   1.2 s. A project opens at the top with its title focused; coming back puts the
-  sticker in the middle of the screen, focused.
+  Projects page where it was when the project opened (as the browser's Back would),
+  the sticker focused, and scrolls only as far as it takes to bring the whole sticker
+  on screen (to the middle only for one that would be off it).
 - Back or Forward pressed as the flight starts wins: the flight's own step is
-  dropped. A flight longer than a screen (back from the foot of a long page) lands
-  without the overshoot (`data-vt-far`). Clicks go through the transition to the new
-  page underneath (`::view-transition { pointer-events: none }`).
+  dropped; pressed during the flight, the flight ends where it is and the step
+  happens at once. A flight longer than a screen (back from the foot of a long page,
+  `data-vt-far`) starts just past the edge of the screen (`shortenFlight` moves the
+  far end of its keyframes), lands without the overshoot, and the socials fade with
+  the page instead of sliding that far. A book that would slide most of a screen (a
+  sticker opened from far down the Projects page, `data-vt-book-far`) stays still:
+  the old leaf goes and the new page fades in where it is. Elsewhere the leaf turns
+  with the new page under the old, which fades out in 0.12 s, so the two are never
+  read over each other; a sticker with no partner (the header sticker, to Writing or
+  Resume) sinks away or rises rather than lie over the page.
+- The browser sends a click made during a transition to `<html>` under its
+  snapshots, so it would be lost. A press during a transition cuts it short, and the
+  click goes to what is under the pointer on the new page (a quick click on the new
+  page's Back arrow, a tab).
 - Back and Forward: Next.js handles `popstate` synchronously, which would swap the
   page before the old one could be captured. A capturing `popstate` listener holds the
   event back, starts the transition, and dispatches it again to Next.js from inside

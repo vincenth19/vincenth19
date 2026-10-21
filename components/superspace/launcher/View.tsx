@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { LauncherLabels } from '@/content/superspace';
 import { filterLabel } from './engine';
-import { DesktopIcon, OmarchyMark, RowIcon, SceneArt } from './icons';
+import { DesktopIcon, OmarchyMark, Picture, RowIcon } from './icons';
 import type { Answer, Hit, Kind, Loc, Response, Row, Scene } from './types';
 
 /**
@@ -26,7 +26,7 @@ export type ViewState = {
 	hover?: { key: string; t: number };
 	/** A timeline's width on screen, to keep its labels apart (measured once in the page). */
 	width?: number;
-	/** The real pictures there are for the drawn scenes: a small WebP for each. */
+	/** The demo's pictures this copy has: a small WebP for each photo and video frame. */
 	thumbs?: Thumbs;
 };
 
@@ -427,6 +427,7 @@ function ResultRow({
 				}, 0)
 			: hit;
 	const frame = row.kind !== 'image' ? row.hits[framed]?.thumb : undefined;
+	const frameSrc = frame && thumbs?.[frame];
 	const loud = place !== '' && (selected || hoverT !== null);
 	// under a quoted passage, the file and its folder; the name gives way first, so the folder stays
 	const sub = strip
@@ -563,13 +564,8 @@ function ResultRow({
 							))}
 						</span>
 					)}
-					{frame && (
-						<SceneArt
-							scene={frame}
-							src={thumbs?.[frame]}
-							className="ssl-frame"
-						/>
-					)}
+					{/* the frame of the moment, when this copy has its picture */}
+					{frameSrc && <Picture src={frameSrc} className="ssl-frame" />}
 				</div>
 			</div>
 		</div>
@@ -620,15 +616,18 @@ function AnswerCard({
 
 /** An answer, as it is said: "3:00 PM Sydney, AEDT is 11:00 AM Jakarta, WIB". */
 export function answerLabel(a: Answer): string {
-	const side = (v: string, label: string) => (label ? `${v} ${label}` : v);
+	// a unit or a currency is said by its name: "5 kilometres", not "5 km Kilometres"
+	const named = a.kind === 'units' || a.kind === 'currency';
+	const side = (v: string, label: string) => {
+		if (!label) return v;
+		const m = named ? /^([-−]?[\d.,]+)\s*([^\d\s]+)$/.exec(v) : null;
+		if (!m || /^[-−]?1$/.test(m[1])) return `${v} ${label}`;
+		return `${m[1]} ${a.kind === 'units' ? label.toLowerCase() : label}`;
+	};
 	return `${side(a.input, a.inputLabel)} is ${side(a.output, a.outputLabel)}${a.detail ? `. ${a.detail}` : ''}`;
 }
 
-/**
- * The key hints under the list, for the mode and the selected row
- * (SuperSpace.qml). On a web page Tab moves on through the page: it lists a
- * row's parts only once ↓/↑ have chosen the row, so only then is it hinted.
- */
+/** The key hints under the list, for the mode and the selected row (SuperSpace.qml). */
 function hints(
 	mode: Mode,
 	parts: string,
@@ -647,7 +646,14 @@ function hints(
 		];
 	}
 	if (parts)
-		return ['↵ open', `→ ${parts}`, '↓ ↑ rows', 'ctrl ↵ reveal', 'esc close'];
+		return [
+			'↵ open',
+			`→ ${parts}`,
+			'↓ ↑ rows',
+			'tab list them',
+			'ctrl ↵ reveal',
+			'esc close',
+		];
 	return [
 		...(answer ? (answer.copy ? ['↵ copy'] : []) : ['↵ open', 'ctrl ↵ reveal']),
 		...(anyParts ? ['↓ then ← → pages, sections, emoji'] : []),

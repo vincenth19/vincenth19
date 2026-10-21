@@ -42,6 +42,7 @@ const BASE: string[][] = [
 	['cook', 'cooking', 'bake', 'baking', 'masak', 'memasak'],
 	// food and drink
 	['pizza', 'margherita'],
+	['pasta', 'spaghetti', 'noodles', 'noodle', 'lasagna', 'macaroni', 'mie'],
 	['sushi', 'nigiri'],
 	['fried rice', 'nasi goreng'],
 	['rice', 'nasi'],
@@ -207,7 +208,7 @@ const BASE: string[][] = [
 	['electrician', 'electrical', 'downlights'],
 	['website', 'site', 'web', 'redesign'],
 	['lawn', 'mowing', 'gardening', 'hedge'],
-	['tax', 'deduction', 'deductions'],
+	['tax', 'deduction', 'deductions', 'tax return'],
 	['home office', 'working from home', 'work from home', 'from home'],
 	['hours', 'hour', 'jam'],
 	// tech
@@ -392,6 +393,43 @@ const WORLD: Record<string, string> = {
 		'permitido, permis, autorisé, erlaubt, consentito, permesso, toegestaan, 許可, 允许, 허용, разрешено',
 	pet: 'mascota, mascotas, animal de compagnie, haustier, haustiere, animale domestico, animal de estimação, huisdier, ペット, 宠物, 반려동물, питомец',
 };
+
+/**
+ * A phrase that means its word outright, not just something like it: "tax
+ * return" is the tax notes, so its word matches as fully as the phrase.
+ */
+export const SAME: [string, string][] = [['tax return', 'tax']];
+
+/**
+ * Words that say how a thing looks or what you think of it, not what it is
+ * ("cute dog", "anjing lucu"): the model reads past them, so they weigh little
+ * here, and are never read as a typo of another word ("cute" is not "cut").
+ */
+export const MODIFIERS = [
+	'cute',
+	'adorable',
+	'lovely',
+	'nice',
+	'beautiful',
+	'pretty',
+	'funny',
+	'cool',
+	'awesome',
+	'gorgeous',
+	'amazing',
+	'favourite',
+	'favorite',
+	'fluffy',
+	'lucu',
+	'imut',
+	'cantik',
+	'indah',
+	'bagus',
+	'gemas',
+	'menggemaskan',
+	'keren',
+	'favorit',
+];
 
 export const GROUPS: string[][] = BASE.map((group) => [
 	...group,

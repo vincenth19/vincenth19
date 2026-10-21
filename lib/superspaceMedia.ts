@@ -71,7 +71,7 @@ export function getFilm(): Film | undefined {
 /**
  * The demo home's pictures there are files for: the small WebP of each photo
  * and video frame, by its scene, in public/projects/super-space/demo/. The
- * launcher shows these and draws the rest.
+ * launcher shows these, and a plain tile for any it does not have.
  */
 export function getDemoThumbs(scenes: string[]): Record<string, string> {
 	const out: Record<string, string> = {};

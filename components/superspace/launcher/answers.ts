@@ -1060,7 +1060,12 @@ const ABBR: Record<string, number> = {
 	nzdt: 780,
 };
 
-/** Places beyond the zones' own city names (crates/answers/src/places.txt, in part). */
+/**
+ * Places beyond the zones' own city names (crates/answers/src/places.txt, in
+ * part), and cities whose zones were renamed: browsers still list some zones
+ * by their old names (Asia/Calcutta, Asia/Katmandu, Europe/Kiev, Asia/Saigon,
+ * Asia/Rangoon), so the current names are here too.
+ */
 const PLACES: [string, string][] = [
 	[
 		'Australia/Sydney',
@@ -1091,7 +1096,11 @@ const PLACES: [string, string][] = [
 	['Asia/Kuala_Lumpur', 'Malaysia, KL, Penang, Johor Bahru'],
 	['Asia/Singapore', 'Singapore, SG'],
 	['Asia/Bangkok', 'Thailand, Phuket, Chiang Mai'],
-	['Asia/Ho_Chi_Minh', 'Vietnam, Hanoi, Saigon, HCMC, Da Nang'],
+	[
+		'Asia/Ho_Chi_Minh',
+		'Vietnam, Hanoi, Ho Chi Minh City, Ho Chi Minh, Saigon, HCMC, Da Nang',
+	],
+	['Asia/Yangon', 'Yangon, Rangoon, Myanmar, Burma'],
 	['Asia/Manila', 'Philippines, Cebu'],
 	['Asia/Shanghai', 'China, Beijing, Guangzhou, Shenzhen, Chengdu'],
 	['Asia/Hong_Kong', 'Hong Kong, HK'],
@@ -1100,8 +1109,9 @@ const PLACES: [string, string][] = [
 	['Asia/Seoul', 'South Korea, Korea, Busan'],
 	[
 		'Asia/Kolkata',
-		'India, Mumbai, Delhi, New Delhi, Bangalore, Bengaluru, Chennai',
+		'India, Kolkata, Calcutta, Mumbai, Delhi, New Delhi, Bangalore, Bengaluru, Chennai',
 	],
+	['Asia/Kathmandu', 'Kathmandu, Katmandu, Nepal, Pokhara'],
 	['Asia/Dubai', 'UAE, Abu Dhabi'],
 	[
 		'Europe/London',
@@ -1112,6 +1122,7 @@ const PLACES: [string, string][] = [
 	['Europe/Amsterdam', 'Netherlands, Holland'],
 	['Europe/Madrid', 'Spain, Barcelona'],
 	['Europe/Rome', 'Italy, Milan'],
+	['Europe/Kyiv', 'Kyiv, Kiev, Ukraine, Lviv, Odesa'],
 	[
 		'America/New_York',
 		'New York City, NYC, Boston, Washington DC, Miami, Atlanta',

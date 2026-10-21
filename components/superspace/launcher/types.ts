@@ -76,8 +76,8 @@ export type IconName =
 	| 'emoji';
 
 /**
- * A small drawn scene, standing in for a photo or a video frame: the demo's
- * pictures are other people's photos, so the page draws their colours instead.
+ * A photo or video frame of the demo home, by the name of its small picture
+ * (public/projects/super-space/demo/<scene>.webp).
  */
 export type Scene =
 	| 'retriever-market'

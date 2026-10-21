@@ -55,6 +55,8 @@ type Desk = {
 	 * goes ahead as usual, and either way a sticker still lifting is dropped.
 	 */
 	navigate: (event: { preventDefault: () => void }, href: string) => void;
+	/** Where a page was scrolled when it was left to open a project (or left a project for another page). */
+	scrollOf: (path: string) => number | undefined;
 };
 
 const DeskContext = createContext<Desk>({
@@ -63,7 +65,14 @@ const DeskContext = createContext<Desk>({
 	open: () => {},
 	intent: () => {},
 	navigate: () => {},
+	scrollOf: () => undefined,
 });
+
+/**
+ * Where each page was scrolled when it was left for (or from) a project, so
+ * coming back puts it where it was, as the browser's own Back would.
+ */
+const scrolled = new Map<string, number>();
 
 const projectPath = /^\/projects\/[^/]+\/?$/;
 
@@ -91,6 +100,52 @@ export function stickerName(key: string): string {
 
 /** The transition that runs now, so an older one that is skipped leaves the newer one's state alone. */
 let running: ViewTransition | null = null;
+
+/**
+ * A press made while a transition runs: the browser sends it to <html> under
+ * the transition's snapshots, so it would be lost. The transition is cut short
+ * at the press, and the click goes to what is under the pointer once the new
+ * page is on screen (a quick click on the new page's Back arrow, or a tab).
+ */
+let pressed: { x: number; y: number; at: number } | null = null;
+
+function onPressDuringTransition(event: PointerEvent) {
+	const vt = running;
+	if (!vt || event.button !== 0 || !event.isPrimary) return;
+	// a press on the scrollbar is not a click on the page
+	if (event.clientX >= document.documentElement.clientWidth) return;
+	pressed = { x: event.clientX, y: event.clientY, at: performance.now() };
+	vt.skipTransition();
+}
+
+function onClickDuringTransition(event: MouseEvent) {
+	const press = pressed;
+	pressed = null;
+	if (!press || performance.now() - press.at > 1500) return;
+	// it found something on the page after all: leave it be
+	const target = event.target;
+	if (target !== document.documentElement && target !== document.body) return;
+	event.preventDefault();
+	event.stopImmediatePropagation();
+	const retarget = () => {
+		const el = document.elementFromPoint(press.x, press.y);
+		if (!el || el === document.documentElement) return;
+		el.dispatchEvent(
+			new MouseEvent('click', {
+				bubbles: true,
+				cancelable: true,
+				composed: true,
+				view: window,
+				clientX: press.x,
+				clientY: press.y,
+				button: 0,
+			}),
+		);
+	};
+	const vt = running;
+	if (vt) vt.finished.catch(() => {}).finally(retarget);
+	else retarget();
+}
 
 /**
  * Next.js's requests for a page's data (`?_rsc=`) on their way, by path, so a
@@ -190,7 +245,12 @@ function startPageTransition(
 	}
 	running = vt;
 	// a skipped transition rejects these; the navigation itself still happens
-	vt.ready.catch(() => {});
+	vt.ready.then(
+		() => {
+			if (running === vt && 'vtFar' in root.dataset) shortenFlight();
+		},
+		() => {},
+	);
 	vt.updateCallbackDone.catch(() => {});
 	vt.finished
 		.catch(() => {})
@@ -199,8 +259,40 @@ function startPageTransition(
 			running = null;
 			delete root.dataset.vt;
 			delete root.dataset.vtFar;
+			delete root.dataset.vtBookFar;
 		});
 	return true;
+}
+
+/**
+ * A sticker flying further than a screen (back from far down a long page)
+ * would be off screen for most of its flight, then streak in. Its far end is
+ * moved to just past the edge of the screen, so the whole flight is seen: it
+ * comes in from above (or below) and lands.
+ */
+function shortenFlight() {
+	const h = window.innerHeight;
+	for (const a of document.documentElement.getAnimations({ subtree: true })) {
+		const effect = a.effect as KeyframeEffect | null;
+		if (!effect?.pseudoElement?.startsWith('::view-transition-group(stk-')) {
+			continue;
+		}
+		const frames = effect.getKeyframes();
+		let changed = false;
+		for (const f of frames) {
+			const m = /^matrix\(([^)]+)\)$/.exec(String(f.transform ?? ''));
+			const size = Number.parseFloat(String(f.height ?? ''));
+			if (!m || !Number.isFinite(size)) continue;
+			const v = m[1].split(',').map(Number);
+			if (v.length !== 6 || v.some((n) => !Number.isFinite(n))) continue;
+			const y = Math.min(Math.max(v[5], -size - 24), h + 24);
+			if (y === v[5]) continue;
+			v[5] = y;
+			f.transform = `matrix(${v.join(', ')})`;
+			changed = true;
+		}
+		if (changed) effect.setKeyframes(frames);
+	}
 }
 
 /** Resolves once the stickers on screen have decoded, so the transition never captures a blank one. */
@@ -244,6 +336,17 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 
 	useEffect(() => {
 		watchPageData();
+		const capture = { capture: true };
+		window.addEventListener('pointerdown', onPressDuringTransition, capture);
+		window.addEventListener('click', onClickDuringTransition, capture);
+		return () => {
+			window.removeEventListener(
+				'pointerdown',
+				onPressDuringTransition,
+				capture,
+			);
+			window.removeEventListener('click', onClickDuringTransition, capture);
+		};
 	}, []);
 
 	// The new page is in the DOM, and its own layout effects (which scroll it
@@ -265,6 +368,9 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 			const root = document.documentElement;
 			const from = window.location.href;
 			const before = flyingSticker()?.getBoundingClientRect().top;
+			const bookBefore = document
+				.querySelector('.book')
+				?.getBoundingClientRect().top;
 			const update = async () => {
 				// Back or Forward pressed after the flight began, before the page changed:
 				// that step wins, and this one neither pushes nor animates.
@@ -289,8 +395,9 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 					await shownNext;
 				}
 				busy.current = false; // also when the page timed out
-				// A sticker flying further than a screen (back from far down a long
-				// page) would overshoot by hundreds of pixels: it lands without the give.
+				// A sticker that would fly further than a screen (back from far down a
+				// long page) would be off screen for most of its flight: it drops onto
+				// its spot instead, and the socials stay out of it (transitions.css).
 				const after = flyingSticker()?.getBoundingClientRect().top;
 				if (
 					before !== undefined &&
@@ -298,6 +405,19 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 					Math.abs(after - before) > window.innerHeight
 				) {
 					root.dataset.vtFar = '';
+				}
+				// A book that would slide most of a screen (a sticker opened from far
+				// down the Projects page, or back to it) stays still: its old leaf
+				// goes, and the new page fades in where it is.
+				const bookAfter = document
+					.querySelector('.book')
+					?.getBoundingClientRect().top;
+				if (
+					bookBefore !== undefined &&
+					bookAfter !== undefined &&
+					Math.abs(bookAfter - bookBefore) > window.innerHeight * 0.4
+				) {
+					root.dataset.vtBookFar = '';
 				}
 				await stickersDecoded();
 			};
@@ -326,6 +446,7 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 		(href: string) => {
 			if (busy.current) return;
 			busy.current = true;
+			scrolled.set(shown.current, window.scrollY);
 			// a link that does not prefetch (a product page) starts fetching now, if
 			// a pointer on it has not already; for the rest it is a no-op
 			router.prefetch(href);
@@ -363,7 +484,9 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 		(event, href) => {
 			cancelLift();
 			const to = new URL(href, window.location.href).pathname;
-			if (!morphs(shown.current, to) || !canAnimate()) return;
+			if (!morphs(shown.current, to)) return;
+			scrolled.set(shown.current, window.scrollY);
+			if (!canAnimate()) return;
 			event.preventDefault();
 			if (busy.current) return;
 			busy.current = true;
@@ -387,6 +510,15 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 			if (replaying) return;
 			cancelLift(); // Back or Forward wins over a sticker still lifting
 			const to = window.location.pathname;
+			// the page being left (the browser restores the next one's scroll after this event)
+			if (morphs(shown.current, to))
+				scrolled.set(shown.current, window.scrollY);
+			// Back or Forward during a flight: the flight ends where it is and the
+			// step happens at once, rather than a second flight after a pause
+			if (running) {
+				running.skipTransition();
+				return;
+			}
 			if (
 				!morphs(shown.current, to) ||
 				!canAnimate() ||
@@ -430,7 +562,14 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 	}, [cancelLift, morph]);
 
 	const value = useMemo(
-		() => ({ from: nav.from, flight, open, intent, navigate }),
+		() => ({
+			from: nav.from,
+			flight,
+			open,
+			intent,
+			navigate,
+			scrollOf: (path: string) => scrolled.get(path),
+		}),
 		[nav.from, flight, open, intent, navigate],
 	);
 	return <DeskContext value={value}>{children}</DeskContext>;
@@ -445,8 +584,8 @@ export function prefersReducedMotion(): boolean {
 }
 
 /**
- * Call right after a page has set the scroll position itself (the returning
- * sticker in the middle, a project at the top), so the browser does not undo it.
+ * Call right after a page has set the scroll position itself (the Projects page
+ * where it was left, a project at the top), so the browser does not undo it.
  * On Back and Forward the browser restores the scroll position it saved for that
  * history entry, and it does so after the new page has rendered, just before the
  * next frame. This puts the page's own position back on that frame, before it

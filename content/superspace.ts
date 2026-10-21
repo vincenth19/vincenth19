@@ -107,6 +107,8 @@ export type LauncherLabels = {
 	unknown: string;
 	one: string;
 	many: string;
+	/** The button that opens the launcher again once it is closed. */
+	reopen: string;
 };
 
 /**
@@ -178,13 +180,14 @@ export const superSpace = {
 		labels: {
 			field: 'Search the demo files',
 			placeholder: 'Search apps, files, photos, answers…',
-			keys: 'Type to search. Down and up arrows choose a result; then right and left arrows step through its pages or moments, and Tab lists them. Enter opens it.',
+			keys: 'Type to search. Down and up arrows choose a result; right and left arrows step through its pages or moments, and Tab lists them (Tab again moves on). Enter opens it.',
 			results: 'Results',
 			nothing: 'Nothing on this computer matches',
 			unknown:
-				'This copy knows the demo’s words in English and Indonesian, and the main ones in ten other languages. Super Space reads any language.',
+				'This copy knows the demo’s words in English and Indonesian, and the main ones in ten other languages.',
 			one: '1 result. First: {top}',
 			many: '{n} results. First: {top}',
+			reopen: 'Open the launcher again (Super+Space)',
 		} satisfies LauncherLabels,
 		/** The credit line for the demo's pictures: before the list, between title and author, after a video's frame. */
 		credit: {
@@ -435,7 +438,7 @@ export const superSpace = {
 				licence: 'CC BY-SA 3.0',
 				source:
 					'https://commons.wikimedia.org/wiki/File:Cat_playing_with_a_laser_pointer.webm',
-				at: 7,
+				at: 10,
 			},
 			{
 				scene: 'milk-pot',
@@ -454,6 +457,11 @@ export const superSpace = {
 				at: 4,
 			},
 		] satisfies DemoPicture[],
+		/**
+		 * The demo's own pictures (a scanned receipt, a terminal screenshot), drawn
+		 * by its make_media.py and CC0: shown, no credit needed.
+		 */
+		own: ['scan', 'terminal'],
 	},
 
 	/**
@@ -635,9 +643,9 @@ export const superSpace = {
 				licence: 'CC BY-SA 4.0',
 				licenceUrl: 'https://creativecommons.org/licenses/by-sa/4.0/',
 				where: 'Wikimedia Commons',
-				// Simon Waldherr's Raspberry Pi 5 photos on Commons (see DEVELOPING.md)
+				// the photo's own page on Commons, "Raspberry Pi 5 Board.jpg"
 				source:
-					'https://commons.wikimedia.org/w/index.php?search=%22Raspberry+Pi+5%22+Waldherr&title=Special:MediaSearch&type=image',
+					'https://commons.wikimedia.org/wiki/File:Raspberry_Pi_5_Board.jpg',
 				after: ' (cropped)',
 			},
 		},

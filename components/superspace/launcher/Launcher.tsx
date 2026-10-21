@@ -34,9 +34,11 @@ import {
  * answers) at once and the final phase (by meaning) 150 ms after typing
  * pauses; while typing, results only add, and 400 ms after the last key they
  * show as they are, so typing is calm. ↓/↑ choose a row, →/← step its pages or
- * sections, Enter opens. Tab lists a row's parts once ↓/↑ have chosen it;
- * before that it moves on through the page, as Tab does on a web page.
- * Opening anything here only says what the real launcher would do.
+ * sections, Tab lists them, Enter opens, Esc closes the launcher (the keys
+ * that open it again take its place). On a page Tab must also lead on: Tab
+ * again from a row's list, or Tab from a row with nothing to list, moves on
+ * through the page. Opening anything here only says what the real launcher
+ * would do.
  */
 
 const FINAL_MS = 150;
@@ -58,9 +60,9 @@ function currentOf(v: ViewState): DrawnRow | undefined {
 	return v.sel >= o ? rowsOf(v)[v.sel - o] : undefined;
 }
 
-/** For screen readers: how many results, once they settle, and the first. */
+/** For screen readers: how many results, once they settle (an emoji strip is one), and the first. */
 function statusOf(r: Response, labels: LauncherLabels) {
-	const local = r.rows.filter((x) => x.kind !== 'web');
+	const local = drawRows(r.rows).filter((x) => x.kind !== 'web');
 	const n = local.length + (r.answer ? 1 : 0);
 	const top = r.answer ? answerLabel(r.answer) : (local[0]?.title ?? '');
 	if (r.empty)
@@ -99,6 +101,7 @@ export function Launcher({
 	};
 	const card = useRef<HTMLDivElement>(null);
 	const field = useRef<HTMLInputElement>(null);
+	const reopen = useRef<HTMLButtonElement>(null);
 	const opts = { rates };
 	const [query, setQuery] = useState(initial);
 	const [view, setView] = useState<ViewState>(() => ({
@@ -107,8 +110,8 @@ export function Launcher({
 		hit: 0,
 		mode: 'text',
 	}));
-	/** Typed into since it took the focus: the caret and the text show where the focus is. */
-	const [typed, setTyped] = useState(false);
+	/** Esc closed it: the desktop shows, with the keys that open it again. */
+	const [closed, setClosed] = useState(false);
 	const [toast, setToast] = useState<{ text: string; n: number } | null>(null);
 	const [status, setStatus] = useState('');
 	const [width, setWidth] = useState<number | undefined>(undefined);
@@ -174,6 +177,8 @@ export function Launcher({
 			const l = live.current;
 			clearTimeout(l.final);
 			clearTimeout(l.typing);
+			// what an earlier search would have done is no longer on screen
+			setToast(null);
 			if (!q.trim()) {
 				l.last = blank;
 				show(blank, false);
@@ -264,6 +269,8 @@ export function Launcher({
 		clearTimeout(l.final);
 		clearTimeout(l.typing);
 		l.typing = 0;
+		setToast(null);
+		setClosed(false);
 		setQuery(request.q);
 		l.last = search(request.q, true, { rates });
 		setView((v) => ({ ...v, shown: l.last, sel: 0, hit: 0, mode: 'text' }));
@@ -296,6 +303,23 @@ export function Launcher({
 		const t = setTimeout(() => setToast(null), 4200);
 		return () => clearTimeout(t);
 	}, [toast]);
+
+	/** Esc: the launcher closes, as the real one does; the keys that open it again take the focus. */
+	function close() {
+		setQuery('');
+		onQuery?.('');
+		run('');
+		setClosed(true);
+		setStatus('');
+		requestAnimationFrame(() => reopen.current?.focus({ preventScroll: true }));
+	}
+
+	/** Super+Space again: an empty launcher, its field ready. */
+	function open_() {
+		setClosed(false);
+		live.current.selected = true;
+		requestAnimationFrame(() => field.current?.focus({ preventScroll: true }));
+	}
 
 	function notify(text: string) {
 		setToast((t) => ({ text, n: (t?.n ?? 0) + 1 }));
@@ -369,13 +393,7 @@ export function Launcher({
 			open(s, s.sel, -1, ctrl);
 		} else if (e.key === 'Escape') {
 			if (v.mode === 'sections') next = { ...v, mode: 'text' };
-			else if (query) {
-				setQuery('');
-				onQuery?.('');
-				run('');
-			} else {
-				return;
-			}
+			else close();
 		} else if (
 			(e.key === 'ArrowLeft' || e.key === 'ArrowRight') &&
 			plain &&
@@ -391,17 +409,11 @@ export function Launcher({
 				return;
 			}
 		} else if (e.key === 'Tab' && !e.shiftKey && !ctrl) {
-			// on a page Tab moves on: it lists a row's parts only once ↓/↑ have chosen the row
-			if (v.mode !== 'rows') return;
+			// Tab lists the selected (or top) row's parts; with none to list, or
+			// listed already, it moves on through the page, so it never keeps the keyboard
+			if (v.mode === 'sections') return;
 			const s = settle();
-			const row = currentOf(s);
-			if (
-				!row ||
-				s.mode !== 'rows' ||
-				(row.hits.length < 2 && (row.strip?.length ?? 0) < 2)
-			) {
-				return;
-			}
+			if (!partsOf(currentOf(s))) return;
 			next = { ...s, mode: 'sections' };
 		} else if (e.key === 'Tab' && e.shiftKey && v.mode === 'sections') {
 			next = { ...v, mode: 'text' };
@@ -441,10 +453,14 @@ export function Launcher({
 			: undefined;
 
 	return (
-		<div className="ssl-screen" ref={card} data-typed={typed ? '' : undefined}>
+		<div
+			className="ssl-screen"
+			ref={card}
+			data-closed={closed ? '' : undefined}
+		>
 			<Bar now={now} />
 			<Desktop />
-			<div className="ssl-stage">
+			<div className="ssl-stage" inert={closed}>
 				<Panel
 					state={{ ...view, width, thumbs }}
 					ids={ids}
@@ -474,7 +490,6 @@ export function Launcher({
 								placeholder={labels.placeholder}
 								value={query}
 								onChange={(e) => {
-									setTyped(true);
 									setQuery(e.target.value);
 									onQuery?.(e.target.value);
 									setView((v) => ({ ...v, mode: 'text' }));
@@ -496,7 +511,6 @@ export function Launcher({
 								}}
 								onBlur={() => {
 									// leaving the field leaves the rows as they were before ↓/↑, and Tab's list closed
-									setTyped(false);
 									setView((v) =>
 										v.mode === 'text' ? v : { ...v, mode: 'text' },
 									);
@@ -524,6 +538,17 @@ export function Launcher({
 					}
 				/>
 			</div>
+			{closed && (
+				<button
+					ref={reopen}
+					type="button"
+					className="ssl-reopen"
+					aria-label={labels.reopen}
+					onClick={open_}
+				>
+					<kbd>Super</kbd>+<kbd>Space</kbd>
+				</button>
+			)}
 			<p
 				className="ssl-toast"
 				role="status"

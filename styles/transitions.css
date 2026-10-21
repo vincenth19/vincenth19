@@ -5,7 +5,8 @@
    book moves to its new place as its leaf turns, a product page's stage rises
    where the book was (or sinks away), and the rest of the desk cross-fades.
    The names below exist only while a transition runs, when <html> carries
-   data-vt ("open" or "close"). */
+   data-vt ("open" or "close"). DeskProvider sets the far flags once the new page
+   is in, so they only change how the new page is captured. */
 :root[data-vt] .book {
 	view-transition-name: book;
 }
@@ -16,9 +17,22 @@
 :root[data-vt] .mast .socials {
 	view-transition-name: socials;
 }
+/* A book that would slide most of a screen stays where it is: the old leaf goes
+   (as it does for a stage, below) and the new page fades in in place. */
+:root[data-vt-book-far] .book,
+:root[data-vt-book-far] .mast .socials {
+	view-transition-name: none;
+}
+/* A flight longer than a screen starts just past the edge of the screen
+   (DeskProvider shortens it), and the socials, which would slide as far, fade
+   with the page instead. */
+:root[data-vt-far] .mast .socials {
+	view-transition-name: none;
+}
 
-/* The pages under the transition take clicks as soon as it starts: a quick
-   click on the new page's Back arrow is not lost on the snapshots. */
+/* The page under the snapshots does not take clicks while a transition runs;
+   DeskProvider cuts the transition short at a press and gives the click to
+   what is under the pointer on the new page. */
 ::view-transition {
 	pointer-events: none;
 }
@@ -41,18 +55,35 @@
 		animation-duration: 0.5s;
 		animation-timing-function: var(--ease-out);
 	}
-	/* A sticker flying further than a screen (back from far down a long page)
-	   would overshoot by hundreds of pixels: it lands without the give. */
+	/* coming in from the edge of the screen, the sticker lands without the give */
 	:root[data-vt-far]::view-transition-group(*) {
 		animation-timing-function: var(--ease-out);
 	}
-	/* the desk and the masthead around the sticker, and the leaf's text and
-	   pictures as the book moves (the paper, the same on both, stays solid) */
+	/* the desk and the masthead around the sticker */
 	::view-transition-old(root),
-	::view-transition-new(root),
-	::view-transition-old(book),
-	::view-transition-new(book) {
+	::view-transition-new(root) {
 		animation-duration: 0.32s;
+	}
+	/* The leaf turns as the book moves: the new page is there at once, under the
+	   old one, which goes quickly (the paper, the same on both, stays solid), so
+	   the two pages are never read over each other. */
+	::view-transition-old(book) {
+		z-index: 1;
+		mix-blend-mode: normal;
+		animation: vt-fade-out 0.12s ease-out both;
+	}
+	::view-transition-new(book) {
+		mix-blend-mode: normal;
+		animation: none;
+	}
+	/* A sticker with no partner on the other page (the header sticker, going to
+	   Writing or Resume, or coming back from there) gets out of the way, or
+	   settles in, rather than lie over the page */
+	::view-transition-old(*):only-child {
+		animation: vt-sink 0.14s var(--ease-out) both;
+	}
+	::view-transition-new(*):only-child {
+		animation: vt-rise 0.36s 0.06s var(--ease-out) both;
 	}
 	/* the book gives way to a product page's stage, or the stage to the book:
 	   the old one gets out of the way at once, the new one rises after it, so
@@ -75,6 +106,11 @@
 	}
 }
 
+@keyframes vt-fade-out {
+	to {
+		opacity: 0;
+	}
+}
 @keyframes vt-sink {
 	to {
 		opacity: 0;

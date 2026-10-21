@@ -1,0 +1,43 @@
+import type { Rates } from '@/components/superspace/launcher/answers';
+
+/**
+ * The ECB's euro reference rates of 20 October 2026, as published in its
+ * daily file (eurofxref-daily.xml), for the launcher's currency answers when
+ * the page is built where the ECB cannot be reached. The answer card names
+ * the day, so a converted amount always says how old its rate is. Refresh it
+ * now and then: paste a newer day's file into `parseEcb` (lib/ecbRates.ts).
+ */
+export const ecbFallback: Rates = {
+	date: '2026-10-20',
+	eur: {
+		USD: 1.1215,
+		JPY: 177.34,
+		CZK: 24.329,
+		DKK: 7.4746,
+		GBP: 0.84028,
+		HUF: 364.68,
+		PLN: 4.3768,
+		RON: 5.3308,
+		SEK: 11.123,
+		CHF: 0.9237,
+		ISK: 136.2,
+		NOK: 10.5245,
+		TRY: 55.6009,
+		AUD: 1.6056,
+		BRL: 5.6339,
+		CAD: 1.5758,
+		CNY: 7.4894,
+		HKD: 8.8023,
+		IDR: 20170.57,
+		ILS: 3.4853,
+		INR: 106.459,
+		KRW: 1489.17,
+		MXN: 20.7719,
+		MYR: 4.5788,
+		NZD: 1.9748,
+		PHP: 70.804,
+		SGD: 1.4338,
+		THB: 37.738,
+		ZAR: 18.4769,
+	},
+};

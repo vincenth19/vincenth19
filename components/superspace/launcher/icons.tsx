@@ -105,11 +105,11 @@ const icons: Record<Exclude<IconName, 'photo' | 'emoji'>, () => ReactNode> = {
 				<rect x="6.6" y="17.4" width="17.1" height="1.2" />
 				<rect x="6.6" y="23.6" width="17.1" height="1.2" />
 			</g>
-			<rect x="16.2" y="8.8" width="7.5" height="7.9" fill="#f66151" />
+			<rect x="15.4" y="7.4" width="8.6" height="8.8" fill="#f66151" />
 			<path
-				d="M17.5 13.4c1.4.4 3.3-.2 3.1-1.3-.2-1-1.8-.8-2.5.3-.8 1.3-.1 2.6 1.4 2.5 1 0 1.9-.5 2.8-1.2"
+				d="M16.9 12.5c1.6.5 3.8-.2 3.6-1.5-.2-1.1-2.1-.9-2.9.3-.9 1.5-.1 3 1.6 2.9 1.1 0 2.2-.6 3.2-1.4"
 				stroke="#fff"
-				strokeWidth=".55"
+				strokeWidth=".6"
 				fill="none"
 				strokeLinecap="round"
 			/>
@@ -117,6 +117,7 @@ const icons: Record<Exclude<IconName, 'photo' | 'emoji'>, () => ReactNode> = {
 				<rect x="3.4" y="19.3" width="6.9" height="3.3" rx=".7" />
 				<rect x="12" y="19.3" width="6.9" height="3.3" rx=".7" />
 				<path d="M10.3 19.9c.5-.7 1.2-.7 1.7 0" fill="none" />
+				<path d="M3.5 19.8 2.4 17.6M18.8 19.8l1.1-2.2" fill="none" />
 			</g>
 		</svg>
 	),
@@ -153,18 +154,18 @@ const icons: Record<Exclude<IconName, 'photo' | 'emoji'>, () => ReactNode> = {
 			<rect x="12" y="9" width="8.5" height="5" rx="1" fill="#f6d32d" />
 		</svg>
 	),
-	// mpv: a glossy purple disc with a pale rim (thicker on the left), a pale button, a purple
-	// play sign; the gloss is layered discs, so many icons on the page share no ids
+	// mpv: a dark, smooth purple disc with a pale rim (thicker on the left), a dark well a little
+	// off centre, a large pale button and a purple play sign; the gloss is layered discs, so the
+	// many icons on the page share no ids
 	mpv: () => (
 		<svg aria-hidden="true" focusable="false" viewBox="0 0 30 30">
 			<circle cx="14.9" cy="15" r="13" fill="#ece5ef" />
-			<circle cx="15.4" cy="15" r="12.1" fill="#5e2170" />
-			<circle cx="14.6" cy="14.2" r="10.6" fill="#76308a" opacity=".8" />
-			<circle cx="13.8" cy="13.2" r="7.6" fill="#8f45a2" opacity=".45" />
-			<circle cx="15.5" cy="15.2" r="8.3" fill="#481554" />
-			<circle cx="15.2" cy="15.1" r="5.9" fill="#cdc1d4" />
-			<circle cx="14.6" cy="14.4" r="4.6" fill="#f3eff5" opacity=".85" />
-			<path d="M13.8 12.3v5.6l4.5-2.8z" fill="#5d2069" />
+			<circle cx="15.4" cy="15" r="12.1" fill="#4f1d5e" />
+			<circle cx="14.4" cy="13.9" r="10" fill="#62286f" opacity=".55" />
+			<circle cx="16" cy="15.9" r="8.4" fill="#3a1046" opacity=".85" />
+			<circle cx="15.2" cy="15" r="6.5" fill="#f1ecf3" />
+			<circle cx="14.7" cy="14.4" r="5.2" fill="#fbf9fc" opacity=".7" />
+			<path d="M13.6 12v6l4.9-3z" fill="#5d2069" />
 		</svg>
 	),
 	folder: () => (
@@ -192,34 +193,34 @@ const icons: Record<Exclude<IconName, 'photo' | 'emoji'>, () => ReactNode> = {
 			/>
 		</svg>
 	),
-	// the default browser's icon, as on the real web row: a soft white seal all round, a black
-	// ring, a light face and a black mouse pointer pointing up, from the lower left
+	// the default browser's icon, as on the real web row (a small icon drawn large, so soft): a
+	// round white halo with one bump on top, a black ring, a face light on the left and grey on
+	// the right, and a classic mouse pointer, mirrored: its tip at the top, its straight edge on
+	// the right, its tail leaving the ring at the lower left
 	web: () => (
 		<svg
 			aria-hidden="true"
 			focusable="false"
 			viewBox="0 0 30 30"
-			className="ssl-soft"
+			className="ssl-soft ssl-soft--web"
 		>
-			<path
-				d="M15.00 1.40L16.39 2.68L18.03 1.74L19.10 3.30L20.90 2.75L21.60 4.50L23.48 4.37L23.77 6.23L25.63 6.52L25.50 8.40L27.25 9.10L26.70 10.90L28.26 11.97L27.32 13.61L28.60 15.00L27.32 16.39L28.26 18.03L26.70 19.10L27.25 20.90L25.50 21.60L25.63 23.48L23.77 23.77L23.48 25.63L21.60 25.50L20.90 27.25L19.10 26.70L18.03 28.26L16.39 27.32L15.00 28.60L13.61 27.32L11.97 28.26L10.90 26.70L9.10 27.25L8.40 25.50L6.52 25.63L6.23 23.77L4.37 23.48L4.50 21.60L2.75 20.90L3.30 19.10L1.74 18.03L2.68 16.39L1.40 15.00L2.68 13.61L1.74 11.97L3.30 10.90L2.75 9.10L4.50 8.40L4.37 6.52L6.23 6.23L6.52 4.37L8.40 4.50L9.10 2.75L10.90 3.30L11.97 1.74L13.61 2.68z"
-				fill="#f6f5f4"
-			/>
+			<rect x="1.4" y="2" width="27.2" height="27.2" rx="11.5" fill="#f6f5f4" />
+			<rect x="12.5" y="0.8" width="5" height="3.6" rx="1.6" fill="#f6f5f4" />
 			<circle
 				cx="15"
-				cy="15"
-				r="9.8"
-				fill="#ecebe9"
+				cy="15.6"
+				r="9.2"
+				fill="#e7e6e4"
 				stroke="#111"
 				strokeWidth="2.6"
 			/>
-			<path d="M15.4 6.4a8.6 8.6 0 0 1 0 17.2z" fill="#c9c7c4" />
-			<path d="M15.2 6.4v17.2" stroke="#fff" strokeWidth=".7" />
+			<path d="M15.3 6.4a9.2 9.2 0 0 1 0 18.4z" fill="#bab8b5" />
+			<path d="M15.6 6.6v18" stroke="#fff" strokeWidth=".8" />
 			<path
-				d="M14.6 6.2 6.4 24.6l5-3 1.9 4.6 2.8-1.2-1.9-4.6 5.6-.4z"
+				d="M15 10.2v15.6l-3.1-2.4-1.9 4.8-2.2-1 1.9-4.6-4.1-.1z"
 				fill="#0c0c0c"
 				stroke="#f6f5f4"
-				strokeWidth=".5"
+				strokeWidth=".55"
 				strokeLinejoin="round"
 			/>
 		</svg>
@@ -412,107 +413,30 @@ const icons: Record<Exclude<IconName, 'photo' | 'emoji'>, () => ReactNode> = {
 	),
 };
 
-/** The animal in a drawn scene, in its own colour (--fig, --fig-2 on the scene). */
-const figures = {
-	// a dog's head in profile, ear down, looking right
-	dog: (
-		<>
-			<path d="M24 92c-4-22-2-40 8-52 8-10 22-14 34-10 8 2 14 7 18 13 7 2 12 6 12 12 0 7-7 9-13 9-5 5-11 7-16 7-2 8-4 15-5 21z" />
-			<path
-				className="ssl-fig-2"
-				d="M36 40c-9 2-15 15-13 28 1 7 8 8 11 1 2-8 4-16 6-23z"
-			/>
-			<circle cx="64" cy="44" r="2.6" fill="#1b130c" />
-			<circle cx="94" cy="58" r="3.2" fill="#1b130c" />
-		</>
-	),
-	// a smaller, rounder head: a puppy
-	puppy: (
-		<>
-			<path d="M28 90c-4-18-2-34 8-44 9-9 22-11 33-6 7 3 12 9 14 15 6 2 10 6 10 11 0 6-6 8-11 8-5 4-10 6-15 6-2 6-3 11-4 16z" />
-			<path
-				className="ssl-fig-2"
-				d="M38 46c-9 2-14 14-12 25 1 6 8 7 10 1 2-8 3-15 5-21z"
-			/>
-			<circle cx="64" cy="54" r="3" fill="#1b130c" />
-			<circle cx="91" cy="66" r="3.4" fill="#1b130c" />
-		</>
-	),
-	// a dog running, side on
-	run: (
-		<>
-			<path d="M14 62c6-8 16-10 26-9h26c6-6 12-10 18-9l8 4-4 6-6 1c-2 6-6 10-12 11l6 14-6 2-9-13H44l-10 13-6-2 6-14c-8-1-14 0-20 4z" />
-			<path className="ssl-fig-2" d="M78 46l6-6 4 8z" />
-		</>
-	),
-	// a cat sitting, facing us
-	cat: (
-		<>
-			<path d="M30 94c-6-20-2-36 10-44-5-6-6-16-3-26l9 9c4-2 9-2 13 0l9-9c3 10 2 20-3 26 12 8 16 24 10 44z" />
-			<circle cx="44" cy="38" r="2.4" fill="#c8d34a" />
-			<circle cx="56" cy="38" r="2.4" fill="#c8d34a" />
-		</>
-	),
-	// a cat curled up asleep
-	curled: (
-		<>
-			<ellipse cx="50" cy="66" rx="30" ry="18" />
-			<path d="M26 58c-2-8 2-15 9-18l2-8 5 7c4-1 8 0 11 2-5 6-13 12-27 17z" />
-			<path
-				className="ssl-fig-2"
-				d="M74 72c8 2 10 10 2 13-10 3-26 3-38-1 14 0 28-3 36-12z"
-			/>
-		</>
-	),
-};
-
-const sceneFigure: Partial<Record<Scene, keyof typeof figures>> = {
-	'retriever-market': 'dog',
-	'retriever-grass': 'dog',
-	'retriever-stick': 'dog',
-	'retriever-field': 'dog',
-	puppy: 'puppy',
-	'puppy-blanket': 'puppy',
-	beagle: 'curled',
-	collie: 'dog',
-	'dachshund-beach': 'run',
-	'terrier-beach': 'run',
-	'cat-bench': 'curled',
-	'black-cat': 'curled',
-	'cat-sleeping': 'curled',
-	tabby: 'cat',
-	'cat-laser': 'cat',
-	'cat-play': 'cat',
-	'dog-swimming': 'puppy',
-};
-
 /**
- * A photo or video frame: its small picture when the page has one (`src`),
- * drawn over its scene, which stays as the stand-in for any it does not have.
+ * A photo or a video's frame: its own small picture, as the real launcher
+ * shows the file itself. The demo's pictures are other people's photos
+ * (Wikimedia Commons, credited under the screen); one this copy does not ship
+ * shows as a plain tile with the theme's image sign, not as a drawing of it.
  */
-export function SceneArt({
-	scene,
+export function Picture({
 	src,
 	className = '',
 }: {
-	scene: Scene;
 	src?: string;
 	className?: string;
 }) {
-	const fig = sceneFigure[scene];
 	return (
-		<span className={`ssl-scene ssl-scene--${scene} ${className}`.trim()}>
-			{fig && !src && (
-				<svg
-					aria-hidden="true"
-					focusable="false"
-					viewBox="0 0 100 100"
-					className="ssl-fig"
-				>
-					{figures[fig]}
+		<span className={`ssl-pic${src ? '' : ' is-none'} ${className}`.trim()}>
+			{src ? (
+				<img src={src} alt="" loading="lazy" decoding="async" />
+			) : (
+				<svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+					<rect x="3.5" y="5" width="17" height="14" rx="2" />
+					<path d="m3.5 16 5-5 4 4 2.5-2.5 5 5" />
+					<circle cx="15.5" cy="9.5" r="1.5" />
 				</svg>
 			)}
-			{src && <img src={src} alt="" loading="lazy" decoding="async" />}
 		</span>
 	);
 }
@@ -527,7 +451,7 @@ export function RowIcon({
 	scene?: Scene;
 	src?: string;
 }) {
-	if (scene) return <SceneArt scene={scene} src={src} />;
+	if (scene) return <Picture src={src} />;
 	if (name === 'photo' || name === 'emoji') return null;
 	return icons[name]();
 }

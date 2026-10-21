@@ -10,7 +10,9 @@
  *   bun scripts/demo-pictures.ts --force    all of them again
  *
  * It needs the network (commons.wikimedia.org) and, for the video frames,
- * ffmpeg. Check each picture before you commit it.
+ * ffmpeg. Check each picture before you commit it. It uses the copy of sharp
+ * that Next.js installs (an optional dependency of next, for its image
+ * optimisation), so it adds no dependency of its own.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
