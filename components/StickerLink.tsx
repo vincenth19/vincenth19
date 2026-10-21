@@ -129,7 +129,13 @@ export function StickerLink({
 	// not scroll the page while a sticker has the focus.
 	const space = useRef(false);
 	function onKeyDown(e: KeyboardEvent<HTMLAnchorElement>) {
-		delete e.currentTarget.dataset.quiet; // a key: the focus shows
+		// a key: the focus shows. Browsers will not turn :focus-visible on for
+		// focus they already gave quietly, so the sticker says so itself.
+		const el = e.currentTarget;
+		if ('quiet' in el.dataset) {
+			delete el.dataset.quiet;
+			el.dataset.keyed = '';
+		}
 		if (e.key !== ' ' || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) {
 			return; // Shift+Space and the rest keep their own meaning
 		}
@@ -173,6 +179,7 @@ export function StickerLink({
 			onBlur={(e) => {
 				space.current = false;
 				delete e.currentTarget.dataset.quiet;
+				delete e.currentTarget.dataset.keyed;
 			}}
 			onPointerEnter={onPointerEnter}
 			onPointerDown={onPointerDown}

@@ -218,20 +218,24 @@
 }
 /* focused from the keyboard: lifted and ringed. Focused back by the page after a
    project opened from a tap or a peel (data-quiet, StickerLink), it shows
-   neither until a key is pressed, as a tap's own focus would not. */
+   neither until a key is pressed, as a tap's own focus would not; that key
+   sets data-keyed, since browsers keep such focus out of :focus-visible. */
 .stk:focus-visible {
 	outline: none;
 }
-.stk:focus-visible:not(:where([data-quiet])) {
+.stk:focus-visible:not(:where([data-quiet])),
+.stk[data-keyed]:focus {
 	--peel: var(--hover);
 }
-.stk:focus-visible:not(:where([data-quiet])) .stk-face {
+.stk:focus-visible:not(:where([data-quiet])) .stk-face,
+.stk[data-keyed]:focus .stk-face {
 	outline: 2px dashed var(--ink);
 	outline-offset: 10px;
 	border-radius: 4px;
 }
 /* the round badge's ring would meet its caption, close under it */
-.stk--superspace:focus-visible:not(:where([data-quiet])) .stk-face {
+.stk--superspace:focus-visible:not(:where([data-quiet])) .stk-face,
+.stk--superspace[data-keyed]:focus .stk-face {
 	outline-offset: 5px;
 }
 

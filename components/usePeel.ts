@@ -425,7 +425,7 @@ export function usePeel(
 			// where it comes to rest: the hover peel under a mouse still on it, or flat(ish)
 			const hovers =
 				(over && matchMedia('(hover: hover) and (pointer: fine)').matches) ||
-				el.matches(':focus-visible:not([data-quiet])');
+				el.matches(':focus-visible:not([data-quiet]), [data-keyed]:focus');
 			const target = hovers ? prop(el, '--hover', 0) : prop(el, '--rest', 0);
 			if (prefersReducedMotion()) {
 				settle(el);
@@ -939,7 +939,7 @@ function playHint() {
 		'vt' in document.documentElement.dataset ||
 		document.querySelector('.stk.is-lifting') ||
 		el.dataset.peel ||
-		el.matches(':hover, :focus-visible:not([data-quiet])')
+		el.matches(':hover, :focus-visible:not([data-quiet]), [data-keyed]:focus')
 	) {
 		hintTimer = window.setTimeout(playHint, HINT_DELAY);
 		return;
