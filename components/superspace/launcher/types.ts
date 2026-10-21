@@ -192,4 +192,6 @@ export type Response = {
 	empty: boolean;
 	/** The kinds the query's own words limit it to ("golden retriever video"). */
 	filter: Kind[] | null;
+	/** Nothing matches, and the query has words this copy does not know (the real one reads any language). */
+	unknown?: boolean;
 };

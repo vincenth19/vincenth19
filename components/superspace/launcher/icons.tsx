@@ -85,25 +85,40 @@ function Tile({ fill, children }: { fill: string; children?: ReactNode }) {
 }
 
 const icons: Record<Exclude<IconName, 'photo' | 'emoji'>, () => ReactNode> = {
-	// GNOME's document viewer: a page with a red seal and reading glasses
+	// GNOME's document viewer: a plain page, a red seal with a written "e", thin blue glasses
 	pdf: () => (
-		<Page>
-			<path d="M8.5 6.5h8" stroke="#77767b" strokeWidth="1.2" />
-			{lines([10.5, 13.5])}
-			<rect x="15.5" y="9.4" width="6.6" height="6.6" rx=".6" fill="#f66151" />
-			<path
-				d="M17 13.6c.6-1.6 2.5-2.1 3-1.1.4 1-1.6 1.6-2.3 1 .9.4 2.4.3 3.6-.1"
-				stroke="#fff"
-				strokeWidth=".7"
-				fill="none"
+		<svg aria-hidden="true" focusable="false" viewBox="0 0 30 30">
+			<rect x="4.9" y="2.6" width="20.5" height="26" rx="1.6" fill="#c0bfbc" />
+			<rect
+				x="4.9"
+				y="2.1"
+				width="20.5"
+				height="25.8"
+				rx="1.6"
+				fill="#f6f5f4"
 			/>
-			{lines([18.5, 21.5], 21)}
-			<g stroke="#1a5fb4" strokeWidth="1.3" fill="#e6eef8" fillOpacity=".55">
-				<rect x="3.6" y="19.4" width="6.6" height="3.6" rx="1" />
-				<rect x="11.6" y="19.4" width="6.6" height="3.6" rx="1" />
-				<path d="M10.2 20.6c.5-.6 1-.6 1.4 0" fill="none" />
+			<path d="M6.6 5.4h9.5" stroke="#77767b" strokeWidth=".9" />
+			<g fill="#deddda">
+				<rect x="6.6" y="7" width="17.1" height="1.6" />
+				<rect x="6.6" y="9.6" width="8.6" height="3.4" />
+				<rect x="6.6" y="14" width="8.6" height="2.4" />
+				<rect x="6.6" y="17.4" width="17.1" height="1.2" />
+				<rect x="6.6" y="23.6" width="17.1" height="1.2" />
 			</g>
-		</Page>
+			<rect x="16.2" y="8.8" width="7.5" height="7.9" fill="#f66151" />
+			<path
+				d="M17.5 13.4c1.4.4 3.3-.2 3.1-1.3-.2-1-1.8-.8-2.5.3-.8 1.3-.1 2.6 1.4 2.5 1 0 1.9-.5 2.8-1.2"
+				stroke="#fff"
+				strokeWidth=".55"
+				fill="none"
+				strokeLinecap="round"
+			/>
+			<g stroke="#1c71d8" strokeWidth=".75" fill="#fff" fillOpacity=".35">
+				<rect x="3.4" y="19.3" width="6.9" height="3.3" rx=".7" />
+				<rect x="12" y="19.3" width="6.9" height="3.3" rx=".7" />
+				<path d="M10.3 19.9c.5-.7 1.2-.7 1.7 0" fill="none" />
+			</g>
+		</svg>
 	),
 	writer: () => (
 		<Page fold="#3584e4">
@@ -138,14 +153,18 @@ const icons: Record<Exclude<IconName, 'photo' | 'emoji'>, () => ReactNode> = {
 			<rect x="12" y="9" width="8.5" height="5" rx="1" fill="#f6d32d" />
 		</svg>
 	),
-	// mpv: a purple disc with a pale button and a purple play sign
+	// mpv: a glossy purple disc with a pale rim (thicker on the left), a pale button, a purple
+	// play sign; the gloss is layered discs, so many icons on the page share no ids
 	mpv: () => (
 		<svg aria-hidden="true" focusable="false" viewBox="0 0 30 30">
-			<circle cx="15" cy="15" r="12.6" fill="#e9e3ec" />
-			<circle cx="15" cy="15" r="11.6" fill="#6a2779" />
-			<circle cx="15.6" cy="15.4" r="8.4" fill="#3f1149" />
-			<circle cx="15.4" cy="15.4" r="6" fill="#ddd3e2" />
-			<path d="M13.6 12.5v5.8l4.6-2.9z" fill="#6a2779" />
+			<circle cx="14.9" cy="15" r="13" fill="#ece5ef" />
+			<circle cx="15.4" cy="15" r="12.1" fill="#5e2170" />
+			<circle cx="14.6" cy="14.2" r="10.6" fill="#76308a" opacity=".8" />
+			<circle cx="13.8" cy="13.2" r="7.6" fill="#8f45a2" opacity=".45" />
+			<circle cx="15.5" cy="15.2" r="8.3" fill="#481554" />
+			<circle cx="15.2" cy="15.1" r="5.9" fill="#cdc1d4" />
+			<circle cx="14.6" cy="14.4" r="4.6" fill="#f3eff5" opacity=".85" />
+			<path d="M13.8 12.3v5.6l4.5-2.8z" fill="#5d2069" />
 		</svg>
 	),
 	folder: () => (
@@ -173,25 +192,35 @@ const icons: Record<Exclude<IconName, 'photo' | 'emoji'>, () => ReactNode> = {
 			/>
 		</svg>
 	),
-	// the default browser's icon, as on the real web row: a white seal, a black ring, a pointer
+	// the default browser's icon, as on the real web row: a soft white seal all round, a black
+	// ring, a light face and a black mouse pointer pointing up, from the lower left
 	web: () => (
-		<svg aria-hidden="true" focusable="false" viewBox="0 0 30 30">
+		<svg
+			aria-hidden="true"
+			focusable="false"
+			viewBox="0 0 30 30"
+			className="ssl-soft"
+		>
 			<path
-				d="M15 1.8l1.9 1.4 2.3-.3 1.1 2 2.2.8.2 2.3 1.7 1.6-.7 2.2 1.1 2.1-1.1 2.1.7 2.2-1.7 1.6-.2 2.3-2.2.8-1.1 2-2.3-.3L15 28.2l-1.9-1.4-2.3.3-1.1-2-2.2-.8-.2-2.3-1.7-1.6.7-2.2L5.2 15l1.1-2.1-.7-2.2 1.7-1.6.2-2.3 2.2-.8 1.1-2 2.3.3z"
+				d="M15.00 1.40L16.39 2.68L18.03 1.74L19.10 3.30L20.90 2.75L21.60 4.50L23.48 4.37L23.77 6.23L25.63 6.52L25.50 8.40L27.25 9.10L26.70 10.90L28.26 11.97L27.32 13.61L28.60 15.00L27.32 16.39L28.26 18.03L26.70 19.10L27.25 20.90L25.50 21.60L25.63 23.48L23.77 23.77L23.48 25.63L21.60 25.50L20.90 27.25L19.10 26.70L18.03 28.26L16.39 27.32L15.00 28.60L13.61 27.32L11.97 28.26L10.90 26.70L9.10 27.25L8.40 25.50L6.52 25.63L6.23 23.77L4.37 23.48L4.50 21.60L2.75 20.90L3.30 19.10L1.74 18.03L2.68 16.39L1.40 15.00L2.68 13.61L1.74 11.97L3.30 10.90L2.75 9.10L4.50 8.40L4.37 6.52L6.23 6.23L6.52 4.37L8.40 4.50L9.10 2.75L10.90 3.30L11.97 1.74L13.61 2.68z"
 				fill="#f6f5f4"
 			/>
 			<circle
 				cx="15"
 				cy="15"
-				r="9.4"
-				fill="#f6f5f4"
+				r="9.8"
+				fill="#ecebe9"
 				stroke="#111"
-				strokeWidth="2.4"
+				strokeWidth="2.6"
 			/>
-			<path d="M15.6 6.9a8.1 8.1 0 0 1 0 16.2z" fill="#cfcdca" />
+			<path d="M15.4 6.4a8.6 8.6 0 0 1 0 17.2z" fill="#c9c7c4" />
+			<path d="M15.2 6.4v17.2" stroke="#fff" strokeWidth=".7" />
 			<path
-				d="M15.2 6.8 8.6 22l3.5-2.1 1.9 4.1 1.6-.7-1.8-4.1 4-.5z"
-				fill="#111"
+				d="M14.6 6.2 6.4 24.6l5-3 1.9 4.6 2.8-1.2-1.9-4.6 5.6-.4z"
+				fill="#0c0c0c"
+				stroke="#f6f5f4"
+				strokeWidth=".5"
+				strokeLinejoin="round"
 			/>
 		</svg>
 	),
@@ -457,18 +486,23 @@ const sceneFigure: Partial<Record<Scene, keyof typeof figures>> = {
 	'dog-swimming': 'puppy',
 };
 
-/** A drawn photo or video frame: its colours, and its animal when it has one. */
+/**
+ * A photo or video frame: its small picture when the page has one (`src`),
+ * drawn over its scene, which stays as the stand-in for any it does not have.
+ */
 export function SceneArt({
 	scene,
+	src,
 	className = '',
 }: {
 	scene: Scene;
+	src?: string;
 	className?: string;
 }) {
 	const fig = sceneFigure[scene];
 	return (
 		<span className={`ssl-scene ssl-scene--${scene} ${className}`.trim()}>
-			{fig && (
+			{fig && !src && (
 				<svg
 					aria-hidden="true"
 					focusable="false"
@@ -478,13 +512,57 @@ export function SceneArt({
 					{figures[fig]}
 				</svg>
 			)}
+			{src && <img src={src} alt="" loading="lazy" decoding="async" />}
 		</span>
 	);
 }
 
 /** A row's icon. Photos are their own icon; emoji are drawn as text. */
-export function RowIcon({ name, scene }: { name: IconName; scene?: Scene }) {
-	if (scene) return <SceneArt scene={scene} />;
+export function RowIcon({
+	name,
+	scene,
+	src,
+}: {
+	name: IconName;
+	scene?: Scene;
+	src?: string;
+}) {
+	if (scene) return <SceneArt scene={scene} src={src} />;
 	if (name === 'photo' || name === 'emoji') return null;
 	return icons[name]();
+}
+
+/** The signs on Omarchy's desktop folder tiles. */
+export function DesktopIcon({
+	name,
+}: {
+	name: 'Downloads' | 'Music' | 'Pictures' | 'Projects' | 'Videos';
+}) {
+	const sign = {
+		Downloads: <path d="M15 6v10m-4.5-4.5L15 16l4.5-4.5M8 21h14" />,
+		Music: (
+			<>
+				<path d="M12 19V8.5l9-2V17" />
+				<circle cx="10" cy="19.2" r="2.2" fill="currentColor" />
+				<circle cx="19" cy="17.2" r="2.2" fill="currentColor" />
+			</>
+		),
+		Pictures: <path d="M15 7.5 22.5 21h-15z" fill="currentColor" />,
+		Projects: null,
+		Videos: (
+			<path d="M8 8.5h14v12H8zM8 11.5h14M8 17.5h14M11 8.5v3m4-3v3m4-3v3M11 17.5v3m4-3v3m4-3v3" />
+		),
+	}[name];
+	return (
+		<svg
+			aria-hidden="true"
+			focusable="false"
+			viewBox="0 0 30 30"
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="2"
+		>
+			{sign}
+		</svg>
+	);
 }

@@ -7,10 +7,10 @@
  * and weighed by how rare they are. Rows that do not really match are dropped,
  * so a search can find nothing, and says so. The web row is always last.
  */
-import { answer as quickAnswer } from './answers';
+import { answerWord, answer as quickAnswer, type Rates } from './answers';
 import { GROUPS } from './concepts';
 import { items } from './corpus';
-import type { Hit, Item, Kind, Part, Response, Row } from './types';
+import type { Answer, Hit, Item, Kind, Part, Response, Row } from './types';
 
 // ------------------------------------------------------------ words
 
@@ -27,6 +27,33 @@ const STOP = new Set(
 // "why" and "how long" carry meaning for a few questions; they stay words for the concepts
 const KEEP = new Set(['why']);
 
+/**
+ * Words that end in -ing but are not a verb's -ing ("settings" is not "set"):
+ * they keep it, as do stems that would be left without a vowel ("string").
+ */
+const NOUN_ING = new Set([
+	'setting',
+	'wedding',
+	'morning',
+	'evening',
+	'building',
+	'ceiling',
+	'pudding',
+	'during',
+	'nothing',
+	'something',
+	'anything',
+	'everything',
+	'sibling',
+	'darling',
+	'sterling',
+	'earring',
+	'offspring',
+	'lightning',
+	'heading',
+	'thing',
+]);
+
 /** A light stemmer: "costs" → "cost", "running" → "run", "tenancies" → "tenancy", "lease" → "leas". */
 export function stem(word: string): string {
 	let w = word.toLowerCase().replace(/['’]s$/, '');
@@ -35,8 +62,10 @@ export function stem(word: string): string {
 	if (w.endsWith('sses')) w = w.slice(0, -2);
 	else if (/(ch|sh|x|zz)es$/.test(w)) w = w.slice(0, -2);
 	else if (w.endsWith('s') && !/(ss|us|is)$/.test(w)) w = w.slice(0, -1);
-	if (w.endsWith('ing') && w.length > 5) {
-		w = w.slice(0, -3);
+	if (w.endsWith('ing') && w.length > 5 && !NOUN_ING.has(w)) {
+		const root = w.slice(0, -3);
+		if (!/[aeiouy]/.test(root)) return w;
+		w = root;
 		if (/([^aeiouls])\1$/.test(w)) w = w.slice(0, -1);
 		return w;
 	}
@@ -49,11 +78,23 @@ export function stem(word: string): string {
 	return w;
 }
 
-/** The words of a text, as they are matched: lowercase, "2,400" as "2400", stemmed. */
+/** Chinese, Japanese and Korean script: written without spaces between words (Korean with some). */
+const CJK =
+	/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
+
+/** Lowercase, and accents off Latin letters, so "café" is "cafe" and "Hund" is "hund". */
+function fold(text: string): string {
+	return text
+		.toLowerCase()
+		.normalize('NFD')
+		.replace(/[\u0300-\u036f]/g, '')
+		.normalize('NFC');
+}
+
+/** The words of a text, as they are matched: lowercase, "2,400" as "2400". */
 export function words(text: string): string[] {
 	return (
-		text
-			.toLowerCase()
+		fold(text)
 			.replace(/(\d),(\d{3})/g, '$1$2')
 			.match(/[\p{L}\p{N}]+/gu) ?? []
 	);
@@ -87,6 +128,20 @@ const SYNONYM = 0.85;
 const PHRASE_SYNONYM = 0.75;
 const CONTEXT = 0.8;
 
+/**
+ * What an item is, read with each of its parts as the daemon embeds a part
+ * with its title: a page of browser history is history, a copy is a copy.
+ */
+const KIND_CONTEXT: Partial<Record<Kind, string>> = {
+	image: 'photo picture',
+	video: 'video',
+	audio: 'audio',
+	app: 'app application',
+	setting: 'setting',
+	clip: 'clipboard copied',
+	history: 'history browser website visited',
+};
+
 let built: {
 	parts: Indexed[];
 	groups: string[][];
@@ -94,6 +149,12 @@ let built: {
 	member: Map<string, number[]>;
 	/** Every stemmed phrase in the groups, longest first, for finding them in a query. */
 	phrases: Set<string>;
+	/** Every stem this copy knows (in the demo files or the groups), with how many parts hold it. */
+	vocab: Map<string, number>;
+	/** The words as written (folded), each with its stem, for reading a typo. */
+	spelled: Map<string, string>;
+	/** The groups' words in Chinese, Japanese and Korean script, longest first, to find in a query written without spaces. */
+	cjk: string[];
 } | null = null;
 
 function folderWords(item: Item) {
@@ -113,6 +174,7 @@ function index() {
 					item.title.replace(/[-_.]/g, ' '),
 					item.kind === 'file' ? item.about : '',
 					folderWords(item),
+					KIND_CONTEXT[item.kind] ?? '',
 				].join(' '),
 			),
 		);
@@ -120,10 +182,18 @@ function index() {
 			const own = stems(`${part.sense ?? ''} ${part.text}`);
 			parts.push({ item, part, n, text: padded(own), len: own.length, ctx });
 		});
-		// the whole: a document's title and kind, an app's comment, a setting's words, a song's tags
-		const whole = [item.about ?? '', item.kind === 'file' ? '' : item.title]
-			.join(' ')
-			.trim();
+		// the whole: a document's title and kind, an app's comment, a setting's
+		// words, a song's tags, a recording's name ("groceries"; its date is not
+		// what it is about)
+		const named =
+			item.kind === 'file'
+				? ''
+				: item.key.endsWith(`/${item.title}`)
+					? words(item.title.replace(/\.\w+$/, ''))
+							.filter((w) => !/\d/.test(w))
+							.join(' ')
+					: item.title;
+		const whole = [item.about ?? '', named].join(' ').trim();
 		if (whole) {
 			const own = stems(whole);
 			parts.push({
@@ -141,7 +211,42 @@ function index() {
 	groups.forEach((g, i) => {
 		for (const p of g) member.set(p, [...(member.get(p) ?? []), i]);
 	});
-	built = { parts, groups, member, phrases: new Set(member.keys()) };
+	const vocab = new Map<string, number>();
+	for (const p of parts) {
+		for (const w of new Set(`${p.text} ${p.ctx}`.split(' '))) {
+			if (w && !STOP.has(w)) vocab.set(w, (vocab.get(w) ?? 0) + 1);
+		}
+	}
+	for (const g of groups) {
+		for (const w of g.join(' ').split(' ')) {
+			if (w && !STOP.has(w) && !vocab.has(w)) vocab.set(w, 0);
+		}
+	}
+	const spelled = new Map<string, string>();
+	const spell = (text: string) => {
+		for (const w of words(text)) {
+			if (w.length > 2 && !STOP.has(w) && !/\d/.test(w))
+				spelled.set(w, stem(w));
+		}
+	};
+	for (const item of items) {
+		if (item.kind === 'emoji' || item.kind === 'folder') continue;
+		spell(`${item.title.replace(/[-_.]/g, ' ')} ${item.about ?? ''}`);
+		for (const part of item.parts) spell(`${part.sense ?? ''} ${part.text}`);
+	}
+	for (const g of GROUPS) spell(g.join(' '));
+	const cjk = [...member.keys()]
+		.filter((p) => CJK.test(p))
+		.sort((a, b) => b.length - a.length);
+	built = {
+		parts,
+		groups,
+		member,
+		phrases: new Set(member.keys()),
+		vocab,
+		spelled,
+		cjk,
+	};
 	return built;
 }
 
@@ -280,41 +385,63 @@ export function filterLabel(kinds: Kind[]): string {
 // ------------------------------------------------------------ names
 
 function norm(s: string) {
-	return s
-		.toLowerCase()
+	return fold(s)
 		.replace(/[-_.,/()'’"“”:]+/g, ' ')
 		.replace(/\s+/g, ' ')
 		.trim();
 }
 
-/** Edits between two words, a swap of neighbours counting as one (Damerau). */
-function typos(a: string, b: string): number {
-	if (Math.abs(a.length - b.length) > 1) return 2;
-	const d: number[][] = Array.from({ length: a.length + 1 }, (_, i) =>
-		Array.from({ length: b.length + 1 }, (_, j) =>
-			i === 0 ? j : j === 0 ? i : 0,
-		),
+/** At most one insertion, deletion, substitution or swap of neighbours apart (Damerau). */
+function oneEdit(a: string, b: string): boolean {
+	if (Math.abs(a.length - b.length) > 1) return false;
+	let p = 0;
+	while (p < a.length && p < b.length && a[p] === b[p]) p++;
+	let e = 0;
+	while (
+		e < a.length - p &&
+		e < b.length - p &&
+		a[a.length - 1 - e] === b[b.length - 1 - e]
+	)
+		e++;
+	const x = a.slice(p, a.length - e);
+	const y = b.slice(p, b.length - e);
+	return (
+		Math.max(x.length, y.length) <= 1 ||
+		(x.length === 2 && y.length === 2 && x[0] === y[1] && x[1] === y[0])
 	);
-	for (let i = 1; i <= a.length; i++) {
-		for (let j = 1; j <= b.length; j++) {
-			const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-			d[i][j] = Math.min(
-				d[i - 1][j] + 1,
-				d[i][j - 1] + 1,
-				d[i - 1][j - 1] + cost,
-			);
-			if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
-				d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
-			}
+}
+
+/** Two words that differ only by neighbours swapped ("dgo", "dog"). */
+function swapped(a: string, b: string): boolean {
+	return a.length === b.length && a !== b && oneEdit(a, b) && a[0] === b[0];
+}
+
+/** How a title written with a typo scores: below its name, above a near miss. */
+const TYPO = 0.75;
+
+/**
+ * Every word of the query is a word of the title, or one typo from one (words
+ * of five letters or more, which start with the same letter), and at least
+ * one is a typo: "chromum" is Chromium. As the daemon's `typo`, against the
+ * title only, so a keyword ("please" for 🙏) is never a typo's match.
+ */
+function typo(qw: string[], title: string): boolean {
+	const tw = norm(title).split(' ');
+	let any = false;
+	for (const w of qw) {
+		if (tw.includes(w)) continue;
+		if (w.length >= 5 && tw.some((t) => t[0] === w[0] && oneEdit(w, t))) {
+			any = true;
+			continue;
 		}
+		return false;
 	}
-	return d[a.length][b.length];
+	return any;
 }
 
 /**
  * How well the query names the item: the whole name (1), the start of it, every
- * word the start of a word of it, and a word of five letters or more one typo
- * away ("chromum" is Chromium). 0 when it does not.
+ * word the start of a word of it, or its title with a typo. 0 when it does not.
  */
 function nameScore(q: string, item: Item): number {
 	const qn = norm(q);
@@ -330,19 +457,15 @@ function nameScore(q: string, item: Item): number {
 			continue;
 		}
 		const nw = n.split(' ');
-		let exact = 0;
-		let close = 0;
-		for (const w of qw) {
-			if (nw.some((x) => x.startsWith(w) && (w.length > 1 || x === nw[0])))
-				exact++;
-			else if (w.length >= 5 && nw.some((x) => typos(w, x) <= 1)) close++;
-		}
-		if (exact === qw.length) best = Math.max(best, 0.85);
-		else if (exact + close === qw.length) best = Math.max(best, 0.75);
-		else if ((exact + close) / qw.length >= 0.5 && close > 0) {
-			best = Math.max(best, 0.4);
+		if (
+			qw.every((w) =>
+				nw.some((x) => x.startsWith(w) && (w.length > 1 || x === nw[0])),
+			)
+		) {
+			best = Math.max(best, 0.85);
 		}
 	}
+	if (best < TYPO && typo(qw, item.title)) best = TYPO;
 	return best;
 }
 
@@ -354,16 +477,69 @@ type Term = {
 	/** What it matches: itself (1), its group's words (less). */
 	alts: Map<string, number>;
 	idf: number;
+	/** A number ("2026"): matched in what a part says, never in its file's name (a date). */
+	figure: boolean;
 };
 
-/** The query's words, a phrase in a group kept whole ("fried rice", "golden retriever"). */
-function terms(q: string): Term[] {
-	const { groups, member, phrases, parts } = index();
+/**
+ * A word this copy does not know, read as the word it is one typo from:
+ * one insertion, deletion, change or swap, from the same first letter (for a
+ * word of three letters, only a swap: "dgo" is "dog"). The groups' words come
+ * first, then the words the demo files use most. Its stem, or null.
+ */
+function correct(w: string): string | null {
+	const { spelled, vocab, member } = index();
+	if (w.length < 3 || /\d/.test(w) || CJK.test(w)) return null;
+	let best: string | null = null;
+	let score = -1;
+	for (const [v, st] of spelled) {
+		if (v[0] !== w[0] || Math.abs(v.length - w.length) > 1) continue;
+		if (w.length === 3 ? !swapped(w, v) : !oneEdit(w, v)) continue;
+		const s = (member.has(st) ? 1e6 : 0) + (vocab.get(st) ?? 0);
+		if (s > score) {
+			best = st;
+			score = s;
+		}
+	}
+	return best;
+}
+
+/** A run of Chinese, Japanese or Korean, as the groups' words found in it, longest first. */
+function segment(run: string): string[] {
+	const { cjk } = index();
+	const out: string[] = [];
+	for (let i = 0; i < run.length; ) {
+		const hit = cjk.find((w) => run.startsWith(w, i));
+		if (hit) {
+			out.push(hit);
+			i += hit.length;
+		} else i++;
+	}
+	return out;
+}
+
+/**
+ * The query's words, a phrase in a group kept whole ("fried rice", "golden
+ * retriever"), each as this copy knows it: as written, or one typo away. A
+ * word it does not know still counts (a search for a thesis finds no slides),
+ * as an ordinary word rather than the rarest of all, and `unknown` counts them.
+ */
+function terms(q: string): { list: Term[]; unknown: number } {
+	const { groups, member, phrases, parts, vocab } = index();
+	let unknown = 0;
 	// small numbers ("2+2*3", "3pm") are in every document: they are not what a search is about
 	const ws = words(q)
+		.flatMap((w) => (CJK.test(w) ? segment(w) : [w]))
 		.filter((w) => KEEP.has(w) || !STOP.has(w))
-		.filter((w) => w.length > 1 && !/^\d{1,2}$/.test(w))
-		.map(stem);
+		.filter((w) => (w.length > 1 || CJK.test(w)) && !/^\d{1,2}$/.test(w))
+		.map((w) => {
+			const s = stem(w);
+			if (vocab.has(s) || member.has(s)) return s;
+			const fix = correct(w);
+			if (fix) return fix;
+			if (/\p{L}/u.test(w)) unknown++;
+			return s;
+		});
 	const out: Term[] = [];
 	for (let i = 0; i < ws.length; ) {
 		let len = Math.min(3, ws.length - i);
@@ -376,22 +552,32 @@ function terms(q: string): Term[] {
 		for (const g of member.get(self) ?? []) {
 			for (const p of groups[g]) if (!alts.has(p)) alts.set(p, weight);
 		}
-		out.push({ self, alts, idf: 0 });
+		out.push({ self, alts, idf: 0, figure: /^\d+$/.test(self) });
 	}
 	// rarer words weigh more: in how many parts any of a term's words are written
+	const missing: Term[] = [];
 	for (const t of out) {
 		let df = 0;
+		let named = false;
 		for (const p of parts) {
 			for (const a of t.alts.keys()) {
 				if (p.text.includes(` ${a} `)) {
 					df++;
 					break;
 				}
+				if (!t.figure && p.ctx.includes(` ${a} `)) named = true;
 			}
 		}
-		t.idf = Math.log(1 + parts.length / (1 + df));
+		if (!df && !named) missing.push(t);
+		else t.idf = Math.log(1 + parts.length / (1 + df));
 	}
-	return out;
+	// a word nothing here says weighs what the query's other words weigh on average
+	const found = out.filter((t) => !missing.includes(t));
+	const mean = found.length
+		? found.reduce((sum, t) => sum + t.idf, 0) / found.length
+		: 1;
+	for (const t of missing) t.idf = mean;
+	return { list: found.length ? out : [], unknown };
 }
 
 /** 0 to 1: how much of the query a part holds, the rare words counting most. */
@@ -404,7 +590,7 @@ function cover(terms: Term[], p: Indexed, lexical = false): number {
 		for (const [a, w] of t.alts) {
 			if (lexical && w < 1) continue;
 			if (p.text.includes(` ${a} `)) m = Math.max(m, w);
-			else if (!lexical && p.ctx.includes(` ${a} `))
+			else if (!lexical && !t.figure && p.ctx.includes(` ${a} `))
 				m = Math.max(m, w * CONTEXT);
 			if (m === 1) break;
 		}
@@ -441,9 +627,14 @@ function together(terms: Term[], p: Indexed) {
 	);
 }
 
-/** Below this, a row does not really match: it is dropped, so nothing found says so. */
+/**
+ * Below this, a row does not really match: it is dropped, so nothing found
+ * says so. A long query, a sentence, asks for more than one thing holds: less
+ * of it is enough.
+ */
 function cutoff(terms: Term[]) {
-	return terms.length === 1 ? 0.8 : 0.5;
+	const n = terms.length;
+	return n === 1 ? 0.8 : n <= 3 ? 0.5 : Math.max(0.35, 0.5 - 0.05 * (n - 3));
 }
 
 /** And a row this far below the best match is a near miss, not a match. */
@@ -591,7 +782,10 @@ function toRow(item: Item, name: number, matched: Scored[], ts: Term[]): Row {
 		if (text) row.snippet = { text, words: boldWords(ts, text) };
 	} else if (item.kind === 'video' || item.kind === 'audio') {
 		const whole = shown.find((s) => s.part.part.whole);
-		const parts = shown.filter((s) => !s.part.part.whole);
+		// a section is a hit for what is in it, not for the file's name
+		const parts = shown.filter(
+			(s) => !s.part.part.whole && ownCover(ts, s.part) > 0,
+		);
 		// spoken and sung lines by their own words first; a frame by what it shows
 		const said = (list: Scored[]) =>
 			list
@@ -623,6 +817,41 @@ function toRow(item: Item, name: number, matched: Scored[], ts: Term[]): Row {
 	return row;
 }
 
+/** Emoji typed into the query, as their names: "🐶" searches for "Dog face". */
+function emojiNames(q: string): string {
+	let out = q;
+	for (const item of items) {
+		if (item.kind === 'emoji' && item.emoji && out.includes(item.emoji)) {
+			out = out.replaceAll(item.emoji, ` ${item.title} `);
+		}
+	}
+	return out.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * A query of kind words only, one of them plural ("photos", "settings",
+ * "voice memos"), or "emoji", "clipboard", "history": the kinds it lists.
+ */
+function kindsOnly(q: string): { kinds: Kind[]; pdf: boolean } | null {
+	const w = q
+		.toLowerCase()
+		.replace(/[,&]/g, ' ')
+		.split(/\s+/)
+		.filter(
+			(t) => t && !['and', 'or', 'only', 'voice', 'all', 'my'].includes(t),
+		);
+	if (!w.length || !w.every((t) => kindWord(t) !== null)) return null;
+	const listed = w.some(
+		(t) => t.endsWith('s') || ['emoji', 'clipboard', 'history'].includes(t),
+	);
+	if (!listed) return null;
+	const kinds = [...new Set(w.map((t) => kindWord(t) as Kind))];
+	return {
+		kinds,
+		pdf: w.every((t) => kindWord(t) !== 'file' || /^pdf/.test(t)),
+	};
+}
+
 /**
  * A search, as the daemon answers it: `final` false is the instant phase (names
  * and the answer), true the final one (everything, by meaning too).
@@ -630,7 +859,7 @@ function toRow(item: Item, name: number, matched: Scored[], ts: Term[]): Row {
 export function search(
 	query: string,
 	final: boolean,
-	now = Date.now(),
+	{ now = Date.now(), rates }: { now?: number; rates?: Rates | null } = {},
 ): Response {
 	const q = query.trim();
 	if (!q) {
@@ -643,46 +872,87 @@ export function search(
 			filter: null,
 		};
 	}
-	const ans = quickAnswer(q, now);
-	const typed = typeWords(q);
-	let res = run(typed ? typed.rest : q, final, typed);
-	// a filter that would leave nothing while an app or setting is named falls back to none
-	if (typed && !res.rows.length) {
-		const all = run(q, final, null);
-		if (
-			all.rows.some(
-				(r) => (r.kind === 'app' || r.kind === 'setting') && r.named,
-			)
-		) {
-			res = all;
-			res.filter = null;
+	const ans = quickAnswer(q, now, undefined, rates);
+	// under an answer, only what the sum or the conversion does not say is searched for
+	const asked = emojiNames(ans ? residue(q, ans.kind) : q);
+	const typed = asked ? typeWords(asked) : null;
+	const lone = ans || typed ? null : kindsOnly(asked);
+	let res: ReturnType<typeof run>;
+	if (!asked) {
+		res = { rows: [], filter: null, unknown: 0 };
+	} else if (lone) {
+		// "photos" lists the photos, unless it names something ("files" is an app)
+		res = run(asked, final, null);
+		if (!res.rows.some((r) => r.score >= 0.85 && r.named)) res = listed(lone);
+	} else {
+		res = run(typed ? typed.rest : asked, final, typed);
+		// a filter that would leave nothing while an app or setting is named falls back to none
+		if (typed && !res.rows.length) {
+			const all = run(asked, final, null);
+			if (
+				all.rows.some(
+					(r) => (r.kind === 'app' || r.kind === 'setting') && r.named,
+				)
+			) {
+				res = { ...all, filter: null };
+			}
 		}
 	}
 	// a quick answer is the answer: under it, rows that only match by meaning must clear more
 	const rows = ans
 		? res.rows.filter((r) => r.why === 'name' || r.score >= 0.75)
 		: res.rows;
+	const empty = !rows.length && !ans;
 	return {
 		q,
 		phase: final ? 'final' : 'instant',
 		rows: [...rows, webRow(q)],
 		answer: ans,
-		empty: !rows.length && !ans,
+		empty,
 		filter: res.filter,
+		unknown: empty && final && res.unknown > 0,
 	};
+}
+
+/**
+ * The query without what a quick answer reads: numbers, operators, units,
+ * currencies and the words that join them ("12 times 12", "100 c to f"). A
+ * currency answer keeps amounts of four figures or more: "$2,400" is also
+ * the lease's bond.
+ */
+function residue(q: string, kind: Answer['kind']): string {
+	return words(q)
+		.filter(
+			(w) =>
+				!answerWord(w) &&
+				!(/\d/.test(w) && !(kind === 'currency' && /^\d{4,}$/.test(w))),
+		)
+		.join(' ');
+}
+
+/** Every item of the kinds asked for, as the demo home lists them. */
+function listed(asked: { kinds: Kind[]; pdf: boolean }) {
+	const rows = items
+		.filter(
+			(item) =>
+				asked.kinds.includes(item.kind) &&
+				!(item.kind === 'file' && asked.pdf && !item.key.endsWith('.pdf')),
+		)
+		.map((item) => ({ ...toRow(item, 0.5, [], []), named: false }));
+	return { rows: order(rows, asked.kinds), filter: asked.kinds, unknown: 0 };
 }
 
 function run(
 	q: string,
 	final: boolean,
 	typed: { kinds: Kind[]; pdf: boolean } | null,
-): { rows: Row[]; filter: Kind[] | null } {
+): { rows: Row[]; filter: Kind[] | null; unknown: number } {
 	const kinds = typed?.kinds ?? null;
 	const keep = (item: Item) =>
 		!kinds ||
 		(kinds.includes(item.kind) &&
 			!(item.kind === 'file' && typed?.pdf && !item.key.endsWith('.pdf')));
-	const ts = final ? terms(q) : [];
+	const { list: ts, unknown } = final ? terms(q) : { list: [], unknown: 0 };
 	const cut = cutoff(ts);
 	const byItem = new Map<Item, Scored[]>();
 	if (ts.length) {
@@ -691,6 +961,20 @@ function run(
 			const score = Math.min(1, cover(ts, p) + together(ts, p));
 			if (score <= 0) continue;
 			byItem.set(p.item, [...(byItem.get(p.item) ?? []), { part: p, score }]);
+		}
+	}
+	// A sentence asks for several things a video holds in different moments (a
+	// dog, at the beach): its moments that say any of it count for all of it.
+	if (ts.length >= 4) {
+		for (const [item, scored] of byItem) {
+			if (item.kind !== 'video' && item.kind !== 'audio') continue;
+			const own = scored.filter(
+				(x) => x.part.n >= 0 && ownCover(ts, x.part) > 0,
+			);
+			if (own.length < 2) continue;
+			const text = padded(own.flatMap((x) => x.part.text.trim().split(' ')));
+			const all = 0.9 * cover(ts, { ...own[0].part, text });
+			for (const x of own) x.score = Math.max(x.score, all);
 		}
 	}
 	let top = 0;
@@ -708,7 +992,7 @@ function run(
 		if (!name && !matched.length) continue;
 		rows.push(toRow(item, name, matched, ts));
 	}
-	return { rows: order(rows, kinds), filter: kinds };
+	return { rows: order(rows, kinds), filter: kinds, unknown };
 }
 
 /**
@@ -756,7 +1040,7 @@ function order(rows: Row[], kinds: Kind[] | null): Row[] {
 
 /** For tuning: every part's score for a query. */
 export function debugParts(q: string) {
-	const ts = terms(q);
+	const ts = terms(q).list;
 	return index()
 		.parts.map((p) => ({
 			key: p.item.key,

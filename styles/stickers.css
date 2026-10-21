@@ -115,3 +115,13 @@
 		translate 0.1s var(--ease-out),
 		scale 0.1s var(--ease-out);
 }
+/* lifted, and its page still loading: it bobs until it flies */
+.stk.is-waiting {
+	animation: stk-wait 0.7s ease-in-out infinite alternate;
+}
+@keyframes stk-wait {
+	to {
+		translate: 0 -14px;
+		--peel: 0.28;
+	}
+}

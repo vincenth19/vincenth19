@@ -5,7 +5,8 @@ import path from 'node:path';
  * Super Space's real screenshots and demo clip are not cleared for publishing yet.
  * The product page shows each one only once its file is in
  * public/projects/super-space/, checked when the page is built, so the page looks
- * complete without them and needs no code change when they arrive.
+ * complete without them and needs no code change when they arrive. The same goes
+ * for the demo home's pictures in the launcher (demo/<scene>.webp).
  */
 const dir = path.join(process.cwd(), 'public', 'projects', 'super-space');
 const url = (file: string) => `/projects/super-space/${file}`;
@@ -65,4 +66,18 @@ export function getFilm(): Film | undefined {
 	const mp4 = has('demo.mp4') ? url('demo.mp4') : undefined;
 	if (!webm && !mp4) return undefined;
 	return { webm, mp4, poster: getShot('poster.webp') };
+}
+
+/**
+ * The demo home's pictures there are files for: the small WebP of each photo
+ * and video frame, by its scene, in public/projects/super-space/demo/. The
+ * launcher shows these and draws the rest.
+ */
+export function getDemoThumbs(scenes: string[]): Record<string, string> {
+	const out: Record<string, string> = {};
+	for (const scene of scenes) {
+		const file = `demo/${scene}.webp`;
+		if (has(file)) out[scene] = url(file);
+	}
+	return out;
 }

@@ -1,6 +1,6 @@
 import Image from 'next/image';
-import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { BackToProjects } from '@/components/BackToProjects';
 import { FocusTitle } from '@/components/FocusTitle';
 import { Icon } from '@/components/Icon';
 import {
@@ -11,12 +11,13 @@ import {
 	type StatGroup,
 	superSpace,
 } from '@/content/superspace';
-import { type Film, getShot } from '@/lib/superspaceMedia';
+import { type Film, getDemoThumbs, getShot } from '@/lib/superspaceMedia';
 import { CommandBox } from './CommandBox';
 import { Glyph } from './Glyph';
 import { LauncherFrame } from './LauncherFrame';
 import { LauncherIsland } from './LauncherIsland';
 import { Logo } from './Logo';
+import type { Rates } from './launcher/answers';
 import { MarkedText, plain } from './MarkedText';
 import piPhoto from './raspberry-pi-5.webp';
 
@@ -109,8 +110,10 @@ export function Hero() {
  * demo home, on a screen of its own. Its first frame is drawn here; the
  * launcher loads as it nears the screen (LauncherIsland).
  */
-export function Demo({ film }: { film?: Film }) {
+export function Demo({ film, rates }: { film?: Film; rates?: Rates | null }) {
 	const d = s.demo;
+	const thumbs = getDemoThumbs(d.pictures.map((p) => p.scene));
+	const credited = d.pictures.filter((p) => thumbs[p.scene]);
 	return (
 		<section className="ss-beat ss-demo" aria-labelledby="ss-demo-title">
 			<Line id="ss-demo-title" text={d.title} size="lg" />
@@ -118,9 +121,33 @@ export function Demo({ film }: { film?: Film }) {
 				initial={d.initial}
 				examples={d.examples}
 				labels={{ caption: d.caption, try: d.try, show: d.show }}
+				launcher={{ labels: d.labels, thumbs, rates }}
 			>
-				<LauncherFrame q={d.initial} label={d.field} />
+				<LauncherFrame
+					q={d.initial}
+					labels={d.labels}
+					thumbs={thumbs}
+					rates={rates}
+				/>
 			</LauncherIsland>
+			{/* the pictures' licences ask for their credit: each one the launcher shows */}
+			{credited.length > 0 && (
+				<p className="ssl-credits">
+					{d.credit.lead}{' '}
+					{credited.map((p, i) => (
+						<span key={p.scene}>
+							{i > 0 && '; '}
+							<a href={p.source}>{p.title}</a> {d.credit.by} {p.author},{' '}
+							{d.licences[p.licence] ? (
+								<a href={d.licences[p.licence]}>{p.licence}</a>
+							) : (
+								p.licence
+							)}
+							{p.at !== undefined && ` ${d.credit.frame}`}
+						</span>
+					))}
+				</p>
+			)}
 			{film && (
 				<figure className="ss-film">
 					{/* biome-ignore lint/a11y/useMediaCaption: the demo clip has no speech */}
@@ -422,9 +449,7 @@ function Pi() {
 					alt={p.photo.alt}
 					sizes="(max-width: 760px) 100vw, 1040px"
 					placeholder="blur"
-					// fetched with the page, at low priority, so it is there when you reach it
-					loading="eager"
-					fetchPriority="low"
+					// far down the page: it loads as you near it
 					className="ss-pi-photo"
 				/>
 			</figure>
@@ -440,6 +465,8 @@ function Pi() {
 			<p className="ss-credit">
 				{p.photo.credit.before}
 				<a href={p.photo.credit.licenceUrl}>{p.photo.credit.licence}</a>
+				{', via '}
+				<a href={p.photo.credit.source}>{p.photo.credit.where}</a>
 				{p.photo.credit.after}
 			</p>
 		</div>
@@ -601,10 +628,10 @@ export function Closing() {
 				<p>
 					<Joined items={[s.name, ...s.meta]} />
 				</p>
-				<Link className="ss-foot-link" href="/" scroll={false}>
+				<BackToProjects className="ss-foot-link">
 					<Icon name="arrow-left-long-line" />
 					{s.ui.backToProjects}
-				</Link>
+				</BackToProjects>
 			</footer>
 		</>
 	);

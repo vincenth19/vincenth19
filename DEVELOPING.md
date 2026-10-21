@@ -83,8 +83,10 @@ screen.
 - The home page does not fetch them ahead: a project with a product page
   (`productPage: true` in `content/projects.ts`) gets `prefetch={false}` on its
   sticker, because prefetching the route would make the home page preload the route's
-  fonts and stylesheet (and Chrome warns when a preload goes unused). A click calls
-  `router.prefetch` instead (`DeskProvider`), so they load while the sticker lifts.
+  fonts and stylesheet (and Chrome warns when a preload goes unused). A pointer on the
+  sticker (or the focus, or a press) calls `router.prefetch` instead (`DeskProvider`'s
+  `intent`), and a click waits for the page while the sticker lifts (see Page
+  transitions).
 
 ### The launcher
 
@@ -97,29 +99,59 @@ is 737px wide at 1x), in the dark warm theme they use.
 - `components/superspace/launcher/`: `View.tsx` draws the panel (no state; shared by
   the server and the browser), `Launcher.tsx` runs it (the instant phase on each key,
   the final phase 150 ms after typing pauses, "calm" typing that only adds rows until
-  400 ms after the last key, ↑/↓, →/←, Tab, Enter, Esc, Ctrl+1–9), `engine.ts` is the
-  search (names, scope words ported from the daemon's `type_words`, and "meaning":
-  the query's words and the words in `concepts.ts` that mean the same, weighed by how
-  rare they are, with cut-offs so a search can find nothing), `answers.ts` the quick
-  answers (maths, units and time zones ported from the daemon's `crates/answers`;
-  currency says it needs the day's ECB rates), and `corpus.ts` / `documents.ts` the
-  demo home (from the demo's `make_docs.py` and `make_media.py`). The demo's photos are
-  other people's, so they are drawn scenes (`icons.tsx`, `.ssl-scene--*`).
+  400 ms after the last key, ↑/↓, →/←, Enter, Esc, Ctrl+1–9; Tab lists a row's parts
+  only once ↓/↑ have chosen it, and otherwise moves on through the page), `engine.ts`
+  is the search (names, with the daemon's title-only typo rule; scope words ported
+  from the daemon's `type_words`, a lone plural kind word such as "photos" listing
+  that kind; and "meaning": the query's words, a word it does not know read as the
+  word one typo away, and the words in `concepts.ts` that mean the same, weighed by
+  how rare they are, with cut-offs so a search can find nothing), `answers.ts` the
+  quick answers (maths, units, currency and time zones ported from the daemon's
+  `crates/answers`), and `corpus.ts` / `documents.ts` the demo home (from the demo's
+  `make_docs.py` and `make_media.py`). Under an answer the search reads only the words
+  the answer does not ("12 times 12" finds no "time").
+- `concepts.ts` knows the demo's words in English and Indonesian, and the main ones
+  (dog, cat, beach, coffee, money, breakup, …) in ten more languages (`WORLD`); the
+  emoji have their names in those languages too (`corpus.ts`). A translation that is
+  also an English word ("chat", "pain", "mar") is left out. When nothing matches and
+  the query has words this copy does not know, the panel says so under "Nothing on
+  this computer matches".
+- Currency uses the ECB's euro reference rates (`lib/ecbRates.ts`), fetched when the
+  page is built and again once a day (the page revalidates daily); the card names the
+  day ("ECB rate of 20 Oct 2026"). Built without them (offline), the card says it
+  cannot convert. To check the answers against the real crate, run the cases in
+  omarchy-super-space's `crates/answers/tests/table.rs` through `answer()` with that
+  test's rates: all 296 match.
+- The demo's photos and video frames are other people's (Wikimedia Commons, listed
+  with their licences in `content/superspace.ts` as `demo.pictures`). Each one shows
+  as its real picture once `public/projects/super-space/demo/<scene>.webp` is there,
+  with its credit under the screen; until then it is a drawn scene (`icons.tsx`,
+  `.ssl-scene--*`). `bun scripts/demo-pictures.ts` makes them from Commons (it needs
+  the network and ffmpeg; check each before you commit it). The dog swimming
+  (`dog-swimming.webp`) is a frame of the real video, from Super Space's own
+  screenshot. The screen's wallpaper (`demo/wallpaper.webp`) is generated, not a
+  photo.
 - Opening anything only says, in a toast (a polite live region), what the real
   launcher would do ("Would open apartment-lease-new-farm-2026.pdf at page 3");
   Enter on an answer copies it.
 - The page draws the launcher's first frame on the server (`LauncherFrame.tsx`,
   inert); `LauncherIsland.tsx` loads the launcher and its index (a chunk of their
-  own, about 47 KB gzipped) as they near the screen, or when an example search under
-  the screen is pressed, and swaps them in. The field never takes the focus by itself.
+  own, about 57 KB gzipped) when they come within 300 px of the screen, or when an
+  example search under the screen is pressed, and swaps them in (a failed load is
+  tried again on the next press). The field never takes the focus by itself; an
+  example pressed with a mouse or a key puts the caret at the end of its search.
+- The launcher's words (the field's name and placeholder, what screen readers hear,
+  the empty notice) are `superSpace.demo.labels` in `content/superspace.ts`.
 - For screen readers the field is a labelled combobox over a listbox of results
-  (`aria-activedescendant` once ↓/↑ choose a row), and a status line says how many
-  results there are once typing pauses.
+  (`aria-activedescendant` once ↓/↑ choose a row); each result is named shortly (what
+  it is, where Enter lands, the start of the passage), and a status line says how many
+  results there are once typing pauses, and which page or moment ←/→ picked.
 - To check the search against the real one, the daemon's golden queries
-  (`tests/golden.json` in omarchy-super-space) can be run against `engine.ts`; when you
-  change `concepts.ts` or the cut-offs, make sure "apartment lease bond", "golden
-  retriever video", "songs about a breakup", "wifi connect", "anjing" and "apps
-  firefox" still find what the real launcher does (`tests/superspace.spec.ts`).
+  (`tests/golden.json` in omarchy-super-space) can be run against `engine.ts` (183 of
+  its 186 pass; the other three need files this copy leaves out); when you change
+  `concepts.ts` or the cut-offs, make sure "apartment lease bond", "golden retriever
+  video", "songs about a breakup", "wifi connect", "anjing" and "apps firefox" still
+  find what the real launcher does (`tests/superspace.spec.ts`).
 
 ### The beats
 
@@ -132,10 +164,14 @@ is 737px wide at 1x), in the dark warm theme they use.
   speed in a beat of its own, as it was measured on the VM), so the page builds
   instead of repeating one block.
 - "Runs on a Raspberry Pi 5" is the Pi itself: a photo by Simon Waldherr (CC BY-SA
-  4.0, via Wikimedia Commons), cropped and saved as WebP in
-  `components/superspace/raspberry-pi-5.webp` and served through `next/image`, with
-  the measured numbers set over its foot. Its licence asks for the credit under it
-  (and to say it was cropped): keep it there.
+  4.0, via Wikimedia Commons), cropped (x 104, y 0, 1680 × 1170 of the 1920 × 1280
+  original) and saved as WebP in `components/superspace/raspberry-pi-5.webp` and
+  served through `next/image` (it loads as you near it), with the measured numbers
+  set over its foot. Its licence asks for the credit under it (and to say it was
+  cropped): keep it there. The credit links "Wikimedia Commons" to a Commons search
+  for the photo (`superSpace.pi.photo.credit.source`), because the file's own page
+  could not be looked up when the page was built: put the photo's
+  `commons.wikimedia.org/wiki/File:…` address there.
 - Media slots: the screenshots and demo clip appear once their files are in
   `public/projects/super-space/` (`demo.webm` and/or `demo.mp4` with `poster.webp`;
   `lease.webp`, `video.webp`, `songs.webp`). The page checks at build time, so add the
@@ -149,7 +185,8 @@ the sticker flies from its spot on the Projects page into the header (and back),
 the book moves to its new place and turns its leaf, Super Space's stage rises where the
 book was, and the rest of the desk cross-fades. `DeskProvider` runs it, for every way
 in and out: a sticker click (the sticker lifts for 0.1s first), the Back arrow, a tab,
-and the browser's Back and Forward (a trackpad swipe included).
+Super Space's "All projects" link (`BackToProjects`), and the browser's Back and
+Forward (a trackpad swipe included).
 
 - The book sticker and the header sticker share one `view-transition-name`,
   `stk-<key>` (`stickerName` in `DeskProvider`), set inline by `StickerLink` and
@@ -161,8 +198,17 @@ and the browser's Back and Forward (a trackpad swipe included).
   in `styles/transitions.css`.
 - The navigation happens inside `document.startViewTransition`, which waits until
   the new page is on screen (its own layout effects have scrolled it and moved focus)
-  before it captures it. A project opens at the top with its title focused; coming
-  back puts the sticker in the middle of the screen, focused.
+  before it captures it. The browser draws nothing new meanwhile, so a clicked
+  sticker waits, lifted (and bobbing after 0.2 s), until its page's data has come in
+  before the flight starts: `DeskProvider` counts Next.js's requests for a page's data
+  (`?_rsc=`) as they go through `fetch`. A page that takes more than 1.5 s opens as a
+  plain navigation instead, and a transition never holds the screen for more than
+  1.2 s. A project opens at the top with its title focused; coming back puts the
+  sticker in the middle of the screen, focused.
+- Back or Forward pressed as the flight starts wins: the flight's own step is
+  dropped. A flight longer than a screen (back from the foot of a long page) lands
+  without the overshoot (`data-vt-far`). Clicks go through the transition to the new
+  page underneath (`::view-transition { pointer-events: none }`).
 - Back and Forward: Next.js handles `popstate` synchronously, which would swap the
   page before the old one could be captured. A capturing `popstate` listener holds the
   event back, starts the transition, and dispatches it again to Next.js from inside

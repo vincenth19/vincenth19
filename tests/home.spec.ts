@@ -46,8 +46,8 @@ test.describe('home (Projects)', () => {
 		const lines = page.locator('.tagline .cl');
 		await expect(lines).toHaveText([
 			'Build web and mobile apps, front to back.',
-			'Ship AI people actually use.',
-			'Design with taste, think like a product owner.',
+			'Ship AI features people actually use.',
+			'Design with taste and a product mind.',
 		]);
 		await expect(page.locator('.tagline .kw')).toHaveText([
 			'web',
@@ -56,6 +56,18 @@ test.describe('home (Projects)', () => {
 			'taste',
 			'product',
 		]);
+		// one verb per line, and every chip in an ink of its own
+		await expect(page.locator('.tagline .verb')).toHaveText([
+			'Build',
+			'Ship',
+			'Design',
+		]);
+		const inks = await page
+			.locator('.tagline .kw')
+			.evaluateAll((els) =>
+				els.map((el) => getComputedStyle(el).getPropertyValue('--c')),
+			);
+		expect(new Set(inks).size).toBe(5);
 		await expect(page.locator('meta[name="description"]')).toHaveAttribute(
 			'content',
 			'Vincent Haryadi, full-stack web, mobile and AI engineer in Brisbane, product- and design-minded. Projects, writing and resume.',

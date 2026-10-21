@@ -12,10 +12,10 @@
 	margin: 56px auto 0;
 }
 
-/* ── the screen: a dark wallpaper, Omarchy's bar, the panel at 18% of its height ── */
+/* ── the screen: a painted wallpaper, Omarchy's bar and folder tiles, the panel at 18% of its height ── */
 .ss .ssl-screen {
-	/* fixed, so typing never moves the page */
-	--s-h: clamp(560px, 46vw, 620px);
+	/* fixed, so typing never moves the page; tall enough for the list to hold five or six rows */
+	--s-h: clamp(560px, 50vw, 720px);
 	position: relative;
 	container: screen / inline-size;
 	height: var(--s-h);
@@ -25,6 +25,7 @@
 	text-align: left;
 	color: #ebe1cc;
 	background:
+		url('/projects/super-space/demo/wallpaper.webp') center / cover no-repeat,
 		radial-gradient(
 			ellipse 34% 42% at 16% 82%,
 			rgba(150, 104, 58, 0.34),
@@ -52,19 +53,13 @@
 		0 26px 54px -30px rgba(0, 0, 0, 0.85);
 	-webkit-font-smoothing: antialiased;
 }
-/* the menu's scrim over the desktop, and a little grain so the wallpaper reads as paint */
+/* the menu's scrim over the desktop */
 .ss .ssl-screen::before {
 	content: '';
 	position: absolute;
 	inset: 0;
 	pointer-events: none;
-	background:
-		linear-gradient(rgba(10, 8, 6, 0.32), rgba(10, 8, 6, 0.32)),
-		repeating-linear-gradient(
-			115deg,
-			rgba(255, 236, 210, 0.012) 0 2px,
-			transparent 2px 5px
-		);
+	background: rgba(10, 8, 6, 0.18);
 }
 .ss .ssl-screen[inert] {
 	cursor: progress;
@@ -163,16 +158,57 @@
 	padding: var(--pad);
 	border-radius: var(--radius);
 	color: var(--ink);
-	background: rgba(28, 24, 19, 0.985);
+	/* the theme's menu colour at 81%, as the real panel: the desktop shows through */
+	background: rgba(30, 25, 19, 0.81);
 	box-shadow: 0 28px 70px -24px rgba(0, 0, 0, 0.75);
 	transform: translateX(-50%);
 	transition: box-shadow 0.2s ease;
 }
-/* the field has the keyboard: the panel says so, as a page must */
-.ss .ssl-card:has(.ssl-q:focus-visible) {
+/* The field has the keyboard: until a key is typed the panel says so, plainly
+   (the real panel has no ring; once you type, the caret and the text show it). */
+.ss .ssl-screen:not([data-typed]) .ssl-card:has(.ssl-q:focus-visible) {
 	box-shadow:
-		0 0 0 1px rgba(201, 164, 102, 0.3),
+		0 0 0 2px rgba(201, 164, 102, 0.7),
 		0 28px 70px -24px rgba(0, 0, 0, 0.75);
+}
+
+/* Omarchy's desktop: its folder tiles along the top, the panel over their names */
+.ss .ssl-desktop {
+	position: absolute;
+	top: calc(var(--s-h) * 0.18 - 64px);
+	left: 50%;
+	display: flex;
+	justify-content: space-between;
+	width: min(737px, 100% - 24px);
+	margin: 0;
+	padding: 0 37px 0 0;
+	list-style: none;
+	transform: translateX(-50%);
+	pointer-events: none;
+}
+.ss .ssl-desktop li {
+	display: grid;
+	justify-items: center;
+	gap: 20px;
+	width: 84px;
+}
+.ss .ssl-tile {
+	display: grid;
+	place-items: center;
+	width: 84px;
+	height: 65px;
+	border-radius: 9px;
+	color: #321604;
+	background: #563d15;
+}
+.ss .ssl-tile svg {
+	width: 30px;
+	height: 30px;
+}
+.ss .ssl-tile-name {
+	font-size: 14px;
+	line-height: 1.2;
+	color: #a3875c;
 }
 
 .ss .ssl-field {
@@ -239,8 +275,8 @@
 	display: flex;
 	flex-direction: column;
 	gap: var(--xs);
-	/* the panel's list is at most 60% of the screen, less what the panel holds besides */
-	max-height: calc(var(--s-h) * 0.82 - 190px);
+	/* the panel's list fills the screen below it, less what the panel holds besides */
+	max-height: calc(var(--s-h) * 0.82 - 175px);
 	margin: 0;
 	padding: 0;
 	overflow-y: auto;
@@ -295,6 +331,10 @@
 	height: var(--photo);
 	border-radius: 2px;
 }
+/* the web row's icon, soft as the real one is at this size */
+.ss .ssl-soft {
+	filter: blur(0.3px);
+}
 
 .ss .ssl-body {
 	display: flex;
@@ -324,14 +364,29 @@
 .ss .ssl-head b {
 	font-weight: 700;
 }
+/* under a passage, the file and its folder: the name gives way first (the real
+   one cuts the middle), so the folder stays */
 .ss .ssl-sub {
+	display: flex;
+	min-width: 0;
 	margin: 0;
-	overflow: hidden;
 	font-size: var(--fs-small);
 	line-height: 1.3;
 	white-space: pre;
-	text-overflow: ellipsis;
 	opacity: 0.52;
+}
+.ss .ssl-sub-name,
+.ss .ssl-sub-where {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.ss .ssl-sub-name {
+	flex: 0 1 auto;
+	min-width: 4em;
+}
+.ss .ssl-sub-where {
+	flex: 0 0.15 auto;
+	min-width: 0;
 }
 
 /* a video's or recording's whole length, each section on it, the picked one raised */
@@ -505,8 +560,18 @@
 .ss .ssl-notice {
 	margin: 0 0 var(--xs);
 	padding: var(--sm) var(--rowx) 0;
+}
+.ss .ssl-notice p {
+	margin: 0;
 	font-size: var(--fs-title);
 	opacity: 0.7;
+}
+.ss .ssl-notice .ssl-notice-note {
+	max-width: 46em;
+	margin-top: var(--xs);
+	font-size: var(--fs-small);
+	line-height: 1.4;
+	opacity: 0.52;
 }
 
 /* an instant answer: what you typed → the result, one detail line under */
@@ -523,20 +588,34 @@
 }
 .ss .ssl-answer-sides {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) 43px minmax(0, 1fr);
+	grid-template:
+		'in arrow out' auto
+		'inl . outl' auto / minmax(0, 1fr) 43px minmax(0, 1fr);
 	row-gap: var(--xs);
 	align-items: baseline;
 }
+.ss .ssl-answer-in {
+	grid-area: in;
+}
+.ss .ssl-answer-out {
+	grid-area: out;
+}
+.ss .ssl-answer-inl {
+	grid-area: inl;
+}
+.ss .ssl-answer-outl {
+	grid-area: outl;
+}
+/* the answer is never cut: a long one wraps */
 .ss .ssl-answer-big {
-	overflow: hidden;
 	font-size: var(--fs-display);
 	font-weight: 500;
 	line-height: 1.21;
 	font-variant-numeric: tabular-nums;
-	white-space: nowrap;
-	text-overflow: ellipsis;
+	overflow-wrap: anywhere;
 }
 .ss .ssl-answer-arrow {
+	grid-area: arrow;
 	font-size: var(--fs-display);
 	line-height: 1.21;
 	opacity: 0.52;
@@ -602,6 +681,13 @@
 	padding: 0;
 }
 
+/* a pointer you tap has no keys to hint at */
+@media (pointer: coarse) {
+	.ss .ssl-hints {
+		display: none;
+	}
+}
+
 /* under the screen: what it is, then searches to try */
 .ss .ssl-caption {
 	max-width: 46em;
@@ -648,6 +734,18 @@
 }
 .ss .ssl-try-chip[aria-current='true'] {
 	box-shadow: inset 0 0 0 1px rgba(236, 232, 225, 0.42);
+}
+/* the demo pictures' credits, which their licences ask for */
+.ss .ssl-credits {
+	max-width: 60em;
+	margin: 22px auto 0;
+	font: 400 12px / 1.6 var(--ss-mono);
+	color: var(--ss-dim);
+	text-wrap: balance;
+}
+.ss .ssl-credits a {
+	color: inherit;
+	text-underline-offset: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -717,15 +815,36 @@
 	.ss .ssl-hints .is-keys {
 		display: none;
 	}
+	/* no room for the desktop's tiles above the panel */
+	.ss .ssl-desktop {
+		display: none;
+	}
+	/* the answer stacked, what you typed over what it is */
+	.ss .ssl-answer-sides {
+		grid-template:
+			'in' auto
+			'inl' auto
+			'arrow' auto
+			'out' auto
+			'outl' auto / minmax(0, 1fr);
+		row-gap: 2px;
+	}
+	.ss .ssl-answer-arrow {
+		line-height: 1;
+		rotate: 90deg;
+		justify-self: center;
+	}
 	.ss .ssl-bar-top {
 		font-size: 10.5px;
 	}
 	.ss .ssl-clock {
 		display: none;
 	}
+	/* under the panel, so a tap's toast never covers the field */
 	.ss .ssl-toast {
-		top: 34px;
+		top: auto;
 		right: 8px;
+		bottom: 10px;
 		max-width: calc(100% - 16px);
 	}
 }
@@ -736,6 +855,14 @@
 	display: block;
 	overflow: hidden;
 	background-color: #3a332b;
+}
+/* the real picture, when the page has it, over its drawn stand-in */
+.ss .ssl-scene > img {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
 }
 /* the animal in it: soft, as a small photo is */
 .ss .ssl-fig {

@@ -8,6 +8,7 @@ import {
 	Install,
 } from '@/components/superspace/Sections';
 import { superSpace } from '@/content/superspace';
+import { getEcbRates } from '@/lib/ecbRates';
 import { baseOpenGraph } from '@/lib/metadata';
 import { getFilm } from '@/lib/superspaceMedia';
 import { fragmentMono, gloock, inter } from './fonts';
@@ -34,14 +35,16 @@ export const metadata: Metadata = {
  * header) come from the root layout; below them, instead of the book, a dark stage
  * in Super Space's own identity. Everything on it is in content/superspace.ts.
  */
-export default function SuperSpacePage() {
+export default async function SuperSpacePage() {
+	// for the launcher's currency answers: the ECB's rates of the day it was built
+	const rates = await getEcbRates();
 	return (
 		<main
 			className={`ss ${gloock.variable} ${fragmentMono.variable} ${inter.variable}`}
 			id="content"
 		>
 			<Hero />
-			<Demo film={getFilm()} />
+			<Demo film={getFilm()} rates={rates} />
 			{superSpace.beats.map((beat) => (
 				<FeatureBeat key={beat.key} beat={beat} />
 			))}

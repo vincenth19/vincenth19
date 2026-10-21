@@ -11,8 +11,9 @@ type Props = Pick<Project, 'sticker'> & {
 	label: string;
 	/**
 	 * False for a project with its own product page: prefetching that route
-	 * would make this page preload the product page's fonts and stylesheet. The
-	 * click fetches it instead, while the sticker lifts.
+	 * with the page would make this page preload the product page's fonts and
+	 * stylesheet. A pointer on the sticker (or the focus) fetches it instead,
+	 * and the click waits for it while the sticker lifts.
 	 */
 	prefetch?: boolean;
 };
@@ -37,6 +38,9 @@ export function StickerLink({
 	// in a transition of its own and drift apart from the book.
 	const flies = desk.flight ? desk.flight.href === href : returning;
 	const lifting = desk.flight?.href === href && desk.flight.lift;
+	const waiting = lifting && desk.flight?.waiting;
+	// about to be clicked: its page starts loading now
+	const intent = prefetch === false ? () => desk.intent(href) : undefined;
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: runs once, when the page mounts after leaving a project
 	useLayoutEffect(() => {
@@ -61,7 +65,7 @@ export function StickerLink({
 	return (
 		<Link
 			ref={ref}
-			className={`stk stk--${stickerKey}${lifting ? ' is-lifting' : ''}`}
+			className={`stk stk--${stickerKey}${lifting ? ' is-lifting' : ''}${waiting ? ' is-waiting' : ''}`}
 			style={
 				flies ? { viewTransitionName: stickerName(stickerKey) } : undefined
 			}
@@ -70,6 +74,9 @@ export function StickerLink({
 			scroll={false}
 			aria-label={label}
 			onClick={onClick}
+			onPointerEnter={intent}
+			onPointerDown={intent}
+			onFocus={intent}
 		>
 			<span className="stk-body">
 				<span className="stk-face">

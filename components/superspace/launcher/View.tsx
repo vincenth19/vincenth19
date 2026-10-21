@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
+import type { LauncherLabels } from '@/content/superspace';
 import { filterLabel } from './engine';
-import { OmarchyMark, RowIcon, SceneArt } from './icons';
-import type { Answer, Hit, Kind, Loc, Response, Row } from './types';
+import { DesktopIcon, OmarchyMark, RowIcon, SceneArt } from './icons';
+import type { Answer, Hit, Kind, Loc, Response, Row, Scene } from './types';
 
 /**
  * The launcher's panel, drawn as Super Space draws it (SuperSpace.qml,
@@ -25,7 +26,12 @@ export type ViewState = {
 	hover?: { key: string; t: number };
 	/** A timeline's width on screen, to keep its labels apart (measured once in the page). */
 	width?: number;
+	/** The real pictures there are for the drawn scenes: a small WebP for each. */
+	thumbs?: Thumbs;
 };
+
+/** A photo's or video frame's small picture, by its scene. */
+export type Thumbs = Partial<Record<Scene, string>>;
 
 export type ViewHandlers = {
 	/** A row, or one of its emoji, pages or sections (`pick`), was clicked: open it. */
@@ -61,6 +67,52 @@ export function where(l: Loc, epub = false) {
 	if (l.sheet) return l.sheet + (l.row ? ` · row ${l.row}` : '');
 	if (l.line) return `line ${l.line}`;
 	return '';
+}
+
+/** A place as it is said: "page 3", "chapter 6", "0:45 to 0:59". */
+export function spoken(l: Loc, epub = false) {
+	if (l.t !== undefined) return where(l).replace('–', ' to ');
+	if (l.page) return `${epub ? 'chapter' : 'page'} ${l.page}`;
+	return where(l);
+}
+
+/** At most `n` characters, cut at a word with "…". */
+function clip(text: string, n: number) {
+	const t = text.replace(/\s+/g, ' ').trim();
+	if (t.length <= n) return t;
+	const cut = t.slice(0, n);
+	return `${cut.slice(0, Math.max(cut.lastIndexOf(' '), n * 0.6)).trimEnd()}…`;
+}
+
+/**
+ * A row's name for screen readers, short where the row's text is long: what
+ * it is, where Enter lands, and the start of what matched ("…pdf, page 3:
+ * Rental bond The tenant must pay…").
+ */
+export function rowLabel(row: DrawnRow, hit: number): string {
+	if (row.strip) {
+		return `${kindLabel(row)}: ${row.strip.map((e) => e.title).join(', ')}`;
+	}
+	const epub = row.key.endsWith('.epub');
+	const picked = row.hits[hit];
+	const what = [
+		row.title,
+		row.kind === 'file' || row.kind === 'web' ? '' : kindLabel(row),
+		picked ? spoken(picked.loc, epub) : '',
+	]
+		.filter(Boolean)
+		.join(', ');
+	const passage = said(row, hit);
+	const tail = passage ? clip(passage, 100) : row.subtitle;
+	return tail ? `${what}: ${tail}` : what;
+}
+
+/** What ←/→ picked in a row, for screen readers: "page 4: Special terms…", "Dog". */
+export function partLabel(row: DrawnRow, hit: number): string {
+	if (row.strip) return (row.strip[hit] ?? row.strip[0]).title;
+	const picked = row.hits[hit];
+	if (!picked) return '';
+	return `${spoken(picked.loc, row.key.endsWith('.epub'))}: ${clip(picked.text, 100)}`;
 }
 
 /** What the place column draws large: a sheet's row (its chip names the sheet), else the place. */
@@ -292,7 +344,7 @@ function Timeline({
 					<span className="ssl-pointer" style={{ left: pct(hoverT) }} />
 				)}
 			</div>
-			<div className="ssl-times">
+			<div className="ssl-times" aria-hidden="true">
 				{labels.map((l) => (
 					<span
 						key={l.s + l.i}
@@ -322,6 +374,8 @@ function ResultRow({
 	notice,
 	hoverT,
 	width,
+	thumbs,
+	labels,
 	handlers,
 }: {
 	row: DrawnRow;
@@ -331,9 +385,11 @@ function ResultRow({
 	solid: boolean;
 	hit: number;
 	expanded: boolean;
-	notice: boolean;
+	notice: '' | 'nothing' | 'unknown';
 	hoverT: number | null;
 	width?: number;
+	thumbs?: Thumbs;
+	labels: Pick<LauncherLabels, 'nothing' | 'unknown'>;
 	handlers?: ViewHandlers;
 }) {
 	const epub = row.key.endsWith('.epub');
@@ -372,32 +428,41 @@ function ResultRow({
 			: hit;
 	const frame = row.kind !== 'image' ? row.hits[framed]?.thumb : undefined;
 	const loud = place !== '' && (selected || hoverT !== null);
+	// under a quoted passage, the file and its folder; the name gives way first, so the folder stays
 	const sub = strip
-		? (strip[hit] ?? strip[0]).title
+		? [(strip[hit] ?? strip[0]).title, '']
 		: headline
-			? [row.title, row.subtitle].filter(Boolean).join('  ·  ')
-			: row.subtitle;
+			? [row.title, row.subtitle ? `  ·  ${row.subtitle}` : '']
+			: [row.subtitle, ''];
 	return (
 		// biome-ignore lint/a11y/useKeyWithClickEvents: the keyboard stays in the field, which chooses and opens rows (↑/↓, Enter)
 		<div
 			id={id}
 			role="option"
 			aria-selected={selected}
+			aria-label={rowLabel(row, hit)}
 			tabIndex={-1}
 			className={`ssl-item${notice ? ' has-notice' : ''}`}
 			onClick={handlers && (() => handlers.onOpen(index, -1))}
 		>
 			{notice && (
-				<p className="ssl-notice" aria-hidden="true">
-					Nothing on this computer matches
-				</p>
+				<div className="ssl-notice" aria-hidden="true">
+					<p>{labels.nothing}</p>
+					{notice === 'unknown' && (
+						<p className="ssl-notice-note">{labels.unknown}</p>
+					)}
+				</div>
 			)}
 			<div
 				className={`ssl-row${selected ? ' is-sel' : ''}${solid ? ' is-solid' : ''}${strip ? ' is-strip' : ''}${row.scene ? ' is-photo' : ''}`}
 			>
 				{!strip && (
 					<span className="ssl-icon">
-						<RowIcon name={row.icon} scene={row.scene} />
+						<RowIcon
+							name={row.icon}
+							scene={row.scene}
+							src={row.scene && thumbs?.[row.scene]}
+						/>
 					</span>
 				)}
 				<div className="ssl-body">
@@ -435,7 +500,12 @@ function ResultRow({
 							)}
 						</p>
 					)}
-					{sub && <p className="ssl-sub">{sub}</p>}
+					{sub[0] && (
+						<p className="ssl-sub">
+							<span className="ssl-sub-name">{sub[0]}</span>
+							{sub[1] && <span className="ssl-sub-where">{sub[1]}</span>}
+						</p>
+					)}
 					{timed && (
 						<Timeline
 							row={row}
@@ -448,7 +518,7 @@ function ResultRow({
 						/>
 					)}
 					{showChips && (
-						<div className="ssl-chips">
+						<div className="ssl-chips" aria-hidden="true">
 							{chips.map((i) => {
 								const l = row.hits[i].loc;
 								return (
@@ -493,7 +563,13 @@ function ResultRow({
 							))}
 						</span>
 					)}
-					{frame && <SceneArt scene={frame} className="ssl-frame" />}
+					{frame && (
+						<SceneArt
+							scene={frame}
+							src={thumbs?.[frame]}
+							className="ssl-frame"
+						/>
+					)}
 				</div>
 			</div>
 		</div>
@@ -517,20 +593,24 @@ function AnswerCard({
 			id={id}
 			role="option"
 			aria-selected={selected}
+			aria-label={answerLabel(answer)}
 			tabIndex={-1}
 			className="ssl-item"
 			onClick={onOpen}
 		>
 			<div className={`ssl-answer${selected ? ' is-sel' : ''}`}>
 				<div className="ssl-answer-sides">
-					<span className="ssl-answer-big">{answer.input}</span>
+					<span className="ssl-answer-big ssl-answer-in">{answer.input}</span>
 					<span className="ssl-answer-arrow" aria-hidden="true">
 						→
 					</span>
-					<span className="ssl-answer-big">{answer.output}</span>
-					<span className="ssl-answer-label">{answer.inputLabel}</span>
-					<span />
-					<span className="ssl-answer-label">{answer.outputLabel}</span>
+					<span className="ssl-answer-big ssl-answer-out">{answer.output}</span>
+					<span className="ssl-answer-label ssl-answer-inl">
+						{answer.inputLabel}
+					</span>
+					<span className="ssl-answer-label ssl-answer-outl">
+						{answer.outputLabel}
+					</span>
 				</div>
 				{answer.detail && <p className="ssl-answer-detail">{answer.detail}</p>}
 			</div>
@@ -538,11 +618,21 @@ function AnswerCard({
 	);
 }
 
-/** The key hints under the list, for the mode and the selected row (SuperSpace.qml). */
+/** An answer, as it is said: "3:00 PM Sydney, AEDT is 11:00 AM Jakarta, WIB". */
+export function answerLabel(a: Answer): string {
+	const side = (v: string, label: string) => (label ? `${v} ${label}` : v);
+	return `${side(a.input, a.inputLabel)} is ${side(a.output, a.outputLabel)}${a.detail ? `. ${a.detail}` : ''}`;
+}
+
+/**
+ * The key hints under the list, for the mode and the selected row
+ * (SuperSpace.qml). On a web page Tab moves on through the page: it lists a
+ * row's parts only once ↓/↑ have chosen the row, so only then is it hinted.
+ */
 function hints(
 	mode: Mode,
 	parts: string,
-	onAnswer: boolean,
+	answer: Answer | null,
 	anyParts: boolean,
 ) {
 	if (mode === 'sections')
@@ -557,17 +647,10 @@ function hints(
 		];
 	}
 	if (parts)
-		return [
-			'↵ open',
-			`→ ${parts}`,
-			'↓ ↑ rows',
-			'tab list them',
-			'ctrl ↵ reveal',
-			'esc close',
-		];
+		return ['↵ open', `→ ${parts}`, '↓ ↑ rows', 'ctrl ↵ reveal', 'esc close'];
 	return [
-		...(onAnswer ? ['↵ copy'] : ['↵ open', 'ctrl ↵ reveal']),
-		...(anyParts ? ['↓ then ← → pages, sections, emoji', 'tab list them'] : []),
+		...(answer ? (answer.copy ? ['↵ copy'] : []) : ['↵ open', 'ctrl ↵ reveal']),
+		...(anyParts ? ['↓ then ← → pages, sections, emoji'] : []),
 		'ctrl 1–9 row',
 		'esc close',
 	];
@@ -578,12 +661,14 @@ export function Panel({
 	field,
 	handlers,
 	ids,
+	labels,
 }: {
 	state: ViewState;
 	/** The query field itself: the launcher's input, or the first paint's stand-in. */
 	field: ReactNode;
 	handlers?: ViewHandlers;
 	ids: { list: string; option: (i: number) => string };
+	labels: Pick<LauncherLabels, 'results' | 'nothing' | 'unknown'>;
 }) {
 	const { shown, sel, hit, mode, hover } = state;
 	const rows = drawRows(shown.rows);
@@ -608,7 +693,7 @@ export function Panel({
 				className="ssl-list"
 				id={ids.list}
 				role="listbox"
-				aria-label="Results"
+				aria-label={labels.results}
 				hidden={!listed}
 				// a click opens a row without taking the keyboard from the field
 				onMouseDown={handlers && ((e) => e.preventDefault())}
@@ -631,26 +716,54 @@ export function Panel({
 						solid={i + offset === sel && mode !== 'text'}
 						hit={i + offset === sel ? hit : 0}
 						expanded={i + offset === sel && mode === 'sections'}
-						notice={shown.empty && row.kind === 'web'}
+						notice={
+							shown.empty && row.kind === 'web'
+								? shown.unknown
+									? 'unknown'
+									: 'nothing'
+								: ''
+						}
 						hoverT={hover?.key === row.key ? hover.t : null}
 						width={state.width}
+						thumbs={state.thumbs}
+						labels={labels}
 						handlers={handlers}
 					/>
 				))}
 			</div>
 			{listed && (
 				<p className="ssl-hints" aria-hidden="true">
-					{hints(mode, parts, sel < offset, anyParts).map((h) => (
-						<span
-							key={h}
-							className={/tab|ctrl/.test(h) ? 'is-keys' : undefined}
-						>
-							{h}
-						</span>
-					))}
+					{hints(mode, parts, sel < offset ? shown.answer : null, anyParts).map(
+						(h) => (
+							<span
+								key={h}
+								className={/tab|ctrl/.test(h) ? 'is-keys' : undefined}
+							>
+								{h}
+							</span>
+						),
+					)}
 				</p>
 			)}
 		</div>
+	);
+}
+
+/** The desktop under the panel: Omarchy's folder tiles along its top, seen through the panel. */
+export function Desktop() {
+	return (
+		<ul className="ssl-desktop" aria-hidden="true">
+			{(['Downloads', 'Music', 'Pictures', 'Projects', 'Videos'] as const).map(
+				(name) => (
+					<li key={name}>
+						<span className="ssl-tile">
+							<DesktopIcon name={name} />
+						</span>
+						<span className="ssl-tile-name">{name}</span>
+					</li>
+				),
+			)}
+		</ul>
 	);
 }
 

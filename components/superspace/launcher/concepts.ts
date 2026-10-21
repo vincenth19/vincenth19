@@ -1,14 +1,15 @@
 /**
  * "By meaning", without the model. The real launcher embeds every query and
- * every part with Google's EmbeddingGemma; this copy has no model, so it knows
- * a few hundred words that mean the same thing as each other, in English and
- * Indonesian, written for the demo files. A word in the query matches its own
- * group's words too, a little less strongly than itself.
+ * every part with Google's EmbeddingGemma, which reads any language; this copy
+ * has no model, so it knows a few hundred words that mean the same thing as
+ * each other, in English and Indonesian, written for the demo files, and the
+ * main ones in ten more languages (`WORLD`). A word in the query matches its
+ * own group's words too, a little less strongly than itself.
  *
  * Each group is a set of words or phrases that stand in for each other. A word
  * can be in more than one group.
  */
-export const GROUPS: string[][] = [
+const BASE: string[][] = [
 	// animals
 	[
 		'dog',
@@ -76,7 +77,7 @@ export const GROUPS: string[][] = [
 	['bread', 'roti', 'sourdough', 'loaf'],
 	['groceries', 'shopping', 'shops', 'belanja', 'buy', 'pick up'],
 	// places and travel
-	['beach', 'pantai', 'sand', 'shore', 'coast', 'strand', 'bay'],
+	['beach', 'pantai', 'sand', 'shore', 'coast', 'strand'],
 	['sea', 'ocean', 'waves', 'laut', 'ombak'],
 	['sunset', 'matahari terbenam', 'terbenam', 'dusk', 'senja'],
 	['mountain', 'mountains', 'gunung'],
@@ -279,4 +280,120 @@ export const GROUPS: string[][] = [
 	['github', 'repo', 'repository'],
 	['wikipedia', 'wiki'],
 	['park', 'national park', 'taman'],
+	// what a search asks for in other words
+	['photo', 'photos', 'picture', 'pictures', 'image', 'pic', 'foto', 'gambar'],
+	['video', 'videos', 'clip', 'clips', 'footage', 'film'],
+	['song', 'songs', 'music', 'lagu', 'musik', 'lyrics'],
+	[
+		'sad',
+		'sadness',
+		'sedih',
+		'heartbreak',
+		'broken heart',
+		'missing you',
+		'goodbye',
+		'lonely',
+		'cry',
+		'crying',
+	],
+	['stick', 'branch', 'tongkat', 'ranting'],
+	[
+		'allowed',
+		'allow',
+		'permitted',
+		'permission',
+		'approval',
+		'boleh',
+		'diizinkan',
+	],
 ];
+
+/**
+ * The main words of the demo in Spanish, French, German, Italian, Portuguese,
+ * Dutch, Japanese, Chinese, Korean and Russian, joined to the groups that hold
+ * the English word. Words that are also English words ("chat", "pain", "pan",
+ * "stock", "see") are left out.
+ */
+const WORLD: Record<string, string> = {
+	dog: 'perro, perros, chien, chiens, hund, hunde, cani, cachorro, cão, cães, hond, honden, 犬, いぬ, イヌ, 狗, 개, собака, собаки, пёс',
+	puppy:
+		'cachorrito, chiot, welpe, cucciolo, filhote, 子犬, 小狗, 강아지, щенок',
+	cat: 'gato, gatos, katze, katzen, gatto, gatti, kat, katten, 猫, ねこ, ネコ, 고양이, кошка, кот',
+	beach:
+		'playa, plage, spiaggia, praia, 浜, ビーチ, 海辺, 海滩, 沙滩, 해변, пляж',
+	sea: 'mer, meer, zee, 海, 바다, море',
+	waves: 'olas, vagues, wellen, onde, ondas, golven, 波, 海浪, 파도, волны',
+	sunset:
+		'atardecer, puesta de sol, coucher de soleil, sonnenuntergang, tramonto, pôr do sol, zonsondergang, 夕日, 夕焼け, 日落, 일몰, 노을, закат',
+	mountain: 'montaña, montagne, berg, montagna, montanha, 山, 산, гора',
+	lake: 'lago, lac, meer, 湖, 호수, озеро',
+	coffee: 'café, kaffee, caffè, koffie, コーヒー, 咖啡, 커피, кофе',
+	pizza: 'ピザ, 披萨, 피자, пицца',
+	sushi: '寿司, 초밥, 스시, суши',
+	'fried rice':
+		'arroz frito, riz frit, gebratener reis, riso fritto, チャーハン, 炒饭, 볶음밥, жареный рис',
+	rice: 'arroz, riz, riso, rijst, ご飯, 米, 米饭, 밥, рис',
+	bread: 'brot, pane, pão, brood, パン, 面包, 빵, хлеб',
+	milk: 'leche, lait, milch, leite, melk, 牛乳, ミルク, 牛奶, 우유, молоко',
+	dessert:
+		'postre, pastel, gâteau, nachtisch, kuchen, dolce, torta, sobremesa, bolo, toetje, taart, デザート, ケーキ, 甜点, 蛋糕, 디저트, 케이크, десерт, торт',
+	recipe:
+		'receta, recette, rezept, ricetta, receita, recept, レシピ, 食谱, 레시피, рецепт',
+	money: 'dinero, argent, geld, soldi, denaro, dinheiro, お金, 钱, 돈, деньги',
+	cost: 'precio, coste, prix, coût, preis, kosten, prezzo, costo, preço, prijs, 値段, 价格, 가격, цена',
+	rent: 'alquiler, loyer, miete, affitto, aluguel, huur, 家賃, 房租, 월세, аренда',
+	lease:
+		'contrato de alquiler, bail, mietvertrag, contratto di affitto, contrato de aluguel, huurcontract, 賃貸契約, 租约, 임대차 계약, договор аренды',
+	bond: 'fianza, depósito, caution, kaution, cauzione, caução, borg, waarborgsom, 敷金, 押金, 보증금, залог',
+	apartment:
+		'apartamento, piso, appartement, wohnung, appartamento, アパート, マンション, 公寓, 아파트, квартира',
+	bill: 'factura, facture, rechnung, fattura, fatura, factuur, 請求書, 账单, 发票, 청구서, счёт',
+	car: 'coche, carro, voiture, auto, wagen, macchina, 車, 汽车, 자동차, машина',
+	wedding:
+		'boda, mariage, hochzeit, matrimonio, casamento, bruiloft, 結婚式, 婚礼, 결혼식, свадьба',
+	grandma:
+		'abuela, grand-mère, mamie, oma, großmutter, nonna, avó, vovó, おばあちゃん, 祖母, 奶奶, 外婆, 할머니, бабушка',
+	mum: 'madre, mamá, mère, maman, mutter, mama, mamma, mãe, moeder, お母さん, 母, 妈妈, 엄마, 어머니, мама',
+	present:
+		'regalo, cadeau, geschenk, presente, プレゼント, 礼物, 선물, подарок',
+	birthday:
+		'cumpleaños, anniversaire, geburtstag, compleanno, aniversário, verjaardag, 誕生日, 生日, 생일, день рождения',
+	happy:
+		'feliz, heureux, heureuse, glücklich, fröhlich, felice, blij, 幸せ, 楽しい, 快乐, 开心, 행복, 행복한, счастливый',
+	sad: 'triste, traurig, verdrietig, 悲しい, 悲伤, 伤心, 슬픈, 슬픔, грустный, грусть',
+	breakup:
+		'ruptura, rupture, trennung, rottura, término, 失恋, 別れ, 分手, 이별, расставание',
+	song: 'canción, canciones, chanson, chansons, lieder, canzone, canção, música, musique, musik, musica, muziek, liedje, 歌, 曲, 音楽, 歌曲, 音乐, 노래, 음악, песня, песни, музыка',
+	photo:
+		'imagen, imágenes, bild, bilder, fotografia, 写真, 照片, 图片, 사진, фото, фотография',
+	video: 'vídeo, vidéo, 動画, ビデオ, 视频, 동영상, 비디오, видео',
+	trip: 'viaje, voyage, reise, viaggio, viagem, 旅行, 여행, путешествие, поездка',
+	flight:
+		'vuelo, avión, vol, avion, flug, flugzeug, volo, aereo, voo, avião, vlucht, vliegtuig, 飛行機, 航班, 飞机, 비행기, рейс, самолёт',
+	island: 'isla, île, insel, isola, ilha, eiland, 島, 岛, 섬, остров',
+	camping:
+		'acampar, zelten, campeggio, acampamento, kamperen, キャンプ, 露营, 캠핑, кемпинг',
+	swim: 'nadar, nadando, nager, schwimmen, nuotare, zwemmen, 泳ぐ, 水泳, 游泳, 수영, плавать',
+	sleep:
+		'dormir, durmiendo, schlafen, dormire, slapen, 寝る, 眠る, 睡觉, 잠, спать',
+	run: 'correr, courir, laufen, rennen, correre, ランニング, 跑步, 달리기, бег',
+	play: 'jugar, jouer, spielen, giocare, brincar, spelen, 遊ぶ, 玩, 놀다, играть',
+	traffic:
+		'tráfico, circulation, verkehr, traffico, trânsito, verkeer, 渋滞, 交通, 교통, пробка',
+	book: 'libro, livre, buch, livro, boek, 本, 书, 책, книга',
+	receipt:
+		'recibo, reçu, quittung, kassenbon, scontrino, ricevuta, kassabon, レシート, 領収書, 收据, 小票, 영수증, чек',
+	phone:
+		'teléfono, téléphone, telefon, telefono, telefone, telefoon, 電話, 电话, 전화, телефон',
+	idea: 'idée, idee, ideia, アイデア, 想法, 아이디어, идея',
+	stick: 'palo, bâton, bastone, pau, stok, 棒, 棍子, 막대기, палка',
+	park: 'parque, parc, parco, 公園, 公园, 공원, парк',
+	allowed:
+		'permitido, permis, autorisé, erlaubt, consentito, permesso, toegestaan, 許可, 允许, 허용, разрешено',
+	pet: 'mascota, mascotas, animal de compagnie, haustier, haustiere, animale domestico, animal de estimação, huisdier, ペット, 宠物, 반려동물, питомец',
+};
+
+export const GROUPS: string[][] = BASE.map((group) => [
+	...group,
+	...group.flatMap((word) => WORLD[word]?.split(', ') ?? []),
+]);

@@ -2,9 +2,10 @@ import type { IconName } from '@/components/Icon';
 
 /**
  * Keyword chip colours, taken from the sticker inks: each is the --k-<kind> token
- * in styles/base.css (stamp indigo, health-card green, seal yellow, seal red, orchid).
+ * in styles/base.css (stamp indigo, health-card green, seal yellow, orchid, and
+ * seal red for the product).
  */
-export type ChipKind = 'web' | 'mobile' | 'ui' | 'place' | 'ai';
+export type ChipKind = 'web' | 'mobile' | 'ui' | 'ai' | 'product';
 
 export type Chip = { chip: string; kind: ChipKind; icon: IconName };
 
@@ -69,9 +70,10 @@ export const site: Site = {
 	description:
 		'Vincent Haryadi, full-stack web, mobile and AI engineer in Brisbane, product- and design-minded. Projects, writing and resume.',
 	/**
-	 * The masthead subtitle: three commands, verbs on one axis. The `nw` runs are
-	 * where a line may not break, so a command that wraps on a phone breaks at a
-	 * phrase ("front to back.", "think like a product owner.").
+	 * The masthead subtitle: three commands, one verb each on one axis, each
+	 * keyword a whole idea. The `nw` runs are where a line may not break, so a
+	 * command that wraps on a phone breaks at a phrase ("front to back.",
+	 * "people actually use.", "a product mind.").
 	 */
 	tagline: [
 		{
@@ -94,7 +96,12 @@ export const site: Site = {
 			verb: 'Ship',
 			rest: [
 				' ',
-				{ chip: 'AI', kind: 'ai', icon: 'sparkling-2-fill' },
+				{
+					nw: [
+						{ chip: 'AI', kind: 'ai', icon: 'sparkling-2-fill' },
+						' features',
+					],
+				},
 				' ',
 				{ nw: ['people actually use.'] },
 			],
@@ -103,19 +110,17 @@ export const site: Site = {
 			verb: 'Design',
 			rest: [
 				' ',
-				{
-					nw: [
-						'with ',
-						{ chip: 'taste', kind: 'ui', icon: 'palette-fill' },
-						',',
-					],
-				},
+				{ nw: ['with ', { chip: 'taste', kind: 'ui', icon: 'palette-fill' }] },
 				' ',
 				{
 					nw: [
-						'think like a ',
-						{ chip: 'product', kind: 'place', icon: 'rocket-2-fill' },
-						' owner.',
+						'and a ',
+						{
+							chip: 'product',
+							kind: 'product',
+							icon: 'lightbulb-flash-fill',
+						},
+						' mind.',
 					],
 				},
 			],

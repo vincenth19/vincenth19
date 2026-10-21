@@ -201,6 +201,110 @@ test('Super Space: the launcher works between Back and Forward, and the header s
 	expect(problems).toEqual([]);
 });
 
+test('Super Space’s “All projects” link flies the sticker home from the foot of the page, without overshooting', async ({
+	page,
+}) => {
+	const vts = await recordTransitions(page);
+	await page.goto('/');
+	const sticker = page.getByRole('link', {
+		name: 'Super Space, 2026. Open project',
+	});
+	await sticker.click();
+	await expect(page).toHaveURL(at('/projects/super-space'));
+	await vts.settled();
+	await vts.take();
+
+	// from the foot of a long page the flight is longer than a screen: it lands without the give
+	await page.evaluate(() => {
+		const w = window as unknown as { __far: boolean };
+		w.__far = false;
+		new MutationObserver(() => {
+			if ('vtFar' in document.documentElement.dataset) w.__far = true;
+		}).observe(document.documentElement, { attributes: true });
+	});
+	const link = page.getByRole('link', { name: 'All projects' });
+	await link.scrollIntoViewIfNeeded();
+	await link.click();
+	await expect(page).toHaveURL(at('/'));
+	await expect(sticker).toBeFocused();
+	await expect(sticker).toBeInViewport();
+	await vts.settled();
+	const [close] = await vts.take();
+	expect(close).toMatchObject({ direction: 'close', finished: true });
+	expect(close.pairs).toContain('stk-superspace');
+	expect(
+		await page.evaluate(() => (window as unknown as { __far: boolean }).__far),
+	).toBe(true);
+});
+
+test('a lifted sticker waits for its page before it flies, so the screen never freezes on a slow page', async ({
+	page,
+}) => {
+	const vts = await recordTransitions(page);
+	await page.goto('/');
+	await page.evaluate(() => {
+		const w = window as unknown as { __vtAt: number };
+		w.__vtAt = 0;
+		new MutationObserver(() => {
+			if (!w.__vtAt && document.documentElement.dataset.vt) {
+				w.__vtAt = performance.now();
+			}
+		}).observe(document.documentElement, { attributes: true });
+	});
+	// Super Space's page data comes slowly
+	let released = 0;
+	await page.route('**/projects/super-space?_rsc=*', async (route) => {
+		await new Promise((r) => setTimeout(r, 350));
+		released = await page.evaluate(() => performance.now());
+		await route.continue();
+	});
+	const sticker = page.getByRole('link', {
+		name: 'Super Space, 2026. Open project',
+	});
+	await sticker.click();
+	// lifted, bobbing while it waits: the page still draws
+	await expect(sticker).toHaveClass(/is-waiting/);
+	await expect(page).toHaveURL(at('/projects/super-space'));
+	await vts.settled();
+	const [open] = await vts.take();
+	expect(open).toMatchObject({ direction: 'open', finished: true });
+	expect(open.pairs).toContain('stk-superspace');
+	const started = await page.evaluate(
+		() => (window as unknown as { __vtAt: number }).__vtAt,
+	);
+	expect(released).toBeGreaterThan(0);
+	expect(started).toBeGreaterThan(released);
+});
+
+test('Back pressed as the sticker starts to fly wins: no page opens behind it', async ({
+	page,
+}) => {
+	await page.goto('/writing');
+	await page
+		.getByRole('navigation', { name: 'Book sections' })
+		.getByRole('link', { name: 'Projects' })
+		.click();
+	await expect(page).toHaveURL(at('/'));
+	// the moment the flight starts, Back
+	await page.evaluate(() => {
+		new MutationObserver((_, observer) => {
+			if (document.documentElement.dataset.vt === 'open') {
+				observer.disconnect();
+				history.back();
+			}
+		}).observe(document.documentElement, { attributes: true });
+	});
+	await page
+		.getByRole('link', { name: 'Super Space, 2026. Open project' })
+		.click();
+	await expect(page).toHaveURL(at('/writing'));
+	await page.waitForTimeout(1500);
+	await expect(page).toHaveURL(at('/writing'));
+	// and the Projects page is still the next step forward
+	await page.evaluate(() => history.forward());
+	await expect(page).toHaveURL(at('/'));
+});
+
 test('a page turn that does not open or leave a project stays instant', async ({
 	page,
 }) => {

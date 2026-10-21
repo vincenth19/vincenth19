@@ -17,6 +17,12 @@
 	view-transition-name: socials;
 }
 
+/* The pages under the transition take clicks as soon as it starts: a quick
+   click on the new page's Back arrow is not lost on the snapshots. */
+::view-transition {
+	pointer-events: none;
+}
+
 /* DeskProvider starts no transition with reduced motion; the rules below only
    move things for readers who have not asked for less motion. */
 @media (prefers-reduced-motion: no-preference) {
@@ -35,6 +41,11 @@
 		animation-duration: 0.5s;
 		animation-timing-function: var(--ease-out);
 	}
+	/* A sticker flying further than a screen (back from far down a long page)
+	   would overshoot by hundreds of pixels: it lands without the give. */
+	:root[data-vt-far]::view-transition-group(*) {
+		animation-timing-function: var(--ease-out);
+	}
 	/* the desk and the masthead around the sticker, and the leaf's text and
 	   pictures as the book moves (the paper, the same on both, stays solid) */
 	::view-transition-old(root),
@@ -43,14 +54,16 @@
 	::view-transition-new(book) {
 		animation-duration: 0.32s;
 	}
-	/* the book gives way to a product page's stage, or the stage to the book */
+	/* the book gives way to a product page's stage, or the stage to the book:
+	   the old one gets out of the way at once, the new one rises after it, so
+	   the two are never read over each other */
 	::view-transition-old(book):only-child,
 	::view-transition-old(stage):only-child {
-		animation: vt-sink 0.24s cubic-bezier(0.4, 0, 1, 1) both;
+		animation: vt-sink 0.14s var(--ease-out) both;
 	}
 	::view-transition-new(book):only-child,
 	::view-transition-new(stage):only-child {
-		animation: vt-rise 0.44s 0.08s var(--ease-out) both;
+		animation: vt-rise 0.42s 0.1s var(--ease-out) both;
 	}
 }
 

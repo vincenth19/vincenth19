@@ -1,10 +1,14 @@
 /**
  * Quick answers, worked out in the browser as Super Space works them out on
  * your computer: maths, units and time zones, ported from omarchy-super-space's
- * crates/answers (math.rs, convert.rs, time.rs). Currency needs the day's ECB
- * rates, which this page does not fetch, so it says so instead of a number.
+ * crates/answers (math.rs, convert.rs, time.rs). Currency uses the ECB's rates
+ * as they were when the page was built (`Rates`, fetched by lib/ecbRates.ts); a
+ * page built without them says so instead of a number.
  */
 import type { Answer } from './types';
+
+/** Exchange rates against the euro, with the day the ECB published them ("2026-10-20"). */
+export type Rates = { date: string; eur: Record<string, number> };
 
 // ------------------------------------------------------------ numbers
 
@@ -60,6 +64,7 @@ function normalize(q: string): string | null {
 		['->', ' to '],
 		['π', 'pi'],
 		['√', 'sqrt '],
+		['º', '°'],
 	]) {
 		s = s.replaceAll(a, b);
 	}
@@ -399,12 +404,22 @@ const UNITS: Unit[] = [
 	u('ft', "ft foot feet ' feetandinches", 'length', 0.3048, 'Feet', 'm'),
 	u('yd', 'yd yard', 'length', 0.9144, 'Yards', 'm'),
 	u('mi', 'mi mile', 'length', 1609.344, 'Miles', 'km'),
+	u('nmi', 'nmi nauticalmile', 'length', 1852, 'Nautical miles', 'km'),
 	u('mg', 'mg milligram', 'mass', 1e-6, 'Milligrams', 'g'),
 	u('g', 'g gram gramme', 'mass', 0.001, 'Grams', 'oz'),
 	u('kg', 'kg kilo kilogram kilogramme', 'mass', 1, 'Kilograms', 'lb'),
 	u('t', 't tonne ton metricton', 'mass', 1000, 'Tonnes', 'kg', {
 		note: 'Metric tonne; a US ton is 907.18 kg',
 	}),
+	u('US ton*', 'uston shortton', 'mass', 907.18474, 'US tons', 'kg'),
+	u(
+		'long ton*',
+		'longton ukton imperialton',
+		'mass',
+		1016.0469088,
+		'Long tons',
+		'kg',
+	),
 	u('lb', 'lb pound', 'mass', 0.45359237, 'Pounds', 'kg'),
 	u('oz', 'oz ounce', 'mass', 0.028349523125, 'Ounces', 'g'),
 	u('st', 'stone', 'mass', 6.35029318, 'Stone', 'kg'),
@@ -445,13 +460,24 @@ const UNITS: Unit[] = [
 	u('cup*', 'cup', 'volume', 0.2365882365, 'US cups', 'mL', {
 		note: 'US cup; a metric cup is 250 mL',
 	}),
+	u('metric cup*', 'metriccup', 'volume', 0.25, 'Metric cups', 'mL'),
 	u('pt', 'pt pint', 'volume', 0.473176473, 'US pints', 'mL', {
 		note: 'US pint; UK is 568 mL',
 	}),
+	u('UK pt', 'ukpint imperialpint', 'volume', 0.56826125, 'UK pints', 'mL'),
 	u('qt', 'qt quart', 'volume', 0.946352946, 'US quarts', 'L'),
 	u('gal', 'gal gallon', 'volume', 3.785411784, 'US gallons', 'L', {
 		note: 'US gallon; UK is 4.546 L',
 	}),
+	u(
+		'UK gal',
+		'ukgal ukgallon imperialgallon',
+		'volume',
+		4.54609,
+		'UK gallons',
+		'L',
+	),
+	u('m³', 'm3 m^3 cubicmetre cubicmeter', 'volume', 1000, 'Cubic metres', 'L'),
 	u(
 		'°C',
 		'°c c celsius centigrade degc degreec degreesc degreecelsius degreescelsius',
@@ -512,6 +538,14 @@ const UNITS: Unit[] = [
 		'Square kilometres',
 		'mi²',
 	),
+	u(
+		'cm²',
+		'cm2 cm^2 sqcm squarecentimetre squarecentimeter',
+		'area',
+		1e-4,
+		'Square centimetres',
+		'in²',
+	),
 	u('ha', 'ha hectare', 'area', 1e4, 'Hectares', 'ac'),
 	u('ac', 'ac acre', 'area', 4046.8564224, 'Acres', 'ha'),
 	u(
@@ -523,6 +557,14 @@ const UNITS: Unit[] = [
 		'm²',
 	),
 	u(
+		'in²',
+		'in2 in^2 sqin squareinch',
+		'area',
+		0.00064516,
+		'Square inches',
+		'cm²',
+	),
+	u(
 		'mi²',
 		'mi2 mi^2 sqmi squaremile',
 		'area',
@@ -530,15 +572,25 @@ const UNITS: Unit[] = [
 		'Square miles',
 		'km²',
 	),
+	u(
+		'yd²',
+		'yd2 yd^2 sqyd squareyard',
+		'area',
+		0.83612736,
+		'Square yards',
+		'm²',
+	),
 	u('bit*', 'bit', 'data', 0.125, 'Bits', ''),
 	u('B', 'b byte', 'data', 1, 'Bytes', ''),
 	u('KB', 'kb kilobyte', 'data', 1e3, 'Kilobytes', ''),
 	u('MB', 'mb megabyte', 'data', 1e6, 'Megabytes', ''),
 	u('GB', 'gb gigabyte', 'data', 1e9, 'Gigabytes', ''),
 	u('TB', 'tb terabyte', 'data', 1e12, 'Terabytes', ''),
+	u('PB', 'pb petabyte', 'data', 1e15, 'Petabytes', ''),
 	u('KiB', 'kib kibibyte', 'data', 1024, 'Kibibytes', ''),
 	u('MiB', 'mib mebibyte', 'data', 1048576, 'Mebibytes', ''),
 	u('GiB', 'gib gibibyte', 'data', 1073741824, 'Gibibytes', ''),
+	u('TiB', 'tib tebibyte', 'data', 1099511627776, 'Tebibytes', ''),
 	u('ms', 'ms millisecond msec', 'time', 0.001, 'Milliseconds', ''),
 	u('s', 's sec second', 'time', 1, 'Seconds', ''),
 	u('min', 'min minute', 'time', 60, 'Minutes', ''),
@@ -557,9 +609,12 @@ const UNITS: Unit[] = [
 /** ECB currencies: code, label, typed names. */
 const MONEY: [string, string, string][] = [
 	['AUD', 'Australian dollars', 'aud a$ au$ aussiedollar australiandollar'],
+	['BRL', 'Brazilian reais', 'brl r$ real reais brazilianreal'],
 	['CAD', 'Canadian dollars', 'cad c$ ca$ canadiandollar'],
 	['CHF', 'Swiss francs', 'chf franc swissfranc'],
 	['CNY', 'Chinese yuan', 'cny yuan rmb renminbi chineseyuan'],
+	['CZK', 'Czech koruna', 'czk koruna'],
+	['DKK', 'Danish kroner', 'dkk danishkrone'],
 	['EUR', 'Euros', 'eur € euro'],
 	[
 		'GBP',
@@ -567,25 +622,80 @@ const MONEY: [string, string, string][] = [
 		'gbp £ pound quid sterling poundsterling britishpound',
 	],
 	['HKD', 'Hong Kong dollars', 'hkd hk$ hongkongdollar'],
+	['HUF', 'Hungarian forints', 'huf forint'],
 	['IDR', 'Indonesian rupiah', 'idr rp rupiah indonesianrupiah'],
+	['ILS', 'Israeli shekels', 'ils ₪ shekel'],
 	['INR', 'Indian rupees', 'inr ₹ rupee indianrupee'],
+	['ISK', 'Icelandic krónur', 'isk'],
 	['JPY', 'Japanese yen', 'jpy ¥ yen japaneseyen'],
 	['KRW', 'South Korean won', 'krw ₩ won koreanwon southkoreanwon'],
+	['MXN', 'Mexican pesos', 'mxn peso mexicanpeso'],
 	['MYR', 'Malaysian ringgit', 'myr rm ringgit malaysianringgit'],
+	['NOK', 'Norwegian kroner', 'nok norwegiankrone'],
 	['NZD', 'New Zealand dollars', 'nzd nz$ kiwidollar newzealanddollar'],
 	['PHP', 'Philippine pesos', 'php ₱ philippinepeso'],
+	['PLN', 'Polish złoty', 'pln zł zloty'],
+	['RON', 'Romanian lei', 'ron leu lei'],
+	['SEK', 'Swedish kronor', 'sek swedishkrona'],
 	['SGD', 'Singapore dollars', 'sgd s$ sg$ singaporedollar'],
 	['THB', 'Thai baht', 'thb ฿ baht thaibaht'],
+	['TRY', 'Turkish lira', 'try lira turkishlira'],
 	['USD', 'US dollars', 'usd $ us$ dollar buck usdollar americandollar'],
+	['ZAR', 'South African rand', 'zar rand'],
 ];
 
+/** The home currency by time zone; the first prefix that matches wins. */
+const HOME: [string, string][] = [
+	['Australia/', 'AUD'],
+	['Pacific/Auckland', 'NZD'],
+	['Asia/Jakarta', 'IDR'],
+	['Asia/Makassar', 'IDR'],
+	['Asia/Jayapura', 'IDR'],
+	['Asia/Pontianak', 'IDR'],
+	['Asia/Singapore', 'SGD'],
+	['Asia/Kuala_Lumpur', 'MYR'],
+	['Asia/Kuching', 'MYR'],
+	['Asia/Bangkok', 'THB'],
+	['Asia/Tokyo', 'JPY'],
+	['Asia/Seoul', 'KRW'],
+	['Asia/Shanghai', 'CNY'],
+	['Asia/Hong_Kong', 'HKD'],
+	['Asia/Manila', 'PHP'],
+	['Asia/Kolkata', 'INR'],
+	['Asia/Jerusalem', 'ILS'],
+	['Europe/London', 'GBP'],
+	['Europe/Zurich', 'CHF'],
+	['Europe/Stockholm', 'SEK'],
+	['Europe/Oslo', 'NOK'],
+	['Europe/Copenhagen', 'DKK'],
+	['Europe/Warsaw', 'PLN'],
+	['Europe/Prague', 'CZK'],
+	['Europe/Budapest', 'HUF'],
+	['Europe/Bucharest', 'RON'],
+	['Europe/Istanbul', 'TRY'],
+	['Atlantic/Reykjavik', 'ISK'],
+	['Africa/Johannesburg', 'ZAR'],
+	['America/Sao_Paulo', 'BRL'],
+	['America/Mexico_City', 'MXN'],
+	['America/Toronto', 'CAD'],
+	['America/Vancouver', 'CAD'],
+	['America/Edmonton', 'CAD'],
+	['America/Winnipeg', 'CAD'],
+	['America/Halifax', 'CAD'],
+	['Europe/', 'EUR'],
+];
+
+/** Number words, longest first. */
 const WORDS: [string, number][] = [
 	['a quarter of a ', 0.25],
 	['quarter of a ', 0.25],
+	['a quarter ', 0.25],
 	['half a ', 0.5],
 	['half an ', 0.5],
 	['a dozen ', 12],
+	['dozen ', 12],
 	['half ', 0.5],
+	['quarter ', 0.25],
 	['a ', 1],
 	['an ', 1],
 	['one ', 1],
@@ -598,6 +708,8 @@ const WORDS: [string, number][] = [
 	['eight ', 8],
 	['nine ', 9],
 	['ten ', 10],
+	['eleven ', 11],
+	['twelve ', 12],
 ];
 
 /** Multipliers after a number: [word, by, must touch the number, needs a currency next]. */
@@ -605,11 +717,16 @@ const MULT: [string, number, boolean, boolean][] = [
 	['thousand', 1e3, false, false],
 	['million', 1e6, false, false],
 	['billion', 1e9, false, false],
+	['trillion', 1e12, false, false],
 	['ribu', 1e3, false, false],
 	['juta', 1e6, false, false],
+	['dozen', 12, false, false],
 	['k', 1e3, true, false],
 	['rb', 1e3, true, false],
 	['jt', 1e6, true, false],
+	['mn', 1e6, true, false],
+	['mil', 1e6, true, false],
+	['bn', 1e9, true, false],
 	['m', 1e6, true, true],
 	['b', 1e9, true, true],
 ];
@@ -727,9 +844,10 @@ function amount(input: string): Amount | null {
 		cur = money(key);
 	}
 	if (cur === 'IDR' && raw.includes('.') && !raw.includes(',')) {
+		// Indonesians write thousands with dots: "Rp 100.000"
 		const groups = raw.split('.').slice(1);
 		if (groups.every((g) => g.length === 3))
-			v = Number(raw.replaceAll('.', ''));
+			v *= Number(raw.replaceAll('.', '')) / Number(raw);
 	}
 	const un = sym || !key ? null : unit(key);
 	if (!un && !cur && key) return compound(v, rest, digits);
@@ -776,14 +894,23 @@ function compound(v: number, rest: string, digits: boolean): Amount | null {
 function units(a: Amount, to: Unit): Answer | null {
 	const from = a.unit;
 	if (!from) return null;
-	const r = (a.v * from.factor + from.offset - to.offset) / to.factor;
+	const base = a.v * from.factor + from.offset;
+	// nothing is colder than absolute zero
+	if (from.dim === 'temp' && base < 0) return null;
+	const r = (base - to.offset) / to.factor;
 	if (!Number.isFinite(r)) return null;
 	const output = show(r, to);
+	const decimalData = (x: Unit) => x.dim === 'data' && x.sym.length === 2;
 	let detail = '';
 	if (from.dim !== to.dim) {
 		detail = 'Assuming water (1 mL weighs 1 g); other ingredients differ';
 	} else if (from.note || to.note) {
 		detail = from.note || to.note;
+	} else if (decimalData(from) && decimalData(to)) {
+		const p = Math.log10(from.factor) / 3;
+		const q = Math.log10(to.factor) / 3;
+		const bin = (x: Unit) => `${x.sym[0]}iB`;
+		detail = `Binary units: ${num(a.v, 6)} ${bin(from)} = ${num(a.v * 1024 ** (p - q), 6)} ${bin(to)}`;
 	} else if (to.sym === 'ft' && from.sym !== 'ft' && Math.abs(r) < 10) {
 		const inches = Math.round(r * 120) / 10;
 		detail = `${Math.floor(inches / 12)} ft ${num(inches % 12, 3)} in`;
@@ -799,25 +926,69 @@ function units(a: Amount, to: Unit): Answer | null {
 	};
 }
 
+/** "2026-10-20" → "20 Oct 2026". */
+function dayMonth(date: string): string {
+	const [y, m, d] = date.split('-').map(Number);
+	const months = 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split(' ');
+	return m >= 1 && m <= 12 && d ? `${d} ${months[m - 1]} ${y}` : date;
+}
+
+/** `x` with exactly `dec` decimals and thousands separators: 1,650,000.00. */
+function fixed(x: number, dec: number) {
+	return group(x.toFixed(dec));
+}
+
 /**
- * Money: the real launcher converts it with the ECB's daily rates, fetched on
- * your computer twice a day. This page has none, so the card says so.
+ * Money, at the ECB's rates. The real launcher fetches them on your computer
+ * twice a day; this page has the rates of the day it was built, and says
+ * which day. Built without them, the card says it cannot convert.
  */
-function currency(a: Amount, to: string): Answer | null {
-	if (!a.money) return null;
+function currency(a: Amount, to: string, rates?: Rates | null): Answer | null {
+	const from = a.money;
+	if (!from) return null;
 	const label = (c: string) => MONEY.find((m) => m[0] === c)?.[1] ?? c;
+	const input = `${num(a.v, 10)} ${from}`;
+	if (!rates) {
+		return {
+			kind: 'currency',
+			input,
+			inputLabel: label(from),
+			output: to,
+			outputLabel: label(to),
+			detail:
+				'This copy has no exchange rates to convert with. Super Space uses the day’s ECB rates.',
+			copy: '',
+		};
+	}
+	const rate = (c: string) => {
+		if (c === 'EUR') return 1;
+		const r = rates.eur[c];
+		return r && r > 0 ? r : null;
+	};
+	const rt = rate(to);
+	const rf = rate(from);
+	if (rt === null || rf === null) return null;
+	const per = rt / rf;
+	const r = a.v * per;
+	if (!Number.isFinite(r)) return null;
+	const shown = Math.abs(r) >= 1 ? fixed(r, 2) : num(r, 4);
+	const [x, y, one] = per >= 1 ? [from, to, per] : [to, from, 1 / per];
 	return {
 		kind: 'currency',
-		input: `${num(a.v, 10)} ${a.money}`,
-		inputLabel: label(a.money),
-		output: `– ${to}`,
+		input,
+		inputLabel: label(from),
+		output: `${shown} ${to}`,
 		outputLabel: label(to),
-		detail: 'Currency uses daily ECB rates, so try it on your machine',
-		copy: '',
+		detail: `1 ${x} = ${num(one, 4)} ${y} · ECB rate of ${dayMonth(rates.date)}`,
+		copy: plain(shown),
 	};
 }
 
-function convert(q: string, homeZone: string): Answer | null {
+function convert(
+	q: string,
+	homeZone: string,
+	rates?: Rates | null,
+): Answer | null {
 	// "X to Y": try each "to"/"in" from the right
 	for (let i = q.length - 1; i >= 0; i--) {
 		for (const sep of [' to ', ' in ', ' into ', ' as ']) {
@@ -835,7 +1006,7 @@ function convert(q: string, homeZone: string): Answer | null {
 			}
 			const cur = money(key);
 			if (a.money && cur && (a.counted || a.money !== cur)) {
-				return currency(a, cur);
+				return currency(a, cur, rates);
 			}
 		}
 	}
@@ -847,12 +1018,12 @@ function convert(q: string, homeZone: string): Answer | null {
 		if (to) return units(a, to);
 	}
 	if (!a.money) return null;
-	const home = homeZone.startsWith('Australia/')
-		? 'AUD'
-		: homeZone.startsWith('Asia/Jakarta')
-			? 'IDR'
-			: 'USD';
-	return currency(a, a.money !== home ? home : home !== 'USD' ? 'USD' : 'EUR');
+	const home = HOME.find(([zone]) => homeZone.startsWith(zone))?.[1] ?? 'USD';
+	return currency(
+		a,
+		a.money !== home ? home : home !== 'USD' ? 'USD' : 'EUR',
+		rates,
+	);
 }
 
 // ------------------------------------------------------------ time zones
@@ -1086,7 +1257,9 @@ function label(p: Place, at: number): [number, string] {
 		];
 	}
 	const secs = offset(p.zone, at);
-	return [secs, `${p.name}, ${abbr(p.zone, at, secs)}`];
+	const short = abbr(p.zone, at, secs);
+	// a zone named for its offset ("UTC") is said once
+	return [secs, short === p.name ? p.name : `${p.name}, ${short}`];
 }
 
 /** "12pm", "9:30 am", "15:00", "noon" at the start: hour, minute, typed as 12-hour, the rest. */
@@ -1098,7 +1271,10 @@ function clock(s: string): [number, number, boolean, string] | null {
 	] as const) {
 		if (s.startsWith(w)) return [h, 0, true, s.slice(w.length)];
 	}
-	const m = /^(\d{1,2})(?:[:.](\d\d))?\s*(a\.m\.|p\.m\.|am|pm)?(.*)$/.exec(s);
+	// the space before am/pm is taken only with it: "17:30 berlin" keeps its place
+	const m = /^(\d{1,2})(?:[:.](\d\d))?(?:\s*(a\.m\.|p\.m\.|am|pm))?(.*)$/.exec(
+		s,
+	);
 	if (!m) return null;
 	const h = Number(m[1]);
 	const mins = m[2] ? Number(m[2]) : 0;
@@ -1231,10 +1407,45 @@ export function answer(
 	q: string,
 	now = Date.now(),
 	homeZone?: string,
+	rates?: Rates | null,
 ): Answer | null {
 	const s = normalize(q);
 	if (!s) return null;
 	const zone =
 		homeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC';
-	return time(s, now, zone) ?? convert(s, zone) ?? maths(s);
+	return time(s, now, zone) ?? convert(s, zone, rates) ?? maths(s);
+}
+
+let syntax: Set<string> | null = null;
+
+/**
+ * A word a quick answer reads rather than searches for: an operator ("times",
+ * "mod", "off"), a unit or currency ("cm", "usd"), a number word, a clock's
+ * ("pm", "noon") or a word that joins them ("in", "to", "what is"). Under an
+ * answer card, the launcher searches only for the other words.
+ */
+export function answerWord(word: string): boolean {
+	if (!syntax) {
+		syntax = new Set(
+			[
+				'plus minus times multiplied by x divided over to the power of percent squared cubed square cube root mod off deg degree degrees',
+				'to in into as of water and what whats is how much many calculate calc convert equals',
+				'am pm noon midday midnight time now here home local current clock at me my',
+				Object.keys(FUNCS).join(' '),
+				Object.keys(CONSTS).join(' '),
+				Object.keys(ABBR).join(' '),
+				UNITS.flatMap((x) => x.names).join(' '),
+				MONEY.map((m) => m[2]).join(' '),
+				WORDS.map((w) => w[0]).join(' '),
+				MULT.map((m) => m[0]).join(' '),
+			]
+				.join(' ')
+				.split(/\s+/)
+				.filter(Boolean),
+		);
+	}
+	const set = syntax;
+	return [word, word.replace(/s$/, ''), word.replace(/es$/, '')].some((k) =>
+		set.has(k),
+	);
 }

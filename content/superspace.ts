@@ -57,13 +57,19 @@ export type StatGroup = {
 	note?: string;
 };
 
-/** A photo that is not ours, with the credit its licence asks for, set small under it. */
+/**
+ * A photo that is not ours, with the credit its licence asks for, set small
+ * under it: "<before><licence>, via <where><after>", the licence linked to its
+ * terms and `where` to the photo's source.
+ */
 export type Photo = {
 	alt: string;
 	credit: {
 		before: string;
 		licence: string;
 		licenceUrl: string;
+		where: string;
+		source: string;
 		after: string;
 	};
 };
@@ -86,6 +92,37 @@ export type Beat = {
 };
 
 export type Faq = { q: string; a: Marked[] };
+
+/**
+ * The launcher's own words: its field's name and placeholder, what screen
+ * readers hear about its keys and results, and what it says when nothing
+ * matches. `{n}` is the number of results, `{top}` the first.
+ */
+export type LauncherLabels = {
+	field: string;
+	placeholder: string;
+	keys: string;
+	results: string;
+	nothing: string;
+	unknown: string;
+	one: string;
+	many: string;
+};
+
+/**
+ * Where a picture in the demo home comes from (omarchy-super-space's
+ * demo/CREDITS.md): shown, with its credit, once its small WebP is in
+ * public/projects/super-space/demo/ as `<scene>.webp`. `at` is the second of
+ * the source video the frame is taken from.
+ */
+export type DemoPicture = {
+	scene: string;
+	title: string;
+	author: string;
+	licence: string;
+	source: string;
+	at?: number;
+};
 
 const version = '0.1.4';
 
@@ -136,10 +173,287 @@ export const superSpace = {
 		try: 'Try',
 		/** Names the row of example searches. */
 		show: 'Example searches',
-		/** The query field's name, for screen readers. */
-		field: 'Search the demo files',
 		caption:
 			'A copy of the launcher running in your browser, over the demo files. The real one runs a model on your computer.',
+		labels: {
+			field: 'Search the demo files',
+			placeholder: 'Search apps, files, photos, answers…',
+			keys: 'Type to search. Down and up arrows choose a result; then right and left arrows step through its pages or moments, and Tab lists them. Enter opens it.',
+			results: 'Results',
+			nothing: 'Nothing on this computer matches',
+			unknown:
+				'This copy knows the demo’s words in English and Indonesian, and the main ones in ten other languages. Super Space reads any language.',
+			one: '1 result. First: {top}',
+			many: '{n} results. First: {top}',
+		} satisfies LauncherLabels,
+		/** The credit line for the demo's pictures: before the list, between title and author, after a video's frame. */
+		credit: {
+			lead: 'Pictures in the demo, via Wikimedia Commons, scaled down:',
+			by: 'by',
+			frame: '(a frame)',
+		},
+		/** Licence pages, by the name the credits use. */
+		licences: {
+			'CC BY 2.0': 'https://creativecommons.org/licenses/by/2.0/',
+			'CC BY 3.0': 'https://creativecommons.org/licenses/by/3.0/',
+			'CC BY 4.0': 'https://creativecommons.org/licenses/by/4.0/',
+			'CC BY-SA 3.0': 'https://creativecommons.org/licenses/by-sa/3.0/',
+			'CC BY-SA 4.0': 'https://creativecommons.org/licenses/by-sa/4.0/',
+			CC0: 'https://creativecommons.org/publicdomain/zero/1.0/',
+		} as Record<string, string>,
+		pictures: [
+			{
+				scene: 'retriever-market',
+				title: 'Golden retriever gnawing at the farmer’s market',
+				author: 'Grendelkhan',
+				licence: 'CC BY-SA 3.0',
+				source:
+					'https://commons.wikimedia.org/wiki/File:Golden_retriever_gnawing_at_the_farmer%27s_market.jpg',
+			},
+			{
+				scene: 'retriever-grass',
+				title: 'A Golden Retriever-9 (Barras)',
+				author: 'Barras',
+				licence: 'CC BY 3.0',
+				source:
+					'https://commons.wikimedia.org/wiki/File:A_Golden_Retriever-9_(Barras).JPG',
+			},
+			{
+				scene: 'retriever-stick',
+				title: 'Golden Retriever with a stick (Barras)',
+				author: 'Barras',
+				licence: 'CC BY-SA 3.0',
+				source:
+					'https://commons.wikimedia.org/wiki/File:Golden_Retriever_with_a_stick_(Barras).jpg',
+			},
+			{
+				scene: 'puppy',
+				title: 'Callie the golden retriever puppy',
+				author: 'MichaelMcPhee',
+				licence: 'CC BY 3.0',
+				source:
+					'https://commons.wikimedia.org/wiki/File:Callie_the_golden_retriever_puppy.jpg',
+			},
+			{
+				scene: 'puppy-blanket',
+				title: 'Golden Retriever puppy (3813393)',
+				author: 'jaclou-dl',
+				licence: 'CC0',
+				source:
+					'https://commons.wikimedia.org/wiki/File:Golden_Retriever_puppy_(3813393).jpg',
+			},
+			{
+				scene: 'retriever-field',
+				title: 'Dülmen, Hausdülmen, Golden Retriever -- 2022 -- 5945',
+				author: 'Dietmar Rabich',
+				licence: 'CC BY-SA 4.0',
+				source:
+					'https://commons.wikimedia.org/wiki/File:D%C3%BClmen,_Hausd%C3%BClmen,_Golden_Retriever_--_2022_--_5945.jpg',
+			},
+			{
+				scene: 'beagle',
+				title: 'Beagle sleeping in Hautmont (DSC07212)',
+				author: 'Trougnouf (Benoit Brummer)',
+				licence: 'CC BY 4.0',
+				source:
+					'https://commons.wikimedia.org/wiki/File:Beagle_sleeping_in_Hautmont_(DSC07212).jpg',
+			},
+			{
+				scene: 'collie',
+				title: 'Border-Collie-tri-colour-face-1',
+				author: 'Kreuzschnabel',
+				licence: 'CC BY-SA 3.0',
+				source:
+					'https://commons.wikimedia.org/wiki/File:Border-Collie-tri-colour-face-1.jpg',
+			},
+			{
+				scene: 'dachshund-beach',
+				title: 'Running Dachshund at the beach',
+				author: 'Dan Bennett',
+				licence: 'CC BY 2.0',
+				source:
+					'https://commons.wikimedia.org/wiki/File:Running_Dachshund_at_the_beach.jpg',
+			},
+			{
+				scene: 'terrier-beach',
+				title: 'Jack Russell Terrier Eddi running at the beach',
+				author: 'Steve-65',
+				licence: 'CC BY-SA 3.0',
+				source:
+					'https://commons.wikimedia.org/wiki/File:Jack_Russell_Terrier_Eddi_running_at_the_beach.JPG',
+			},
+			{
+				scene: 'cat-bench',
+				title: 'Cat sleeping on a bench, Prazeres Cemetery, Lisbon',
+				author: 'Jules Verne Times Two',
+				licence: 'CC BY-SA 4.0',
+				source:
+					'https://commons.wikimedia.org/wiki/File:Cat_sleeping_on_a_bench,_Prazeres_Cemetery,_Lisbon,_Portugal_julesvernex2.jpg',
+			},
+			{
+				scene: 'black-cat',
+				title: 'Black-Cat-Sitia-Crete-Greece-2',
+				author: 'Petro Stelte',
+				licence: 'CC BY-SA 4.0',
+				source:
+					'https://commons.wikimedia.org/wiki/File:Black-Cat-Sitia-Crete-Greece-2.jpg',
+			},
+			{
+				scene: 'cat-sleeping',
+				title: 'Kali April 2016-6',
+				author: 'Alvesgaspar',
+				licence: 'CC BY-SA 4.0',
+				source: 'https://commons.wikimedia.org/wiki/File:Kali_April_2016-6.jpg',
+			},
+			{
+				scene: 'tabby',
+				title: 'Young tabby cat keeping watch',
+				author: 'W.carter',
+				licence: 'CC0',
+				source:
+					'https://commons.wikimedia.org/wiki/File:Young_tabby_cat_keeping_watch.jpg',
+			},
+			{
+				scene: 'beach-winter',
+				title: 'Tofta strand November 2023 07',
+				author: 'ArildV',
+				licence: 'CC BY-SA 4.0',
+				source:
+					'https://commons.wikimedia.org/wiki/File:Tofta_strand_November_2023_07.jpg',
+			},
+			{
+				scene: 'pizza',
+				title: 'Margherita pizza on plate',
+				author: 'Shisma',
+				licence: 'CC BY 4.0',
+				source:
+					'https://commons.wikimedia.org/wiki/File:Margherita_pizza_on_plate.jpg',
+			},
+			{
+				scene: 'sushi',
+				title: 'Sushi Plate in Organic Sushi Prague 4',
+				author: 'Mojmir Churavy',
+				licence: 'CC0',
+				source:
+					'https://commons.wikimedia.org/wiki/File:Sushi_Plate_in_Organic_Sushi_Prague_4.jpg',
+			},
+			{
+				scene: 'nasi-goreng',
+				title: 'Nasi Goreng Kampung',
+				author: 'Supardisahabu',
+				licence: 'CC BY-SA 4.0',
+				source:
+					'https://commons.wikimedia.org/wiki/File:Nasi_Goreng_Kampung.jpg',
+			},
+			{
+				scene: 'flat-white',
+				title: 'Flat white coffee with pretty feather pattern',
+				author: 'GeorgeMichaelFarewell',
+				licence: 'CC BY-SA 4.0',
+				source:
+					'https://commons.wikimedia.org/wiki/File:Flat_white_coffee_with_pretty_feather_pattern.jpg',
+			},
+			{
+				scene: 'pavlova',
+				title: 'Pavlova dessert',
+				author: 'Hazel Fowler',
+				licence: 'Public domain',
+				source: 'https://commons.wikimedia.org/wiki/File:Pavlova_dessert.JPG',
+			},
+			{
+				scene: 'whiteboard',
+				title:
+					'Media Viewer Launch Retrospective Whiteboard - April 11 2014 01',
+				author: 'Fabrice Florin, Aaron Arcos',
+				licence: 'CC BY-SA 3.0',
+				source:
+					'https://commons.wikimedia.org/wiki/File:Media_Viewer_Launch_Retrospective_Whiteboard_-_April_11_2014_01.jpg',
+			},
+			{
+				scene: 'receipt',
+				title: 'ReceiptSwiss',
+				author: 'Audrius Meskauskas (Audriusa)',
+				licence: 'CC BY-SA 3.0',
+				source: 'https://commons.wikimedia.org/wiki/File:ReceiptSwiss.jpg',
+			},
+			{
+				scene: 'wineglass-bay',
+				title: 'Wineglass Bay, Tasmania',
+				author: 'BennyG3255',
+				licence: 'CC BY-SA 4.0',
+				source:
+					'https://commons.wikimedia.org/wiki/File:Wineglass_Bay,_Tasmania.jpg',
+			},
+			{
+				scene: 'cradle-mountain',
+				title: 'Boat shed and Cradle Mountain at Dove Lake, Tas',
+				author: 'Thennicke',
+				licence: 'CC BY-SA 4.0',
+				source:
+					'https://commons.wikimedia.org/wiki/File:Boat_shed_and_Cradle_Mountain_at_Dove_Lake,_Tas.jpg',
+			},
+			{
+				scene: 'bali-sunset',
+				title: 'Sunset, Kuta, Bali, Indonesia, 20220825 1752 0877',
+				author: 'Jakub Hałun',
+				licence: 'CC BY-SA 4.0',
+				source:
+					'https://commons.wikimedia.org/wiki/File:Sunset,_Kuta,_Bali,_Indonesia,_20220825_1752_0877.jpg',
+			},
+			{
+				scene: 'waves',
+				title:
+					'Strong waves from Hurricane Erin lead to beaches in Wellfleet, MA closing on Aug. 22, 2025',
+				author: 'Magpieturtle',
+				licence: 'CC BY 4.0',
+				source:
+					'https://commons.wikimedia.org/wiki/File:Strong_waves_from_Hurricane_Erin_lead_to_beaches_in_Wellfleet,_MA_closing_on_Aug._22,_2025.webm',
+				at: 5,
+			},
+			{
+				scene: 'dog-swimming',
+				title: 'Golden retriever swimming the doggy paddle',
+				author: 'Golden Woofs',
+				licence: 'CC BY 3.0',
+				source:
+					'https://commons.wikimedia.org/wiki/File:Golden_retriever_swimming_the_doggy_paddle.webm',
+				at: 27,
+			},
+			{
+				scene: 'traffic',
+				title: 'Traffic on Slovenska street 2',
+				author: 'Sounds of Changes',
+				licence: 'CC BY 3.0',
+				source:
+					'https://commons.wikimedia.org/wiki/File:Traffic_on_Slovenska_street_2.webm',
+				at: 7,
+			},
+			{
+				scene: 'cat-laser',
+				title: 'Cat playing with a laser pointer',
+				author: 'Clément Bucco-Lechat',
+				licence: 'CC BY-SA 3.0',
+				source:
+					'https://commons.wikimedia.org/wiki/File:Cat_playing_with_a_laser_pointer.webm',
+				at: 7,
+			},
+			{
+				scene: 'milk-pot',
+				title: 'Milchkochen',
+				author: 'Lulumara',
+				licence: 'CC0',
+				source: 'https://commons.wikimedia.org/wiki/File:Milchkochen.webm',
+				at: 9,
+			},
+			{
+				scene: 'cat-play',
+				title: 'Cat Play 03',
+				author: 'NairobiPapel (Kamaa)',
+				licence: 'CC BY-SA 4.0',
+				source: 'https://commons.wikimedia.org/wiki/File:Cat_Play_03.webm',
+				at: 4,
+			},
+		] satisfies DemoPicture[],
 	},
 
 	/**
@@ -320,7 +634,11 @@ export const superSpace = {
 				before: 'Raspberry Pi 5 photo: Simon Waldherr, ',
 				licence: 'CC BY-SA 4.0',
 				licenceUrl: 'https://creativecommons.org/licenses/by-sa/4.0/',
-				after: ', via Wikimedia Commons (cropped)',
+				where: 'Wikimedia Commons',
+				// Simon Waldherr's Raspberry Pi 5 photos on Commons (see DEVELOPING.md)
+				source:
+					'https://commons.wikimedia.org/w/index.php?search=%22Raspberry+Pi+5%22+Waldherr&title=Special:MediaSearch&type=image',
+				after: ' (cropped)',
 			},
 		},
 		on: 'Indexing at idle priority, measured on the Pi',

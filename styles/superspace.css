@@ -760,11 +760,13 @@
 /* the photo's licence asks for its credit, near it */
 .ss-credit {
 	margin: 34px auto 0;
-	font: 400 11px / 1.5 var(--ss-mono);
-	color: rgba(138, 133, 125, 0.85);
+	font: 400 12px / 1.5 var(--ss-mono);
+	/* small, but as legible as the notes beside it (5:1 on the band) */
+	color: var(--ss-dim);
 }
 .ss-credit a {
 	color: inherit;
+	white-space: nowrap;
 	text-underline-offset: 3px;
 }
 .ss-credit a:hover {

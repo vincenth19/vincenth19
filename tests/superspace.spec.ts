@@ -277,9 +277,13 @@ test.describe('Super Space product page', () => {
 		await expect(rows.first()).toContainText('dog swimming');
 		await expect(rows.first().locator('.ssl-place')).toHaveText('0:45–0:59');
 		await expect(rows.first().locator('.ssl-times')).toContainText('0:10–0:30');
-		// Tab lists the sections
+		// once ↓ has chosen the row, Tab lists its sections; Shift+Tab puts them away
+		await field.press('ArrowDown');
 		await field.press('Tab');
 		await expect(rows.first().locator('.ssl-part')).toHaveCount(2);
+		await expect(field).toBeFocused();
+		await field.press('Shift+Tab');
+		await expect(rows.first().locator('.ssl-part')).toHaveCount(0);
 		await expect(field).toBeFocused();
 
 		// songs by their lyrics
@@ -306,13 +310,16 @@ test.describe('Super Space product page', () => {
 		await expect(rows.first()).toContainText('Camera~/Pictures');
 	});
 
-	test('quick answers are worked out in the page, and currency says it needs the rates', async ({
+	test('quick answers are worked out in the page, currency at the ECB’s rates of the day it was built', async ({
 		page,
 	}) => {
 		await page.goto(path);
 		const launcher = await openLauncher(page);
 		const field = launcher.getByRole('combobox');
 		const card = launcher.locator('.ssl-answer');
+		const local = launcher.getByRole('option').filter({
+			hasNotText: 'Search the web',
+		});
 		await search(field, '2+2*3');
 		await expect(card).toContainText('2+2*3→8');
 		await search(field, '5\'11" in cm');
@@ -321,11 +328,72 @@ test.describe('Super Space product page', () => {
 		await expect(card).toContainText('3:00 PM');
 		await expect(card).toContainText('11:00 AM');
 		await expect(card).toContainText('Jakarta is 4 h behind Sydney');
+		// a 24-hour time and a place
+		await search(field, '17:30 berlin');
+		await expect(card).toContainText('17:30');
+		await expect(card).toContainText('Berlin');
+		// under a sum, nothing found by its operator words ("times" is not "time")
+		await search(field, 'what is 12 times 12');
+		await expect(card).toContainText('144');
+		await expect(local).toHaveCount(1);
 		await search(field, '100k idr in usd');
-		await expect(card).toContainText(
-			'Currency uses daily ECB rates, so try it on your machine',
+		const text = (await card.textContent()) ?? '';
+		if (text.includes('ECB rate of')) {
+			// built with the ECB's rates: a number, and whose rates of which day
+			expect(text).toMatch(/\d[\d,]*\.\d\d USD/);
+			expect(text).toMatch(/ECB rate of \d{1,2} \w{3} \d{4}/);
+			await expect(launcher.locator('.ssl-hints')).toContainText('↵ copy');
+		} else {
+			// built without them (offline): it says so in words, and offers nothing to copy
+			expect(text).toContain('100,000 IDR');
+			expect(text).toContain('no exchange rates');
+			expect(text).not.toContain('–');
+			await expect(launcher.locator('.ssl-hints')).not.toContainText('copy');
+		}
+	});
+
+	test('it finds what the demo holds in other languages, and through a typo', async ({
+		page,
+	}) => {
+		await page.goto(path);
+		const launcher = await openLauncher(page);
+		const field = launcher.getByRole('combobox');
+		const list = launcher.locator('.ssl-list');
+		for (const q of ['perro', 'chien', 'Hund', '犬', 'собака']) {
+			await search(field, q);
+			await expect(list, q).toContainText('🐶');
+			await expect(list, q).toContainText('IMG_2041.jpg');
+		}
+		await search(field, 'golden retreiver video');
+		await expect(launcher.locator('.ssl-pill')).toHaveText('Videos');
+		await expect(launcher.getByRole('option').first()).toContainText(
+			'weekend-clips-oct-2026.mp4',
 		);
-		await expect(card).not.toContainText(/\d+\.\d\d USD/);
+		// a kind word on its own lists that kind
+		await search(field, 'settings');
+		await expect(launcher.locator('.ssl-pill')).toHaveText('Settings');
+		await expect(launcher.getByRole('option').first()).toContainText('Network');
+	});
+
+	test('Enter opens the page or moment the row shows', async ({ page }) => {
+		await page.goto(path);
+		const launcher = await openLauncher(page);
+		const field = launcher.getByRole('combobox');
+		const row = launcher.getByRole('option').first();
+		await search(field, 'apartment lease bond');
+		await field.press('ArrowDown');
+		await field.press('ArrowRight');
+		await field.press('ArrowRight');
+		await expect(row.locator('.ssl-place')).toHaveText('p. 5');
+		await field.press('Enter');
+		await expect(launcher.locator('.ssl-toast')).toHaveText(
+			'Would open apartment-lease-new-farm-2026.pdf at page 5',
+		);
+		await expect(row.locator('.ssl-place')).toHaveText('p. 5');
+		// screen readers hear a short name for the row, not its whole passage
+		const name = (await row.getAttribute('aria-label')) ?? '';
+		expect(name).toMatch(/^apartment-lease-new-farm-2026\.pdf, page 5: /);
+		expect(name.length).toBeLessThan(160);
 	});
 
 	test('it says when nothing matches, and Esc clears the field', async ({
@@ -335,11 +403,15 @@ test.describe('Super Space product page', () => {
 		const launcher = await openLauncher(page);
 		const field = launcher.getByRole('combobox');
 		await search(field, 'zzzz');
-		await expect(launcher.locator('.ssl-notice')).toHaveText(
+		await expect(launcher.locator('.ssl-notice p').first()).toHaveText(
 			'Nothing on this computer matches',
 		);
+		// and that this copy, unlike Super Space, only knows so many words
+		await expect(launcher.locator('.ssl-notice-note')).toContainText(
+			'Super Space reads any language',
+		);
 		await expect(launcher.getByRole('option')).toHaveCount(1);
-		await expect(launcher.getByRole('status').last()).toHaveText(
+		await expect(launcher.getByRole('status').last()).toContainText(
 			'Nothing on this computer matches',
 		);
 		await field.press('Escape');
@@ -357,11 +429,43 @@ test.describe('Super Space product page', () => {
 		const chip = examples.getByRole('button', { name: 'wifi connect' });
 		await chip.click();
 		await expect(chip).toHaveAttribute('aria-current', 'true');
-		await expect(launcher.getByRole('combobox')).toHaveValue('wifi connect');
+		const field = launcher.getByRole('combobox');
+		await expect(field).toHaveValue('wifi connect');
+		// the search is there to refine: the caret is in the field, at its end
+		await expect(field).toBeFocused();
+		await field.press('End');
+		await field.pressSequentially(' settings');
+		await expect(field).toHaveValue('wifi connect settings');
+		await chip.click();
 		await expect(launcher.getByRole('option').first()).toContainText('Network');
 		await expect(page.locator('.ssl-caption')).toHaveText(
 			'A copy of the launcher running in your browser, over the demo files. The real one runs a model on your computer.',
 		);
+	});
+
+	test('the demo’s pictures it has are real, and credited', async ({
+		page,
+	}) => {
+		await page.goto(path);
+		const launcher = await openLauncher(page);
+		// the opening search's frame: the dog swimming, a frame of the real video
+		const frame = launcher.locator('.ssl-frame img');
+		await expect(frame).toHaveAttribute(
+			'src',
+			'/projects/super-space/demo/dog-swimming.webp',
+		);
+		const credits = page.locator('.ssl-credits');
+		const source = credits.getByRole('link', {
+			name: 'Golden retriever swimming the doggy paddle',
+		});
+		await expect(source).toHaveAttribute(
+			'href',
+			'https://commons.wikimedia.org/wiki/File:Golden_retriever_swimming_the_doggy_paddle.webm',
+		);
+		await expect(credits).toContainText('by Golden Woofs');
+		await expect(
+			credits.getByRole('link', { name: 'CC BY 3.0' }),
+		).toHaveAttribute('href', 'https://creativecommons.org/licenses/by/3.0/');
 	});
 
 	test('before it loads, the page already draws its first frame', async ({
@@ -455,6 +559,13 @@ test.describe('Super Space product page', () => {
 		).toHaveAttribute(
 			'href',
 			'https://creativecommons.org/licenses/by-sa/4.0/',
+		);
+		await expect(
+			credit.getByRole('link', { name: 'Wikimedia Commons' }),
+		).toHaveAttribute('href', /^https:\/\/commons\.wikimedia\.org\//);
+		// small, but as legible as the notes beside it
+		expect(await credit.evaluate((el) => getComputedStyle(el).color)).toBe(
+			'rgb(138, 133, 125)',
 		);
 	});
 
@@ -584,6 +695,40 @@ test.describe('Super Space product page', () => {
 			expect(await overflowing(page, '.ss'), `${width}px`).toEqual([]);
 		}
 	});
+
+	// on a phone an answer wraps under what was typed; it is never cut
+	for (const width of [375, 390]) {
+		test(`answers are never cut off at ${width}px`, async ({ page }) => {
+			await page.setViewportSize({ width, height: 800 });
+			await page.goto(path);
+			await page.evaluate(() => document.fonts.ready);
+			const launcher = await openLauncher(page);
+			const field = launcher.getByRole('combobox');
+			for (const q of [
+				'72 f',
+				'sqrt 2',
+				'3pi',
+				'30 mph',
+				'1 acre to m2',
+				'2 l to cups',
+				'100k rupiah',
+				'12 times 12',
+				'1/7',
+				'12345678 * 87654321',
+			]) {
+				await field.fill(q);
+				await expect(launcher.locator('.ssl-answer'), q).toBeVisible();
+				const cut = await launcher
+					.locator('.ssl-answer-big, .ssl-answer-label')
+					.evaluateAll((els) =>
+						els
+							.filter((el) => el.scrollWidth > el.clientWidth + 1)
+							.map((el) => el.textContent),
+					);
+				expect(cut, q).toEqual([]);
+			}
+		});
+	}
 
 	test.describe('at 390px wide', () => {
 		test.use({ viewport: { width: 390, height: 844 } });

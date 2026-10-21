@@ -105,8 +105,11 @@
 .kw--ui {
 	--c: var(--k-ui);
 }
-.kw--place {
-	--c: var(--k-place);
+.kw--ai {
+	--c: var(--k-ai);
+}
+.kw--product {
+	--c: var(--k-product);
 }
 /* the same chip, small, as the label above a project caption or title */
 .tag {

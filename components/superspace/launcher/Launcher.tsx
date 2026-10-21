@@ -8,16 +8,22 @@ import {
 	useRef,
 	useState,
 } from 'react';
+import type { LauncherLabels } from '@/content/superspace';
+import type { Rates } from './answers';
 import { search } from './engine';
 import type { Loc, Response, Row } from './types';
 import {
+	answerLabel,
 	Bar,
 	clock,
+	Desktop,
 	type DrawnRow,
 	drawRows,
 	type Mode,
 	Panel,
+	partLabel,
 	partsOf,
+	type Thumbs,
 	type ViewState,
 	where,
 } from './View';
@@ -28,8 +34,9 @@ import {
  * answers) at once and the final phase (by meaning) 150 ms after typing
  * pauses; while typing, results only add, and 400 ms after the last key they
  * show as they are, so typing is calm. ↓/↑ choose a row, →/← step its pages or
- * sections, Tab lists them, Enter opens. Opening anything here only says what
- * the real launcher would do.
+ * sections, Enter opens. Tab lists a row's parts once ↓/↑ have chosen it;
+ * before that it moves on through the page, as Tab does on a web page.
+ * Opening anything here only says what the real launcher would do.
  */
 
 const FINAL_MS = 150;
@@ -52,39 +59,56 @@ function currentOf(v: ViewState): DrawnRow | undefined {
 }
 
 /** For screen readers: how many results, once they settle, and the first. */
-function statusOf(r: Response) {
+function statusOf(r: Response, labels: LauncherLabels) {
 	const local = r.rows.filter((x) => x.kind !== 'web');
-	const top = r.answer
-		? `${r.answer.input} is ${r.answer.output}`
-		: (local[0]?.title ?? '');
-	return r.empty
-		? 'Nothing on this computer matches'
-		: `${local.length + (r.answer ? 1 : 0)} results. First: ${top}`;
+	const n = local.length + (r.answer ? 1 : 0);
+	const top = r.answer ? answerLabel(r.answer) : (local[0]?.title ?? '');
+	if (r.empty)
+		return r.unknown ? `${labels.nothing}. ${labels.unknown}` : labels.nothing;
+	return (n === 1 ? labels.one : labels.many)
+		.replace('{n}', String(n))
+		.replace('{top}', top);
 }
 
 export type LauncherProps = {
 	/** The query it opens with: the page's first paint showed its result. */
 	initial: string;
-	/** A query to show, from the example chips under the screen. */
-	request?: { q: string; n: number };
+	/** A query to show, from the example chips under the screen; `focus` puts the caret in the field after it. */
+	request?: { q: string; n: number; focus?: boolean };
 	/** Tells the page what is in the field, so its chips can mark the one on screen. */
 	onQuery?: (q: string) => void;
+	labels: LauncherLabels;
+	/** The demo's photos and video frames there are pictures for. */
+	thumbs?: Thumbs;
+	/** The ECB's rates when the page was built, for currency answers. */
+	rates?: Rates | null;
 };
 
-export function Launcher({ initial, request, onQuery }: LauncherProps) {
+export function Launcher({
+	initial,
+	request,
+	onQuery,
+	labels,
+	thumbs,
+	rates,
+}: LauncherProps) {
 	const base = useId();
 	const ids = {
 		list: `${base}-list`,
 		option: (i: number) => `${base}-opt-${i}`,
 	};
 	const card = useRef<HTMLDivElement>(null);
+	const field = useRef<HTMLInputElement>(null);
+	const opts = { rates };
 	const [query, setQuery] = useState(initial);
 	const [view, setView] = useState<ViewState>(() => ({
-		shown: initial ? search(initial, true) : blank,
+		shown: initial ? search(initial, true, opts) : blank,
 		sel: 0,
 		hit: 0,
 		mode: 'text',
 	}));
+	/** Typed into since it took the focus: the caret and the text show where the focus is. */
+	const [typed, setTyped] = useState(false);
 	const [toast, setToast] = useState<{ text: string; n: number } | null>(null);
 	const [status, setStatus] = useState('');
 	const [width, setWidth] = useState<number | undefined>(undefined);
@@ -156,25 +180,29 @@ export function Launcher({ initial, request, onQuery }: LauncherProps) {
 				setStatus('');
 				return;
 			}
-			show(search(q, false), true);
+			show(search(q, false, { rates }), true);
 			l.typing = setTimeout(() => {
 				l.typing = 0;
 				if (l.last.q === q.trim()) {
 					show(l.last, false);
-					setStatus(statusOf(l.last));
+					setStatus(statusOf(l.last, labels));
 				}
 			}, CALM_MS);
 			l.final = setTimeout(() => {
 				l.final = 0;
-				l.last = search(q, true);
+				l.last = search(q, true, { rates });
 				show(l.last, l.typing !== 0);
-				if (!l.typing) setStatus(statusOf(l.last));
+				if (!l.typing) setStatus(statusOf(l.last, labels));
 			}, FINAL_MS);
 		},
-		[show],
+		[show, rates, labels],
 	);
 
-	/** Keys that act on a row end the calm first, so they never act on a row left from an earlier query. */
+	/**
+	 * Keys that act on a row end the calm first, so they never act on a row left
+	 * from an earlier query. When the final phase is already on screen there is
+	 * nothing new to show, and the row and part stepped to stay (SuperSpace.qml).
+	 */
 	function settle(): ViewState {
 		const l = live.current;
 		const q = query.trim();
@@ -184,12 +212,11 @@ export function Launcher({ initial, request, onQuery }: LauncherProps) {
 		if (l.last.q !== q) {
 			clearTimeout(l.final);
 			l.final = 0;
-			l.last = search(q, true);
+			l.last = search(q, true, opts);
 		}
-		if (l.view.shown !== l.last) {
-			show(l.last, false);
-			setStatus(statusOf(l.last));
-		}
+		if (l.view.shown === l.last) return l.view;
+		show(l.last, false);
+		setStatus(statusOf(l.last, labels));
 		const v = { ...l.view, shown: l.last };
 		const keep = l.view.mode !== 'text' ? currentOf(l.view)?.key : undefined;
 		const found = keep
@@ -238,10 +265,18 @@ export function Launcher({ initial, request, onQuery }: LauncherProps) {
 		clearTimeout(l.typing);
 		l.typing = 0;
 		setQuery(request.q);
-		l.last = search(request.q, true);
+		l.last = search(request.q, true, { rates });
 		setView((v) => ({ ...v, shown: l.last, sel: 0, hit: 0, mode: 'text' }));
-		setStatus(statusOf(l.last));
-	}, [request]);
+		setStatus(statusOf(l.last, labels));
+		// pressed with a mouse or a key, the search is there to change: the caret goes to its end
+		const el = field.current;
+		if (request.focus && el) {
+			l.selected = true;
+			el.focus({ preventScroll: true });
+			el.setSelectionRange(request.q.length, request.q.length);
+			l.caret = [request.q.length, request.q.length];
+		}
+	}, [request, rates, labels]);
 
 	// a row chosen with ↓/↑ scrolls into the list's view, the list only
 	useEffect(() => {
@@ -304,16 +339,15 @@ export function Launcher({ initial, request, onQuery }: LauncherProps) {
 		return { ...v, sel, hit: sel === v.sel ? v.hit : 0, mode: 'rows' };
 	}
 
-	/** ←/→ walk the selected row's hits in drawn order. */
+	/** ←/→ walk the selected row's hits in drawn order; screen readers hear the part picked. */
 	function stepHit(v: ViewState, step: number): ViewState {
 		const row = currentOf(v);
 		const order = row?.order ?? [];
-		if (!order.length) return v;
+		if (!row || !order.length) return v;
 		const at = order.indexOf(v.hit);
-		return {
-			...v,
-			hit: order[Math.max(0, Math.min(order.length - 1, at + step))],
-		};
+		const hit = order[Math.max(0, Math.min(order.length - 1, at + step))];
+		if (hit !== v.hit) setStatus(partLabel(row, hit));
+		return { ...v, hit };
 	}
 
 	function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
@@ -357,12 +391,13 @@ export function Launcher({ initial, request, onQuery }: LauncherProps) {
 				return;
 			}
 		} else if (e.key === 'Tab' && !e.shiftKey && !ctrl) {
+			// on a page Tab moves on: it lists a row's parts only once ↓/↑ have chosen the row
+			if (v.mode !== 'rows') return;
 			const s = settle();
 			const row = currentOf(s);
-			// a row with parts lists them; otherwise Tab leaves the box, as it should on a page
 			if (
 				!row ||
-				v.mode === 'sections' ||
+				s.mode !== 'rows' ||
 				(row.hits.length < 2 && (row.strip?.length ?? 0) < 2)
 			) {
 				return;
@@ -406,19 +441,22 @@ export function Launcher({ initial, request, onQuery }: LauncherProps) {
 			: undefined;
 
 	return (
-		<div className="ssl-screen" ref={card}>
+		<div className="ssl-screen" ref={card} data-typed={typed ? '' : undefined}>
 			<Bar now={now} />
+			<Desktop />
 			<div className="ssl-stage">
 				<Panel
-					state={{ ...view, width }}
+					state={{ ...view, width, thumbs }}
 					ids={ids}
 					handlers={handlers}
+					labels={labels}
 					field={
 						<>
 							<label className="sr-only" htmlFor={`${base}-q`}>
-								Search the demo files
+								{labels.field}
 							</label>
 							<input
+								ref={field}
 								id={`${base}-q`}
 								className="ssl-q"
 								type="text"
@@ -433,9 +471,10 @@ export function Launcher({ initial, request, onQuery }: LauncherProps) {
 								autoCapitalize="none"
 								spellCheck={false}
 								enterKeyHint="search"
-								placeholder="Search apps, files, photos, answers…"
+								placeholder={labels.placeholder}
 								value={query}
 								onChange={(e) => {
+									setTyped(true);
 									setQuery(e.target.value);
 									onQuery?.(e.target.value);
 									setView((v) => ({ ...v, mode: 'text' }));
@@ -455,6 +494,13 @@ export function Launcher({ initial, request, onQuery }: LauncherProps) {
 										v.mode === 'rows' ? { ...v, mode: 'text' } : v,
 									);
 								}}
+								onBlur={() => {
+									// leaving the field leaves the rows as they were before ↓/↑, and Tab's list closed
+									setTyped(false);
+									setView((v) =>
+										v.mode === 'text' ? v : { ...v, mode: 'text' },
+									);
+								}}
 								onFocus={(e) => {
 									// the first time in, the example query is selected, so typing replaces it
 									if (!live.current.selected) {
@@ -472,8 +518,7 @@ export function Launcher({ initial, request, onQuery }: LauncherProps) {
 								onKeyDown={onKeyDown}
 							/>
 							<span id={`${base}-keys`} className="sr-only">
-								Type to search. Down and up arrows choose a result, right and
-								left arrows step through its pages or moments, Enter opens it.
+								{labels.keys}
 							</span>
 						</>
 					}

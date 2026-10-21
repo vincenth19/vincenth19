@@ -21,11 +21,14 @@ export function LauncherIsland({
 	initial,
 	examples,
 	labels,
+	launcher,
 	children,
 }: {
 	initial: string;
 	examples: string[];
 	labels: { caption: string; try: string; show: string };
+	/** What the launcher takes from the page: its words, its pictures, the day's rates. */
+	launcher: Pick<LauncherProps, 'labels' | 'thumbs' | 'rates'>;
 	/** The first frame: the launcher as it opens, with `initial`'s result. */
 	children: ReactNode;
 }) {
@@ -33,14 +36,20 @@ export function LauncherIsland({
 	const [Launcher, setLauncher] = useState<ComponentType<LauncherProps> | null>(
 		null,
 	);
-	const [request, setRequest] = useState<{ q: string; n: number }>();
+	const [request, setRequest] = useState<LauncherProps['request']>();
 	const [current, setCurrent] = useState(initial);
 	const loading = useRef(false);
 
 	const load = useCallback(() => {
 		if (loading.current) return;
 		loading.current = true;
-		import('./launcher/Launcher').then((m) => setLauncher(() => m.Launcher));
+		import('./launcher/Launcher').then(
+			(m) => setLauncher(() => m.Launcher),
+			// offline, or a page older than the site's last deploy: a later try may work
+			() => {
+				loading.current = false;
+			},
+		);
 	}, []);
 
 	useEffect(() => {
@@ -53,7 +62,7 @@ export function LauncherIsland({
 					observer.disconnect();
 				}
 			},
-			{ rootMargin: '900px 0px' },
+			{ rootMargin: '300px 0px' },
 		);
 		observer.observe(el);
 		return () => observer.disconnect();
@@ -63,7 +72,12 @@ export function LauncherIsland({
 		<div className="ssl" ref={ref} data-ready={Launcher ? '' : undefined}>
 			{Launcher ? (
 				<Fallback to={children}>
-					<Launcher initial={initial} request={request} onQuery={setCurrent} />
+					<Launcher
+						initial={initial}
+						request={request}
+						onQuery={setCurrent}
+						{...launcher}
+					/>
 				</Fallback>
 			) : (
 				children
@@ -79,10 +93,15 @@ export function LauncherIsland({
 						<button
 							type="button"
 							className="ssl-try-chip"
-							aria-current={q === current || undefined}
-							onClick={() => {
+							// the search on screen, once the launcher is there to show it
+							aria-current={(Launcher && q === current) || undefined}
+							onClick={(e) => {
 								load();
-								setRequest((r) => ({ q, n: (r?.n ?? 0) + 1 }));
+								// with a mouse or a key the caret goes to the field to refine it; a tap
+								// leaves the on-screen keyboard closed
+								const touch =
+									(e.nativeEvent as PointerEvent).pointerType === 'touch';
+								setRequest((r) => ({ q, n: (r?.n ?? 0) + 1, focus: !touch }));
 								setCurrent(q);
 							}}
 						>

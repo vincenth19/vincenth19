@@ -487,6 +487,8 @@ const apps: Item[] = [
 		'Web Browser',
 		'browser',
 		'internet',
+		'chrome',
+		'google chrome',
 	]),
 	app('firefox', 'Firefox', 'Browse the World Wide Web', 'firefox', [
 		'Web Browser',
@@ -534,6 +536,7 @@ const apps: Item[] = [
 		'songs',
 	]),
 	app('nvim', 'Neovim', 'Edit text files', 'nvim', [
+		'nvim',
 		'Text Editor',
 		'vim',
 		'editor',
@@ -754,7 +757,8 @@ const settings: Item[] = [
 
 /**
  * Emoji with their names in English and Indonesian (CLDR annotations, as
- * Super Space embeds them): the name, then the words it is found by.
+ * Super Space embeds them): the name, then the words it is found by. `WORLD`
+ * below adds ten more languages for the ones searched for most.
  */
 const EMOJI: [string, string, string][] = [
 	[
@@ -896,8 +900,70 @@ const EMOJI: [string, string, string][] = [
 	['🔋', 'Battery', 'battery, power, baterai'],
 ];
 
+/**
+ * Their names in Spanish, French, German, Italian, Portuguese, Dutch,
+ * Japanese, Chinese, Korean and Russian, for the emoji the demo's searches
+ * use most: Super Space has every emoji's name in every language CLDR has.
+ */
+const DOGS =
+	'perro, chien, hund, cane, cachorro, cão, hond, 犬, イヌ, 狗, 개, 강아지, собака';
+const CATS = 'gato, katze, gatto, kat, 猫, ネコ, 고양이, кошка, кот';
+const MONEY =
+	'dinero, argent, geld, soldi, denaro, dinheiro, お金, 钱, 돈, деньги';
+const MUSIC =
+	'música, canción, musique, chanson, musik, musica, canzone, muziek, 音楽, 歌, 音乐, 歌曲, 음악, 노래, музыка, песня';
+const SAD = 'triste, traurig, verdrietig, 悲しい, 伤心, 슬픈, грустный';
+const HAPPY =
+	'feliz, heureux, glücklich, felice, blij, 嬉しい, 开心, 행복, счастливый';
+const WEDDING =
+	'boda, mariage, hochzeit, matrimonio, casamento, bruiloft, 結婚, 婚礼, 결혼, свадьба';
+const WORLD: Record<string, string> = {
+	'🐶': DOGS,
+	'🐕': DOGS,
+	'🦮': DOGS,
+	'🐩': DOGS,
+	'🐱': CATS,
+	'🐈': CATS,
+	'❤️': 'corazón, amor, cœur, amour, herz, liebe, cuore, amore, coração, hart, liefde, ハート, 愛, 爱, 心, 사랑, 하트, сердце, любовь',
+	'💔': 'corazón roto, ruptura, cœur brisé, rupture, gebrochenes herz, trennung, cuore spezzato, coração partido, gebroken hart, 失恋, 心碎, 分手, 이별, разбитое сердце',
+	'💰': MONEY,
+	'💵': MONEY,
+	'💸': MONEY,
+	'🤑': MONEY,
+	'🪙': MONEY,
+	'🏖️': 'playa, plage, strand, spiaggia, praia, ビーチ, 海滩, 해변, пляж',
+	'🏝️': 'isla, île, insel, isola, ilha, eiland, 島, 岛, 섬, остров',
+	'🌊': 'ola, mar, vague, mer, welle, meer, onda, mare, golf, zee, 波, 海, 海浪, 파도, 바다, волна, море',
+	'🌇': 'atardecer, puesta de sol, coucher de soleil, sonnenuntergang, tramonto, pôr do sol, zonsondergang, 夕日, 日落, 일몰, закат',
+	'☕': 'café, kaffee, caffè, koffie, コーヒー, 咖啡, 커피, кофе',
+	'🍕': 'ピザ, 披萨, 피자, пицца',
+	'🍣': '寿司, 초밥, 스시, суши',
+	'🍞': 'pan, pain, brot, pane, pão, brood, パン, 面包, 빵, хлеб',
+	'🍚': 'arroz, riz, reis, riso, rijst, ご飯, 米饭, 밥, рис',
+	'🏠': 'casa, maison, haus, huis, 家, 房子, 집, дом',
+	'🚗': 'coche, carro, voiture, auto, macchina, 車, 汽车, 자동차, машина',
+	'🎂': 'cumpleaños, anniversaire, geburtstag, compleanno, aniversário, verjaardag, ケーキ, 誕生日, 生日, 蛋糕, 생일, 케이크, торт',
+	'🎁': 'regalo, cadeau, geschenk, presente, プレゼント, 礼物, 선물, подарок',
+	'📷': 'cámara, foto, appareil photo, kamera, fotocamera, câmera, カメラ, 写真, 相机, 照片, 카메라, 사진, фотоаппарат',
+	'✈️': 'avión, avion, flugzeug, aereo, avião, vliegtuig, 飛行機, 飞机, 비행기, самолёт',
+	'🎵': MUSIC,
+	'🎶': MUSIC,
+	'😢': SAD,
+	'😭': SAD,
+	'😀': HAPPY,
+	'😄': HAPPY,
+	'😊': HAPPY,
+	'💍': WEDDING,
+	'💒': WEDDING,
+	'🔑': 'llave, clé, schlüssel, chiave, chave, sleutel, 鍵, 钥匙, 열쇠, ключ',
+	'⛺': 'tienda de campaña, tente, zelt, tenda, barraca, tent, テント, 帐篷, 텐트, палатка',
+	'⛰️': 'montaña, montagne, berg, montagna, montanha, 山, 산, гора',
+	'🧾': 'recibo, reçu, quittung, scontrino, bon, レシート, 收据, 영수증, чек',
+};
+
 const emoji: Item[] = EMOJI.map(([e, title, words]) => {
 	const names = words.split(', ');
+	const world = WORLD[e]?.split(', ') ?? [];
 	return {
 		key: `emoji:${e}`,
 		kind: 'emoji',
@@ -905,7 +971,7 @@ const emoji: Item[] = EMOJI.map(([e, title, words]) => {
 		subtitle: names.slice(0, 5).join(' · '),
 		icon: 'emoji',
 		emoji: e,
-		names: [title, ...names],
+		names: [title, ...names, ...world],
 		parts: [],
 		where: e,
 	};
