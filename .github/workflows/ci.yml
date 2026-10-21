@@ -13,6 +13,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Next.js runs on Node: the latest 24.x, not whatever the runner image has
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          check-latest: true
+
       - uses: oven-sh/setup-bun@v2
         with:
           # the Bun that wrote bun.lock; bump both together

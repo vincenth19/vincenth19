@@ -1,8 +1,9 @@
 # Developing vincenth19.com
 
 Next.js 16 (App Router) + React 19, written in TypeScript, styled with plain CSS.
-[Bun](https://bun.sh) is the package manager and script runner; Node.js 20.9 or newer
-must also be installed (Next.js runs on it). Deployed on Vercel through its Git
+[Bun](https://bun.sh) is the package manager and script runner; Node.js 24 must also
+be installed (Next.js runs on it). `engines.node` in package.json pins Vercel to Node
+24.x, and CI installs the latest Node 24. Deployed on Vercel through its Git
 integration, which runs a plain `next build`.
 
 ## Commands
