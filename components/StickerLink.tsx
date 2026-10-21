@@ -1,9 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import { type MouseEvent, useLayoutEffect, useRef } from 'react';
+import {
+	type KeyboardEvent,
+	type MouseEvent,
+	type PointerEvent,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+} from 'react';
 import type { Project } from '@/content/projects';
 import { canAnimate, keepScroll, stickerName, useDesk } from './DeskProvider';
+import { usePeel, usePeelHint } from './usePeel';
 
 type Props = Pick<Project, 'sticker'> & {
 	href: string;
@@ -19,10 +27,16 @@ type Props = Pick<Project, 'sticker'> & {
 };
 
 /**
- * A sticker on the Projects page. A plain click lifts it off the page, then
- * opens the project in a view transition that flies it into the header (it
- * shares its view-transition-name with the header sticker). Coming back from
- * that project flies it back down onto this spot.
+ * A sticker on the Projects page. A plain click (or Enter, or Space) lifts it
+ * off the page, then opens the project in a view transition that flies it into
+ * the header (it shares its view-transition-name with the header sticker).
+ * Coming back from that project flies it back down onto this spot.
+ *
+ * It can also be peeled by hand: its bottom-right corner (the grip) follows a
+ * mouse or a finger that pulls it, and let go far enough in (or flicked) the
+ * sticker comes off and flies from there; let go sooner and the corner springs
+ * back down (components/usePeel.ts). Only the grip keeps a touch from
+ * scrolling the page.
  */
 export function StickerLink({
 	href,
@@ -41,6 +55,17 @@ export function StickerLink({
 	const waiting = lifting && desk.flight?.waiting;
 	// about to be clicked: its page starts loading now
 	const intent = prefetch === false ? () => desk.intent(href) : undefined;
+	// peeled off by hand: it opens from the pose it was let go in
+	const peel = usePeel(ref, () => desk.open(href));
+	usePeelHint(ref);
+
+	// The open was called off while it lifted (Back or Forward won): a sticker
+	// peeled off by hand goes back down.
+	const wasLifting = useRef(false);
+	useEffect(() => {
+		if (wasLifting.current && !lifting) peel.drop();
+		wasLifting.current = Boolean(lifting);
+	}, [lifting, peel]);
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: runs once, when the page mounts after leaving a project
 	useLayoutEffect(() => {
@@ -70,9 +95,15 @@ export function StickerLink({
 	}, []);
 
 	function onClick(e: MouseEvent<HTMLAnchorElement>) {
+		if (peel.dragged(e)) {
+			// the click a peel makes as it ends: the peel already opened it, or put it back
+			e.preventDefault();
+			return;
+		}
 		if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
 			return; // new tab, new window, download: let the browser do it
 		}
+		peel.stop(); // the hint or a spring stops where it is, and it lifts from there
 		if (!canAnimate()) {
 			// no transition: the link navigates straight away, and Back comes back here
 			desk.remember();
@@ -80,6 +111,27 @@ export function StickerLink({
 		}
 		e.preventDefault();
 		desk.open(href);
+	}
+
+	// Space opens it too, as Enter does (on key up, as a button does); it does
+	// not scroll the page while a sticker has the focus.
+	const space = useRef(false);
+	function onKeyDown(e: KeyboardEvent<HTMLAnchorElement>) {
+		if (e.key !== ' ' || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) {
+			return; // Shift+Space and the rest keep their own meaning
+		}
+		e.preventDefault();
+		if (!e.repeat) space.current = true;
+	}
+	function onKeyUp(e: KeyboardEvent<HTMLAnchorElement>) {
+		if (e.key !== ' ' || !space.current) return;
+		space.current = false;
+		e.preventDefault();
+		ref.current?.click();
+	}
+	function onPointerDown(e: PointerEvent<HTMLAnchorElement>) {
+		intent?.();
+		peel.onPointerDown(e);
 	}
 
 	return (
@@ -94,8 +146,14 @@ export function StickerLink({
 			scroll={false}
 			aria-label={label}
 			onClick={onClick}
+			onKeyDown={onKeyDown}
+			onKeyUp={onKeyUp}
+			onBlur={() => {
+				space.current = false;
+			}}
 			onPointerEnter={intent}
-			onPointerDown={intent}
+			onPointerDown={onPointerDown}
+			onDragStart={peel.onDragStart}
 			onFocus={intent}
 		>
 			<span className="stk-body">
@@ -103,9 +161,11 @@ export function StickerLink({
 					<img src={sticker.src} alt="" />
 				</span>
 				<span className="stk-flapwrap">
-					{/* only seen on hover or lift; lazy keeps it out of the page's preloads */}
+					{/* the curled-back corner; lazy keeps it out of the page's preloads */}
 					<img className="stk-flap" src={sticker.back} alt="" loading="lazy" />
 				</span>
+				{/* the corner to take hold of: peel it back (usePeel) */}
+				<span className="stk-grip" aria-hidden="true" />
 			</span>
 		</Link>
 	);

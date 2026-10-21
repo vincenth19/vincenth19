@@ -45,8 +45,11 @@ type Desk = {
 	 * (Forward). Null when no sticker on this page is about to fly.
 	 */
 	flight: { href: string; lift: boolean; waiting?: boolean } | null;
-	/** Open a project from its sticker: lift it off the page, then fly it into the header. Ignored while another opens. */
-	open: (href: string) => void;
+	/**
+	 * Open a project from its sticker: lift it off the page, then fly it into the
+	 * header. Ignored while another opens: then it returns false.
+	 */
+	open: (href: string) => boolean;
 	/** A pointer or the focus is on a sticker that does not prefetch: its page starts loading. */
 	intent: (href: string) => void;
 	/**
@@ -71,7 +74,7 @@ type Desk = {
 const DeskContext = createContext<Desk>({
 	from: null,
 	flight: null,
-	open: () => {},
+	open: () => false,
 	intent: () => {},
 	navigate: () => {},
 	remember: () => {},
@@ -494,7 +497,7 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 
 	const open = useCallback(
 		(href: string) => {
-			if (busy.current) return;
+			if (busy.current) return false;
 			busy.current = true;
 			scrolled.set(shown.current, window.scrollY);
 			// a link that does not prefetch (a product page) starts fetching now, if
@@ -503,7 +506,7 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 			const go = () => router.push(href, { scroll: false });
 			if (!canAnimate()) {
 				go();
-				return;
+				return true;
 			}
 			setFlight({ href, lift: true });
 			const self = { cancelled: false };
@@ -526,6 +529,7 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 				if (loaded) morph(() => href, go, true);
 				else go();
 			});
+			return true;
 		},
 		[router, morph],
 	);

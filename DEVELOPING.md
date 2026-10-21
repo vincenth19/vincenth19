@@ -45,7 +45,7 @@ next preview deploy passes.
   the posts in `writing/`. A keyword chip (`{ chip, kind, icon }`) takes its ink from
   the `--k-<kind>` token in `styles/base.css`; a new kind needs only a token.
 - `components/` are server components except the few that need the browser:
-  `StickerLink` (lift → fly), `MastFrame` (the masthead's open state), `TabLinks`
+  `StickerLink` (lift → fly, and the peel by hand, `usePeel.ts`), `MastFrame` (the masthead's open state), `TabLinks`
   (current tab), `FocusTitle` (a project or post title takes focus when it opens),
   `SkipLink` (Skip to content) and `DeskProvider` (runs opening and leaving a project
   as a view transition, see below, and remembers where you came from, so the sticker
@@ -219,7 +219,8 @@ Opening a project and leaving it run as a same-document
 the sticker flies from its spot on the Projects page into the header (and back), while
 the book moves to its new place and turns its leaf, Super Space's stage rises where the
 book was, and the rest of the desk cross-fades. `DeskProvider` runs it, for every way
-in and out: a sticker click (the sticker lifts for 0.1s first), the Back arrow, a tab,
+in and out: a sticker click (the sticker lifts for 0.1s first) or peel (see Peeling a
+sticker), the Back arrow, a tab,
 Super Space's "All projects" link (`BackToProjects`), and the browser's Back and
 Forward (a trackpad swipe included).
 
@@ -284,6 +285,41 @@ Forward (a trackpad swipe included).
   way in and out morphs; `tests/viewTransitions.ts` records what each transition the
   page starts really animated.
 
+## Peeling a sticker
+
+"Peel a sticker to read about it" is literal: on the Projects page each sticker's
+bottom-right corner can be taken with a mouse or a finger and peeled back
+(`components/usePeel.ts`, used by `StickerLink`).
+
+- The corner to take hold of is `.stk-grip` (`styles/stickers.css`): a square over
+  the art's corner and 8px past it, at least 48px (more with a mouse, which can
+  take the corner as far in as it lifts on hover), with a grab cursor. It alone
+  has `touch-action: none`, so a peel can only start there; a swipe anywhere else
+  on a sticker scrolls the page. Every sticker shows its corner just lifted at
+  rest (`--rest`), so there is something to see to take.
+- The drag is read in the sticker's own (tilted) frame and projected onto the
+  diagonal the corner folds along; the corner's tip stays under the pointer (the
+  fold moves half as far as the tip) and gives less and less past a peel of 0.46
+  (a rubber band). It writes `--drag`, and the sticker's `data-peel` says what
+  drives `--peel`: `drag`, `spring` (laid back down), `off` (let go to open) or
+  `hint`.
+- Let go with the corner peeled past 0.34 of the width (the sticker lifts a little
+  there, `data-ready`, and a phone that can gives a 10 ms tick), or flick it in
+  (600 px/s after 30 px), and it comes off: it keeps that pose (`--lift`) while it
+  lifts and flies into the header, so the view transition starts from it. Let go
+  sooner, or push it back down, and a short spring (stiffness 520, damping 0.6)
+  lays it back to rest (or to the hover peel, under a mouse still on it).
+- A press that does not move is a tap or a click and opens the sticker as before;
+  so do Enter and Space; a modifier or middle click opens a new tab. A second
+  finger ends a peel without opening anything.
+- Once a visit (`sessionStorage`), when the stickers first come into full view,
+  the first of them lifts its corner and lays it back down (`stk-hint`): not with
+  reduced motion, and not once a sticker has been peeled.
+- With reduced motion the corner still follows the pointer (the reader moves it),
+  but it goes back down without the spring and opens without the view transition.
+- `tests/peel.spec.ts` drags with a mouse, and with touches sent through Chrome's
+  own input (CDP), so touch-action and scrolling are real.
+
 ## Where the site differs from the design prototype
 
 On purpose, and nowhere visible in the design's 390px and 1440px frames:
@@ -315,7 +351,9 @@ A new project also needs a sticker, because the Projects page is a hand-placed c
    long to reach returning visitors; give it a new file name to show it at once.
 2. In `styles/stickers.css`, add `.stk--<key>` with the art's `--ratio` (height / width),
    `--d0` (where the die-cut outline meets the bottom-right diagonal, as a fraction of
-   the width) and `--hover` (how far the corner lifts).
+   the width), `--rest` (how far the corner is lifted at rest, just enough to see)
+   and `--hover` (how far the corner lifts on hover). Peeling it by hand needs
+   nothing more.
 3. In `styles/projects.css`, place `.slot--<key>` on the 12-column grid and give its
    `.stk` a size (`--sh`) and tilt (`--tilt`), plus the mobile sizes.
 4. In `styles/masthead.css`, set the header size: `.slap .stk--<key> .stk-body { --sh }`.

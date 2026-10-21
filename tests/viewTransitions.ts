@@ -12,6 +12,11 @@ export type Recorded = {
 	header: string | null;
 	/** view-transition-name of each sticker on screen when it started (the old state), by class. */
 	named: Record<string, string>;
+	/**
+	 * How far the Projects page's flying sticker was peeled (its --peel) when
+	 * the transition captured it, or null when none of them flew.
+	 */
+	peel: number | null;
 	/** Every name the transition animated. */
 	names: string[];
 	/** The names with an old and a new image: shared elements that morph. */
@@ -39,10 +44,15 @@ export async function recordTransitions(page: Page) {
 		if (!start) return;
 		document.startViewTransition = ((update: ViewTransitionUpdateCallback) => {
 			const named: Record<string, string> = {};
+			let peel: number | null = null;
 			for (const el of document.querySelectorAll('.stk, .slap-stk')) {
 				const where = el.classList.contains('slap-stk') ? 'header' : 'book';
 				const key = [...el.classList].find((c) => c.startsWith('stk--'));
-				named[`${where} ${key}`] = getComputedStyle(el).viewTransitionName;
+				const style = getComputedStyle(el);
+				named[`${where} ${key}`] = style.viewTransitionName;
+				if (where === 'book' && style.viewTransitionName.startsWith('stk-')) {
+					peel = Number.parseFloat(style.getPropertyValue('--peel'));
+				}
 			}
 			const rec: Recorded = {
 				direction: document.documentElement.dataset.vt,
@@ -50,6 +60,7 @@ export async function recordTransitions(page: Page) {
 					document.querySelector('header.mast')?.getAttribute('data-open') ??
 					null,
 				named,
+				peel,
 				names: [],
 				pairs: [],
 				flights: {},
