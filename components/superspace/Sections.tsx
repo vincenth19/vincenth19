@@ -581,6 +581,7 @@ export function Install() {
 								what={s.ui.copyUninstall}
 								size="sm"
 							/>
+							<p className="ss-spec-note">{i.uninstall.note}</p>
 						</dd>
 					</div>
 					<div className="ss-licence">

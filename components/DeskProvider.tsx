@@ -14,7 +14,10 @@ import {
 } from 'react';
 import { flushSync } from 'react-dom';
 
-/** How long a clicked sticker lifts off the page before it flies (the lift runs 0.1s). */
+/**
+ * How long a clicked sticker lifts off the page before it flies (the lift runs
+ * 0.1s). One peeled off by hand does not wait: the peel was its lift.
+ */
 const LIFT_MS = 110;
 /**
  * The longest a lifted sticker waits for its page's data. The page keeps
@@ -47,9 +50,11 @@ type Desk = {
 	flight: { href: string; lift: boolean; waiting?: boolean } | null;
 	/**
 	 * Open a project from its sticker: lift it off the page, then fly it into the
-	 * header. Ignored while another opens: then it returns false.
+	 * header. Ignored while another opens: then it returns false. `peeled`: it
+	 * was peeled off by hand, which lifted it already, so it flies as soon as
+	 * its page is in.
 	 */
-	open: (href: string) => boolean;
+	open: (href: string, peeled?: boolean) => boolean;
 	/** A pointer or the focus is on a sticker that does not prefetch: its page starts loading. */
 	intent: (href: string) => void;
 	/**
@@ -576,7 +581,7 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 	);
 
 	const open = useCallback(
-		(href: string) => {
+		(href: string, peeled = false) => {
 			if (busy.current) return false;
 			busy.current = true;
 			scrolled.set(shown.current, window.scrollY);
@@ -600,7 +605,9 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 			// the screen on a page still loading. A page too slow for that opens
 			// without the flight.
 			Promise.all([
-				new Promise((resolve) => window.setTimeout(resolve, LIFT_MS)),
+				new Promise((resolve) =>
+					window.setTimeout(resolve, peeled ? 0 : LIFT_MS),
+				),
 				pageLoaded(href, LOAD_WAIT_MS),
 			]).then(([, loaded]) => {
 				window.clearTimeout(bob);

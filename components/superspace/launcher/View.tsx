@@ -658,6 +658,10 @@ export function answerLabel(a: Answer): string {
 		if (!m) return `${v} ${label}`;
 		return `${m[1]} ${unitName(m[1], label, a.kind === 'currency')}`;
 	};
+	// money this copy cannot convert (built without rates): no "is", as there is no number
+	if (a.kind === 'currency' && !a.copy) {
+		return `${side(a.input, a.inputLabel)} to ${a.outputLabel}. ${a.detail}`;
+	}
 	return `${side(a.input, a.inputLabel)} is ${side(a.output, a.outputLabel)}${a.detail ? `. ${a.detail}` : ''}`;
 }
 

@@ -21,10 +21,16 @@ import { prefersReducedMotion } from './DeskProvider';
  * comes off: `onOff` opens the project, from the peeled pose. Let go before
  * that and the corner springs back down.
  *
+ * Pulled past PEEL_MAX the corner gives less and less, as a rubber band
+ * does, but never stops; pushed back, it comes back with the pointer at once.
+ * Let go while pushing it back down and it stays, however far it was.
+ *
  * A finger (or a pen) on the grip may also just be scrolling the page: the
- * first few pixels it moves decide. Up the diagonal, into the sticker, it
- * peels; any other way it scrolls the page, by hand here (the grip holds the
- * touch), with the glide a flick gives.
+ * first few pixels it moves decide. Up the diagonal, into the sticker, and
+ * leaning off the screen's vertical, it peels; any other way it scrolls the
+ * page, by hand here (the grip holds the touch), with the glide a flick
+ * gives. A peel that goes on up the screen in its first few pixels was a
+ * scroll after all, and is handed back.
  *
  * The drag writes --drag and --fold on the sticker, and the sticker's
  * data-peel says who drives --peel: "drag" (the pointer), "spring" (the spring
@@ -36,23 +42,39 @@ import { prefersReducedMotion } from './DeskProvider';
 const PEEL_OPEN = 0.34;
 /** How far the corner follows the pointer one to one; past it, it gives less and less. */
 const PEEL_MAX = 0.46;
-/** How much further than PEEL_MAX the rubber band lets it go, at most. */
-const PEEL_BAND = 0.07;
+/**
+ * The rubber band past PEEL_MAX: the corner gives half of this to the first
+ * PEEL_BAND of extra pull, and keeps on giving a little to any more (it never
+ * gets all of it). Pushed back, it comes back with the pointer at once.
+ */
+const PEEL_BAND = 0.15;
 /** How far (px) a press on the corner moves before it is a drag rather than a tap; a finger's or a pen's way is read there. */
 const SLOP: Record<string, number> = { mouse: 3, pen: 8, touch: 10 };
 /** A press that wandered less than this (px) and did not come off is still a tap: the browser's click opens the sticker. */
 const TAP_SLOP: Record<string, number> = { mouse: 6, pen: 12, touch: 15 };
 /** A finger starts a peel only within this many degrees of the diagonal (into the sticker); any other way, it scrolls. */
 const START_CONE = 25;
-/** How far (degrees) the fold may turn from square to the diagonal; past it, the sideways part of the pull is dropped. */
-const FOLD_SWING = 30;
+/**
+ * ... and only leaning at least this many degrees off the screen's vertical,
+ * whatever the sticker's tilt: a thumb scrolling the page goes up the screen.
+ */
+const START_LEAN = 30;
+/** Until a finger's peel has gone this far (px), it is handed back to scrolling if it turns out to go up the screen after all. */
+const START_SURE = 32;
+/**
+ * How far (degrees) the fold may turn from square to the diagonal, at most;
+ * the sideways part of a pull past it is dropped. It turns with the pull up to
+ * FOLD_KNEE, then gives way gently, so the corner never stops short.
+ */
+const FOLD_SWING = 33;
+const FOLD_KNEE = 25;
 /** A flick: let go while the corner moves in this fast (px/s, along the diagonal) ... */
 const FLING_SPEED = 600;
 /** ... after pulling it in this far (px, along the diagonal) ... */
 const FLING_PULL = 30;
 /** ... and within this many degrees of the diagonal, and the sticker comes off too. */
 const FLING_CONE = 30;
-/** Let go while pushing the corner back down this fast (px/s) and it stays, however far it was. */
+/** Let go while the pointer pushes the corner back down this fast (px/s, the way it was pulled) and it stays, however far it was. */
 const PUSH_BACK = 400;
 /** The spring that lays the corner back down: stiffness (1/s²) and damping ratio (a little bounce). */
 const SPRING_K = 520;
@@ -89,6 +111,14 @@ type Press = {
 	fold: number;
 	/** how far the tip has travelled, as a peel (the rubber band applied) */
 	reach: number;
+	/** the same before the rubber band: how far the pointer has pulled it, less `slack` */
+	raw: number;
+	/**
+	 * How much of the pointer's pull (as a peel) the corner has let go of: a
+	 * pull past the band that came back again. The pointer slid on the paper
+	 * there; the corner follows it back from where it is, at once.
+	 */
+	slack: number;
 	ready: boolean;
 	/** the farthest (px) the pointer got from where it pressed */
 	far: number;
@@ -146,10 +176,32 @@ const along = (m: Point) => -(m.x + m.y) / Math.SQRT2;
 const offDiagonal = (m: Point) =>
 	(Math.atan2(Math.abs(m.x - m.y) / Math.SQRT2, along(m)) * 180) / Math.PI;
 
-/** The rubber band: one to one up to PEEL_MAX, then less and less. */
+/** True when a move (dx, dy) on screen leans at least START_LEAN off the vertical. */
+const leans = (dx: number, dy: number) =>
+	Math.abs(dx) >= Math.tan((START_LEAN * Math.PI) / 180) * Math.abs(dy);
+
+/** The rubber band: one to one up to PEEL_MAX, then less and less, but never nothing. */
 function band(raw: number): number {
 	if (raw <= PEEL_MAX) return Math.max(0, raw);
-	return PEEL_MAX + PEEL_BAND * (1 - Math.exp(-(raw - PEEL_MAX) / PEEL_BAND));
+	const x = raw - PEEL_MAX;
+	return PEEL_MAX + (PEEL_BAND * x) / (PEEL_BAND + x);
+}
+
+/** The pull that the rubber band turns into `reach`. */
+function unband(reach: number): number {
+	if (reach <= PEEL_MAX) return reach;
+	const y = Math.min(reach - PEEL_MAX, PEEL_BAND * 0.999);
+	return PEEL_MAX + (PEEL_BAND * y) / (PEEL_BAND - y);
+}
+
+/** How far (degrees) the fold turns for a pull `off` degrees from the diagonal: as far, up to FOLD_KNEE, then less and less, up to FOLD_SWING. */
+function swing(off: number): number {
+	const a = Math.abs(off);
+	if (a <= FOLD_KNEE) return off;
+	const room = FOLD_SWING - FOLD_KNEE;
+	return (
+		Math.sign(off) * (FOLD_KNEE + room * Math.tanh((a - FOLD_KNEE) / room))
+	);
 }
 
 /**
@@ -168,31 +220,39 @@ function tipOf(flat: Point, w: number, peel: number, fold: number): Point {
  * The pose that puts the tip at `tip`: the fold is the line halfway between
  * it and where it lies flat, square to the way it was pulled. It turns at
  * most FOLD_SWING from the diagonal (past that, the pull's sideways part is
- * dropped), and the tip's travel takes the rubber band past PEEL_MAX.
+ * dropped), and the tip's travel, less `slack` (as a peel), takes the rubber
+ * band past PEEL_MAX. `pull` is the travel before the slack is taken off.
  */
 function poseOf(
 	flat: Point,
 	w: number,
 	tip: Point,
-): { peel: number; fold: number; reach: number } {
+	slack = 0,
+): { peel: number; fold: number; reach: number; raw: number; pull: number } {
 	const vx = flat.x - tip.x;
 	const vy = flat.y - tip.y;
 	let len = Math.hypot(vx, vy);
 	let off = len > 0 ? (Math.atan2(vy, vx) * 180) / Math.PI - 45 : 0;
 	if (off > 180) off -= 360;
 	if (off < -180) off += 360;
-	if (Math.abs(off) > FOLD_SWING) {
-		const kept = Math.sign(off) * FOLD_SWING;
-		len *= Math.cos(((off - kept) * Math.PI) / 180);
-		off = kept;
-	}
-	if (len <= 0) return { peel: 0, fold: 45, reach: 0 };
-	const reach = band(len / (Math.SQRT2 * w));
+	const kept = swing(off);
+	len *= Math.cos(((off - kept) * Math.PI) / 180);
+	off = kept;
+	const pull = Math.max(0, len / (Math.SQRT2 * w));
+	const raw = Math.max(0, pull - slack);
+	if (raw <= 0) return { peel: 0, fold: 45, reach: 0, raw: 0, pull };
+	const reach = band(raw);
 	len = reach * Math.SQRT2 * w;
 	// barely lifted, the fold's angle means little: it eases to the diagonal rather than swing
 	const fold = 45 + off * Math.min(1, len / 12);
 	const a = (fold * Math.PI) / 180;
-	return { peel: len / (w * (Math.cos(a) + Math.sin(a))), fold, reach };
+	return {
+		peel: len / (w * (Math.cos(a) + Math.sin(a))),
+		fold,
+		reach,
+		raw,
+		pull,
+	};
 }
 
 /**
@@ -224,9 +284,12 @@ function tick() {
 	}
 }
 
-/** True where a finger going down on the grip scrolls the page by itself (touch-action: pan-up). */
+/** True where a finger going down on the grip scrolls the page by itself (touch-action: pan-up pinch-zoom, styles/stickers.css). */
 function nativePanUp(): boolean {
-	return typeof CSS !== 'undefined' && CSS.supports('touch-action', 'pan-up');
+	return (
+		typeof CSS !== 'undefined' &&
+		CSS.supports('touch-action', 'pan-up pinch-zoom')
+	);
 }
 
 /** The page gliding on after a flick that scrolled it from a grip: 0 when it is not. */
@@ -248,13 +311,21 @@ function glide(speed: number) {
 		window.removeEventListener('keydown', stop, true);
 		stopGlide = () => {};
 	};
+	/** Where the glide last put the page. */
+	let put = window.scrollY;
 	const step = (now: number) => {
+		// scrolled by something else meanwhile (a script, a link, the find bar): that wins
+		if (Math.abs(window.scrollY - put) > 2) {
+			stop();
+			return;
+		}
 		const dt = last ? Math.min(0.05, (now - last) / 1000) : 1 / 60;
 		last = now;
 		top += v * dt;
 		v *= Math.exp(-dt / GLIDE_TAU);
 		const before = window.scrollY;
 		window.scrollTo({ top, behavior: 'instant' });
+		put = window.scrollY;
 		// at the end of the page, or slow enough: it has stopped
 		if (Math.abs(v) < GLIDE_MIN || (window.scrollY === before && dt > 0)) {
 			stop();
@@ -299,9 +370,9 @@ export function usePeel(
 			stopSpring();
 			delete el.dataset.peel;
 			delete el.dataset.ready;
-			el.style.removeProperty('--drag');
-			el.style.removeProperty('--fold');
-			el.style.removeProperty('--lift');
+			for (const name of ['--drag', '--fold', '--lift', '--tip-x', '--tip-y']) {
+				el.style.removeProperty(name);
+			}
 		},
 		[stopSpring],
 	);
@@ -417,6 +488,8 @@ export function usePeel(
 				peel: 0,
 				fold: 45,
 				reach: 0,
+				raw: 0,
+				slack: 0,
 				ready: false,
 				far: 0,
 				samples: [],
@@ -426,6 +499,20 @@ export function usePeel(
 			};
 			press.current = p;
 
+			/**
+			 * Shows the pose: --drag and --fold, and where the tip is (--tip-x,
+			 * --tip-y, in the sticker's box), for the cue that it is far enough to
+			 * come off, which lifts the sticker about its tip, so the tip stays
+			 * under the pointer (styles/stickers.css).
+			 */
+			const show = () => {
+				el.style.setProperty('--drag', p.peel.toFixed(4));
+				el.style.setProperty('--fold', `${p.fold.toFixed(2)}deg`);
+				const tip = tipOf(p.flat, p.w, p.peel, p.fold);
+				el.style.setProperty('--tip-x', `${tip.x.toFixed(1)}px`);
+				el.style.setProperty('--tip-y', `${tip.y.toFixed(1)}px`);
+			};
+
 			const begin = () => {
 				// from wherever the corner is now: at rest, hovered, mid-hint or mid-spring
 				stopSpring();
@@ -433,11 +520,14 @@ export function usePeel(
 				p.peel = shownPeel(el);
 				p.fold = shownFold(el);
 				p.tip = tipOf(p.flat, p.w, p.peel, p.fold);
-				p.reach = poseOf(p.flat, p.w, p.tip).reach;
+				const start = poseOf(p.flat, p.w, p.tip);
+				// a corner caught past the band (springing back from there) stays where it is
+				p.slack = start.pull > PEEL_MAX ? start.pull - unband(start.pull) : 0;
+				p.raw = start.pull - p.slack;
+				p.reach = band(p.raw);
 				// from the press: a flick can be over in a frame or two
 				p.samples.push({ t: p.t, x: 0, y: 0, peel: p.peel, reach: p.reach });
-				el.style.setProperty('--drag', p.peel.toFixed(4));
-				el.style.setProperty('--fold', `${p.fold.toFixed(2)}deg`);
+				show();
 				el.dataset.peel = 'drag';
 				markHinted(); // it has been found: no need to show it
 				try {
@@ -463,15 +553,21 @@ export function usePeel(
 				if (e.pointerId !== p.id) return;
 				const dx = e.clientX - p.x;
 				const dy = e.clientY - p.y;
+				const before = p.far;
 				p.far = Math.max(p.far, Math.hypot(dx, dy));
 				if (p.mode === 'native') return;
 				const m = local(dx, dy, p.tilt);
 				if (p.mode === 'press') {
 					if (p.far < (SLOP[p.type] ?? 4)) return;
-					// A finger decides here: up the diagonal it peels; any other way
-					// it scrolls (down, the browser scrolls it itself where it can).
-					// A mouse has nothing to scroll: it always takes the corner.
-					if (p.type === 'mouse' || offDiagonal(m) <= START_CONE) {
+					// A finger decides here: up the diagonal it peels, if it leans
+					// off the screen's vertical too (a tilted sticker's diagonal may
+					// be nearly upright); any other way it scrolls (down, the browser
+					// scrolls it itself where it can). A mouse has nothing to
+					// scroll: it always takes the corner.
+					if (
+						p.type === 'mouse' ||
+						(offDiagonal(m) <= START_CONE && leans(dx, dy))
+					) {
 						begin();
 					} else if (dy > 0 && nativePanUp()) {
 						p.mode = 'native';
@@ -479,6 +575,18 @@ export function usePeel(
 					} else {
 						scrollByHand(e);
 					}
+				} else if (
+					p.mode === 'peel' &&
+					p.type !== 'mouse' &&
+					before < START_SURE &&
+					dy < 0 &&
+					!leans(dx, dy)
+				) {
+					// It leaned at first but went on up the screen: it was scrolling
+					// after all. The corner goes back down and the page scrolls.
+					p.ready = false;
+					springBack(el, p.peel, p.fold, 0, false);
+					scrollByHand(e);
 				}
 				if (p.mode === 'scroll') {
 					window.scrollTo({
@@ -495,13 +603,21 @@ export function usePeel(
 					if (p.samples.length > 12) p.samples.shift();
 					return;
 				}
-				const pose = poseOf(p.flat, p.w, {
-					x: p.tip.x + m.x,
-					y: p.tip.y + m.y,
-				});
+				const tip = { x: p.tip.x + m.x, y: p.tip.y + m.y };
+				let pose = poseOf(p.flat, p.w, tip, p.slack);
+				if (pose.raw < p.raw && p.raw > PEEL_MAX) {
+					// Pushed back from past the band: the corner comes back as far as
+					// the pointer does, at once. What the band kept back is let go of.
+					const back = Math.max(0, p.reach - (p.raw - pose.raw));
+					p.slack = pose.pull - unband(back);
+					pose = poseOf(p.flat, p.w, tip, p.slack);
+				}
+				// pushed down flat (or past): pulled out again, it lifts at once
+				p.slack = Math.min(p.slack, pose.pull);
 				p.peel = pose.peel;
 				p.fold = pose.fold;
 				p.reach = pose.reach;
+				p.raw = pose.raw;
 				p.samples.push({
 					t: e.timeStamp,
 					x: m.x,
@@ -510,8 +626,7 @@ export function usePeel(
 					reach: p.reach,
 				});
 				if (p.samples.length > 12) p.samples.shift();
-				el.style.setProperty('--drag', p.peel.toFixed(4));
-				el.style.setProperty('--fold', `${p.fold.toFixed(2)}deg`);
+				show();
 				const ready = p.reach >= PEEL_OPEN;
 				if (ready !== p.ready) {
 					p.ready = ready;
@@ -554,29 +669,35 @@ export function usePeel(
 					return;
 				}
 				// the flick: fast up the diagonal, far enough, and not off to one side
-				const pull = along({
+				const last = {
 					x: p.samples.at(-1)?.x ?? 0,
 					y: p.samples.at(-1)?.y ?? 0,
-				});
+				};
+				const pull = along(last);
 				const flick = { x: speed.x, y: speed.y };
 				const flung =
 					along(flick) >= FLING_SPEED &&
 					offDiagonal(flick) <= FLING_CONE &&
 					pull >= FLING_PULL;
-				const pushedBack = speed.reach * Math.SQRT2 * p.w <= -PUSH_BACK;
+				// Pushed back as it was let go: read from the pointer, which the
+				// corner (held back by the band past PEEL_MAX) may hardly show.
+				// Its speed the way the tip was pulled, out from where it lies flat.
+				const out = {
+					x: p.tip.x + last.x - p.flat.x,
+					y: p.tip.y + last.y - p.flat.y,
+				};
+				const len = Math.hypot(out.x, out.y);
+				const outwards =
+					len > 1 ? (speed.x * out.x + speed.y * out.y) / len : along(flick);
+				const pushedBack = outwards <= -PUSH_BACK;
 				const opens =
 					commit && ((p.reach >= PEEL_OPEN && !pushedBack) || flung);
 				if (opens) {
-					// it stays as peeled as it was let go (a flick carries it on, the
-					// same way, to the peel that opens) while it comes off and flies
-					delete el.dataset.ready;
-					const lift =
-						p.reach > 0 && p.reach < PEEL_OPEN
-							? (p.peel * PEEL_OPEN) / p.reach
-							: p.peel;
-					el.style.setProperty('--drag', p.peel.toFixed(4));
-					el.style.setProperty('--fold', `${p.fold.toFixed(2)}deg`);
-					el.style.setProperty('--lift', lift.toFixed(4));
+					// It stays as peeled as it was let go (and as lifted, if it was
+					// far enough to say so) while it comes off and flies: the flight
+					// starts from here, at once (DeskProvider's open).
+					show();
+					el.style.setProperty('--lift', p.peel.toFixed(4));
 					el.dataset.peel = 'off';
 					if (off.current()) return;
 				}

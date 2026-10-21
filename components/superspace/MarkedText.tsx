@@ -1,3 +1,4 @@
+import { Command } from '@/components/Command';
 import type { Marked } from '@/content/superspace';
 
 /**
@@ -11,7 +12,12 @@ export function MarkedText({ parts }: { parts: Marked[] }) {
 		const key = i;
 		if ('mark' in part) return <mark key={key}>{part.mark}</mark>;
 		if ('word' in part) return <b key={key}>{part.word}</b>;
-		return <code key={key}>{part.code}</code>;
+		// a command breaks where a command may (never inside a flag or an id's part)
+		return (
+			<code key={key}>
+				<Command text={part.code} />
+			</code>
+		);
 	});
 }
 

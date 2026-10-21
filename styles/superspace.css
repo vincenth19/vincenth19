@@ -292,6 +292,28 @@
 	color: #0c0c0e;
 	background: var(--ss-amber);
 }
+/* several commands, one a line, each with its prompt (out of the text) */
+.ss-cmd-line {
+	position: relative;
+	display: block;
+	padding-left: calc(1ch + 12px);
+}
+.ss-cmd-line + .ss-cmd-line {
+	margin-top: 6px;
+}
+.ss-cmd-line::before {
+	content: '$';
+	position: absolute;
+	left: 0;
+	color: var(--ss-dim);
+	user-select: none;
+}
+/* the prompt is not read out, where that can be said */
+@supports (content: '$' / '') {
+	.ss-cmd-line::before {
+		content: '$' / '';
+	}
+}
 
 /* ── beats ──
    Three sizes of line: the hero's headline, the demo's line and "Free." are the
@@ -899,6 +921,9 @@
 .ss-spec--wide dd {
 	margin: 0;
 }
+.ss-spec--wide .ss-spec-note {
+	margin-top: 10px;
+}
 /* the licence, as plainly as the "MIT" in the hero */
 .ss-licence dd {
 	font-size: 17px;
@@ -971,6 +996,9 @@
 .ss-faq-item p code {
 	padding: 3px 8px;
 	border-radius: 6px;
+	/* a command that wraps keeps its box on each line */
+	-webkit-box-decoration-break: clone;
+	box-decoration-break: clone;
 	font-size: 15px;
 	color: var(--ss-ink);
 	background: var(--ss-raise);
@@ -1166,6 +1194,9 @@
 	}
 	.ss-cmd code {
 		flex-basis: calc(100% - 30px);
+	}
+	.ss-cmd--lines code {
+		flex-basis: 100%;
 	}
 	.ss .ss-copy {
 		flex: 1 1 100%;

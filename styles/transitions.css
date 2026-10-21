@@ -61,7 +61,8 @@
 	}
 	/* The desk and the masthead around the sticker: the old page's name and
 	   tagline (or a product page's headline) go first, and the new page's come
-	   in after them, so the two are never read over each other. */
+	   in after them, so the two are never read over each other. In between,
+	   the desk under them shows (styles/desk.css), so the screen never dims. */
 	::view-transition-old(root) {
 		mix-blend-mode: normal;
 		animation: vt-fade-out 0.12s ease-out both;

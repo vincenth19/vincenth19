@@ -130,6 +130,15 @@ export type DemoPicture = {
 
 const version = '0.1.4';
 
+/**
+ * Both, in this order: the plugin, left in place, would set itself up again
+ * the next time it loads (the product's README, "Uninstall").
+ */
+const uninstall = [
+	'superspace-setup uninstall',
+	'omarchy plugin remove io.github.vincenth19.superspace',
+] as const;
+
 export const superSpace = {
 	name: 'Super Space',
 	version,
@@ -140,7 +149,7 @@ export const superSpace = {
 	repoLabel: 'github.com/vincenth19/omarchy-super-space',
 	install:
 		'omarchy plugin add https://github.com/vincenth19/omarchy-super-space --enable',
-	uninstall: 'superspace-setup uninstall',
+	uninstall,
 	/** The small line under the hero's actions. */
 	meta: [`v${version}`, 'MIT', 'Omarchy 4'],
 	/** Between the items of a one-line list, with a space either side. */
@@ -152,7 +161,7 @@ export const superSpace = {
 		copied: 'Copied',
 		copyFailed: 'Could not copy. The command is selected, copy it from there.',
 		copyInstall: 'install command',
-		copyUninstall: 'uninstall command',
+		copyUninstall: 'uninstall commands',
 		about: 'about',
 		backToProjects: 'All projects',
 	},
@@ -545,7 +554,7 @@ export const superSpace = {
 			title: 'Local and private',
 			copy: {
 				lead: 'The models run on your machine: Google’s EmbeddingGemma, through llama.cpp. After setup it works offline.',
-				rest: 'It only goes online for the daily ECB currency rates, or when you pick the “search the web” row.',
+				rest: 'It only goes online for the ECB’s exchange rates (through Frankfurter), or when you pick the “search the web” row.',
 			},
 		},
 		{
@@ -653,6 +662,9 @@ export const superSpace = {
 				after: ' (cropped)',
 			},
 		},
+		// From the product facts (the engineering session, 20 Oct): measured
+		// with the demo home. The product README's "The first index" table,
+		// written on 18 Oct before this run, still gives estimates for it.
 		on: 'Indexing at idle priority, measured on the Pi',
 		stats: [
 			{ about: true, value: '3', unit: 's', label: 'names searchable' },
@@ -715,7 +727,10 @@ export const superSpace = {
 				},
 			],
 		},
-		uninstall: { title: 'Uninstall' },
+		uninstall: {
+			title: 'Uninstall',
+			note: 'Run both: a plugin left in place sets itself up again when it next loads.',
+		},
 		licence: {
 			title: 'Licence',
 			text: 'The code is MIT-licensed. The model is Google’s EmbeddingGemma, under Google’s Gemma terms: setup downloads it, it is not bundled.',
@@ -727,7 +742,7 @@ export const superSpace = {
 		{
 			q: 'Does it send my files anywhere?',
 			a: [
-				'No. Everything is read and indexed on your machine; after setup it works offline. It only goes online for daily currency rates, or a web search you pick yourself.',
+				'No. Everything is read and indexed on your machine; after setup it works offline. It only goes online for the ECB’s exchange rates (through Frankfurter), or a web search you pick yourself.',
 			],
 		},
 		{
@@ -744,7 +759,9 @@ export const superSpace = {
 		},
 		{
 			q: 'Does it replace Omarchy’s launcher?',
-			a: ['It takes over Super+Space and finds apps too. You can unbind it.'],
+			a: [
+				'Setup asks whether Super+Space should open it. It finds apps too, and uninstalling gives your old binding back.',
+			],
 		},
 		{
 			q: 'Can my AI agents use it?',
@@ -754,7 +771,13 @@ export const superSpace = {
 		},
 		{
 			q: 'How do I remove it?',
-			a: [{ code: 'superspace-setup uninstall' }],
+			a: [
+				'Run ',
+				{ code: uninstall[0] },
+				', then ',
+				{ code: uninstall[1] },
+				': a plugin left in place sets itself up again when it next loads.',
+			],
 		},
 	] satisfies Faq[],
 

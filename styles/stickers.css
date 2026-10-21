@@ -161,7 +161,8 @@
    A drag starts here or nowhere. A finger going down here scrolls the page as
    anywhere else (pan-up); one going up has to be read first: up the diagonal
    it peels, and anything else scrolls the page by hand (usePeel). Where pan-up
-   is not supported, every touch here is read that way. */
+   is not supported, every touch here is read that way. Two fingers zoom the
+   page, as anywhere else (pinch-zoom): the peel lets go of them. */
 .stk-grip {
 	--g: max(48px, calc(var(--w) * 0.24));
 	--gi: max(
@@ -177,9 +178,15 @@
 	cursor: grab;
 	-webkit-touch-callout: none;
 }
-@supports (touch-action: pan-up) {
+@supports (touch-action: pinch-zoom) {
 	.stk-grip {
-		touch-action: pan-up;
+		touch-action: pinch-zoom;
+	}
+}
+/* usePeel's nativePanUp asks for this same value */
+@supports (touch-action: pan-up pinch-zoom) {
+	.stk-grip {
+		touch-action: pan-up pinch-zoom;
 	}
 }
 /* the round badge: a round grip, on its rim, so its corners are not empty desk */
@@ -209,11 +216,15 @@
 	outline-offset: 10px;
 	border-radius: 4px;
 }
+/* the round badge's ring would meet its caption, close under it */
+.stk--superspace:focus-visible:not(:where([data-quiet])) .stk-face {
+	outline-offset: 5px;
+}
 
 /* Peeled by hand (usePeel): the corner follows the pointer (--drag, and --fold
    set inline) with no easing of its own; then a spring lays it back down
    ("spring"), or, let go to come off ("off"), it keeps that pose while it
-   lifts and flies, and the header sticker takes it over (DeskProvider). */
+   flies, and the header sticker takes it over (DeskProvider). */
 .stk[data-peel='drag'],
 .stk[data-peel='spring'],
 .stk[data-peel='off'] {
@@ -222,10 +233,23 @@
 		translate 0.18s var(--ease-out),
 		scale 0.18s var(--ease-out);
 }
-/* pulled far enough: let go now and it comes off, so it starts to */
-.stk[data-ready] {
-	translate: 0 -5px;
-	scale: 1.015;
+/* Pulled far enough: let go now and it comes off, so it starts to. It rises
+   about the corner's tip (--tip-x, --tip-y, set with the pose), so the tip
+   stays under the pointer, and its shadow falls further. */
+.stk[data-peel] .stk-body {
+	transform-origin: var(--tip-x, 100%) var(--tip-y, 100%);
+	transition: scale 0.18s var(--ease-out);
+}
+.stk[data-peel] .stk-face {
+	transition: filter 0.18s var(--ease-out);
+}
+.stk[data-ready] .stk-body {
+	scale: 1.025;
+}
+.stk[data-ready] .stk-face {
+	filter: drop-shadow(0 -0.5px 0 rgba(255, 244, 225, 0.32))
+		drop-shadow(0 1.5px 1px rgba(0, 0, 0, 0.7))
+		drop-shadow(5px 12px 12px rgba(0, 0, 0, 0.4));
 }
 /* in hand: it holds the pointer (capture), so its cursor is the one shown */
 .stk[data-peel='drag'],

@@ -128,16 +128,34 @@ test.describe('Super Space product page', () => {
 
 	test('install section has the requirements, sizes, uninstall and licence', async ({
 		page,
+		context,
 	}) => {
 		await page.goto(path);
 		const section = page.locator('#install');
 		await expect(section.locator('#ss-cmd-install')).toHaveText(install);
-		await expect(section.locator('#ss-cmd-uninstall')).toHaveText(
+		// both, one a line: the plugin left in place would set itself up again
+		const uninstall = section.locator('#ss-cmd-uninstall');
+		await expect(uninstall.locator('.ss-cmd-line')).toHaveText([
 			'superspace-setup uninstall',
+			'omarchy plugin remove io.github.vincenth19.superspace',
+		]);
+		const copy = section.getByRole('button', {
+			name: 'Copy uninstall commands',
+		});
+		await expect(copy).toBeVisible();
+		// and Copy copies them both, a line each, as they are run
+		await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+		await expect(async () => {
+			await copy.click();
+			await expect(
+				section.locator('.ss-cmd--lines').getByRole('status'),
+			).toHaveText('Copied', {
+				timeout: 1000,
+			});
+		}).toPass();
+		expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+			'superspace-setup uninstall\nomarchy plugin remove io.github.vincenth19.superspace',
 		);
-		await expect(
-			section.getByRole('button', { name: 'Copy uninstall command' }),
-		).toBeVisible();
 		for (const text of [
 			'Omarchy 4 (Hyprland and its Quickshell shell)',
 			'8.5 MB',
@@ -176,6 +194,12 @@ test.describe('Super Space product page', () => {
 		await item.getByText('Does it send my files anywhere?').click();
 		await expect(item).not.toHaveAttribute('open');
 		await expect(answer).toBeHidden();
+		// removing it takes both commands, as the Uninstall row says
+		const remove = items.filter({ hasText: 'How do I remove it?' });
+		await expect(remove.locator('code')).toHaveText([
+			'superspace-setup uninstall',
+			'omarchy plugin remove io.github.vincenth19.superspace',
+		]);
 	});
 
 	test('never mentions what is not released yet', async ({ page }) => {

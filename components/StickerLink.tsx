@@ -61,8 +61,8 @@ export function StickerLink({
 	const waiting = lifting && desk.flight?.waiting;
 	// about to be clicked: its page starts loading now
 	const intent = prefetch === false ? () => desk.intent(href) : undefined;
-	// peeled off by hand: it opens from the pose it was let go in
-	const peel = usePeel(ref, () => desk.open(href));
+	// peeled off by hand: it opens from the pose it was let go in, at once
+	const peel = usePeel(ref, () => desk.open(href, true));
 	usePeelHint(ref);
 
 	// The open was called off while it lifted (Back or Forward won): a sticker

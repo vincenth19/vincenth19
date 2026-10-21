@@ -229,8 +229,9 @@ Opening a project and leaving it run as a same-document
 the sticker flies from its spot on the Projects page into the header (and back), while
 the book moves to its new place and turns its leaf, Super Space's stage rises where the
 book was, and the rest of the desk cross-fades. `DeskProvider` runs it, for every way
-in and out: a sticker click (the sticker lifts for 0.1s first) or peel (see Peeling a
-sticker), the Back arrow, a tab,
+in and out: a sticker click (the sticker lifts for 0.1s first) or peel (no lift: the
+peel was one, so it flies as soon as its page is in; see Peeling a sticker), the Back
+arrow, a tab,
 Super Space's "All projects" link (`BackToProjects`), and the browser's Back and
 Forward (a trackpad swipe included).
 
@@ -241,7 +242,10 @@ Forward (a trackpad swipe included).
   sticker that does not fly would leave the page on its own and drift apart from the
   book. The book, a product page's stage and the socials are named only while a
   transition runs, when `<html>` carries `data-vt="open"` or `"close"`. The timing is
-  in `styles/transitions.css`.
+  in `styles/transitions.css`. The desk's own name and tagline (or a product page's
+  headline) fade out before the new page's fade in; between the two the desk shows
+  through, as `<html>` takes the desk's background while `data-vt` is set
+  (`styles/desk.css`), so the screen never dims.
 - The navigation happens inside `document.startViewTransition`, which waits until
   the new page is on screen (its own layout effects have scrolled it and moved focus)
   before it captures it. The browser draws nothing new meanwhile, so a clicked
@@ -308,17 +312,25 @@ bottom-right corner can be taken with a mouse or a finger and peeled back
   round, on its rim. Every sticker shows its corner just lifted at rest (`--rest`),
   so there is something to see to take.
 - A finger on the grip may just be scrolling the page, so its first 10px decide
-  (`START_CONE` in `usePeel.ts`): within 25° of the diagonal, up and in, it peels;
-  any other way it scrolls. Down the screen the browser scrolls it itself (the grip
-  has `touch-action: pan-up`); up the screen, or anywhere where `pan-up` is not
-  supported, `usePeel` scrolls the page with the finger and lets it glide on after
-  a flick. Off the grip a sticker is the page: a swipe across it scrolls natively. A
+  (`START_CONE` and `START_LEAN` in `usePeel.ts`): within 25° of the diagonal, up
+  and in, and leaning at least 30° off the screen's vertical (a tilted sticker's
+  diagonal can be nearly upright, and a thumb scrolling the page goes up the
+  screen), it peels; any other way it scrolls. A peel whose first 32px turn out to
+  go up the screen after all is handed back: the corner goes down and the page
+  scrolls. Down the screen the browser scrolls it itself (the grip has
+  `touch-action: pan-up pinch-zoom`, so two fingers zoom there as anywhere); up the
+  screen, or anywhere where `pan-up` is not supported, `usePeel` scrolls the page
+  with the finger and lets it glide on after a flick (until something else scrolls
+  it). Off the grip a sticker is the page: a swipe across it scrolls natively. A
   mouse has nothing to scroll and takes the corner whichever way it pulls.
 - The corner's tip follows the pointer (in the sticker's own, tilted frame): the
   fold is the line halfway between where the tip lies flat and where it is now, so
-  it turns with the pull (`--fold`, up to 30° either side of square to the
-  diagonal; past that the sideways part of the pull is dropped). The tip's travel
-  gives less and less past a peel of 0.46 (a rubber band). The geometry is in
+  it turns with the pull (`--fold`: as far as the pull up to 25° either side of
+  square to the diagonal, then less and less, up to 33°; the sideways part of the
+  pull past that is dropped). The tip's travel gives less and less past a peel of
+  0.46 (a rubber band that never quite stops: half of the first 0.15 of extra pull,
+  less of any more). Pushed back from there, the corner comes back with the
+  pointer at once: what the band held back is let go of (`slack`). The geometry is in
   `styles/stickers.css`: the face is clipped to the box on the near side of the
   fold and the backing past it is mirrored across it, both clipped to the box (a
   clip that reaches far outside it makes the view transition's capture of the
@@ -326,15 +338,19 @@ bottom-right corner can be taken with a mouse or a finger and peeled back
   fold. The drag writes `--drag` and `--fold`, and the sticker's `data-peel` says
   what drives `--peel`: `drag`, `spring` (laid back down), `off` (let go to open)
   or `hint`.
-- Let go with the tip pulled past 0.34 of the width (as a peel; the sticker lifts a
-  little there, `data-ready`, and a phone that can gives a 10 ms tick), or flick it
-  in (600 px/s up the diagonal, within 30° of it, after 30 px), and it comes off: it
-  keeps that pose (`--lift`) while it lifts and flies into the header. The header
+- Let go with the tip pulled past 0.34 of the width (as a peel; the sticker rises a
+  little there, about the tip so the tip stays under the pointer, `data-ready`, and
+  a phone that can gives a 10 ms tick), or flick it in (600 px/s up the diagonal,
+  within 30° of it, after 30 px), and it comes off: it keeps that pose (`--lift`)
+  and flies into the header as soon as its page is in, without the click's lift
+  first (`open(href, true)` in `DeskProvider`). The header
   sticker takes the same pose before the transition captures it (`takePose` in
   `DeskProvider`), so the cross-fade between the two images is between two of the
   same; once it has landed its corner is pressed down flat (`data-press`,
   `styles/masthead.css`). A click's lift hands over the same way. Let go sooner, or
-  push it back down, and a short spring (stiffness 520, damping 0.6) lays it back to
+  while pushing it back down (400 px/s, read from the pointer, which a corner held
+  back by the band may hardly show), and a short spring (stiffness 520, damping 0.6)
+  lays it back to
   rest (or to the hover peel, under a mouse still on it), the fold turning back
   square with it.
 - A press that does not move, or wanders less than a tap does (15px for a finger,
