@@ -1753,6 +1753,7 @@ test.describe('peeling a sticker on a phone', () => {
 			let drawn = 0;
 			for (const p of path) {
 				await touch('touchMove', [p]);
+				await painted(page);
 				if ((await el.getAttribute('data-hand')) === null) continue;
 				drawn++;
 				const t = await tipOf(el);
@@ -2291,6 +2292,7 @@ test.describe('peeling a sticker on a phone', () => {
 			pulled += 2;
 			expect(pulled).toBeLessThan(200);
 			await touch('touchMove', inwards(from, pulled, 1));
+			await painted(page);
 		}
 		// held there, trembling 3px either way along the diagonal (the line is crossed each time)
 		for (let i = 0; i < 16; i++) {
