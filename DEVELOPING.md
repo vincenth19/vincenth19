@@ -46,7 +46,8 @@ next preview deploy passes.
   the posts in `writing/`. A keyword chip (`{ chip, kind, icon }`) takes its ink from
   the `--k-<kind>` token in `styles/base.css`; a new kind needs only a token.
 - `components/` are server components except the few that need the browser:
-  `StickerLink` (lift → fly, and the peel by hand, `usePeel.ts`), `MastFrame` (the masthead's open state), `TabLinks`
+  `StickerLink` (lift → fly, and the peel by hand from any side, `usePeel.ts` and
+  `fold.ts`), `MastFrame` (the masthead's open state), `TabLinks`
   (current tab), `FocusTitle` (a project or post title takes focus when it opens),
   `SkipLink` (Skip to content) and `DeskProvider` (runs opening and leaving a project
   as a view transition, see below, and remembers where you came from, so the sticker
@@ -306,67 +307,95 @@ Forward (a trackpad swipe included).
 
 ## Peeling a sticker
 
-"Peel a sticker to read about it" is literal: on the Projects page each sticker's
-bottom-right corner can be taken with a mouse or a finger and peeled back
-(`components/usePeel.ts`, used by `StickerLink`).
+"Peel a sticker to read about it" is literal: on the Projects page each sticker can be
+taken by its edge, from any side or corner, with a mouse or a finger, and peeled back
+(`components/usePeel.ts`, used by `StickerLink`; the geometry is in
+`components/fold.ts`).
 
-- The corner to take hold of is `.stk-grip` (`styles/stickers.css`): a square at
-  least 56px across (more with a mouse, which can take the corner as far in as it
-  lifts on hover), centred where the corner lifts at rest and never less than 20px
-  in from the box's corner, with a grab cursor; on the round Super Space badge it is
-  round, on its rim. Every sticker shows its corner just lifted at rest (`--rest`),
-  so there is something to see to take; a little more on a touchscreen
-  (`pointer: coarse`), where nothing else shows it (no hover lift, no grab cursor).
-- A finger on the grip may just be scrolling the page, so its first 10px decide
-  (`START_CONE` and `START_LEAN` in `usePeel.ts`): within 25° of the diagonal, up
-  and in, and leaning at least 30° off the screen's vertical (a tilted sticker's
-  diagonal can be nearly upright, and a thumb scrolling the page goes up the
-  screen), it peels; any other way it scrolls. A peel that turns up the screen
-  before it is far enough to come off (its last 40px, `TURN_SPAN`, within 30° of
-  the vertical: a thumb's arc that set off up the diagonal and curled up) is handed
-  back: the corner goes down and the page scrolls, making up the way the finger
-  went meanwhile without a jump (half again as fast as the finger, until level). Down the screen the browser scrolls it itself (the grip has
-  `touch-action: pan-up pinch-zoom`, so two fingers zoom there as anywhere); up the
-  screen, or anywhere where `pan-up` is not supported, `usePeel` scrolls the page
-  with the finger and lets it glide on after a flick (until something else scrolls
-  it). Off the grip a sticker is the page: a swipe across it scrolls natively. A
-  mouse has nothing to scroll and takes the corner whichever way it pulls.
-- The corner's tip follows the pointer (in the sticker's own, tilted frame): the
-  fold is the line halfway between where the tip lies flat and where it is now, so
-  it turns with the pull (`--fold`: as far as the pull up to 25° either side of
-  square to the diagonal, then less and less, up to 33°; the sideways part of the
-  pull past that is dropped). The tip's travel gives less and less past a peel of
-  0.46 (a rubber band that never quite stops: half of the first 0.15 of extra pull,
-  less of any more). Pushed back from there, the corner comes back with the
-  pointer at once: what the band held back is let go of (`slack`). The corner then
-  works its way back under the pointer: pushed further back, the slack shrinks
-  with the pull (so the corner lies flat just as the pointer reaches where it lies
-  flat), and pulled in again, the corner gains half of each move on the pointer. The geometry is in
-  `styles/stickers.css`: the face is clipped to the box on the near side of the
-  fold and the backing past it is mirrored across it, both clipped to the box (a
-  clip that reaches far outside it makes the view transition's capture of the
-  sticker huge and slow). A browser without CSS trig functions keeps the fixed 45°
-  fold. The drag writes `--drag` and `--fold`, and the sticker's `data-peel` says
-  what drives `--peel`: `drag`, `spring` (laid back down), `off` (let go to open)
-  or `hint`.
-- Let go with the tip pulled past 0.34 of the width (as a peel; the sticker rises a
-  little there, about the tip so the tip stays under the pointer, `data-ready`, and
-  a phone that can gives a 10 ms tick, once a press), or flick it in (600 px/s up
-  the diagonal, within 30° of it, after 30 px), and it comes off. Once far enough,
-  it stays so until pushed back 0.02 under the line (`READY_GIVE`, about 6px), so a
-  finger resting on the line does not flicker the cue, and letting go does what the
-  cue last said. Off, it keeps that pose (`--lift`)
-  and flies into the header as soon as its page is in, without the click's lift
-  first (`open(href, true)` in `DeskProvider`). The header
-  sticker takes the same pose before the transition captures it (`takePose` in
-  `DeskProvider`), so the cross-fade between the two images is between two of the
-  same; once it has landed its corner is pressed down flat (`data-press`,
-  `styles/masthead.css`). A click's lift hands over the same way. Let go sooner, or
-  while pushing it back down (400 px/s, read from the pointer, which a corner held
-  back by the band may hardly show), and a short spring (stiffness 520, damping 0.6)
-  lays it back to
-  rest (or to the hover peel, under a mouse still on it), the fold turning back
-  square with it.
+- The fold is a paper fold: the point of the outline taken hold of (P) goes where the
+  pointer takes it (Q), and the fold is the line halfway between them (the
+  perpendicular bisector of PQ). The face keeps the side of the fold away from P
+  (`.stk-cut`, a clip-path polygon); the backing's part on P's side is mirrored
+  across the fold (a CSS `matrix()` reflection) and clipped to it, as the flap
+  (`.stk-hand`). The flap is the backing image used as a mask (`--back`), so its
+  outline is the backing's own alpha whatever the sticker (the seal's points, the
+  stamp's perforations, the card's rounded corners), and it is shaded in from the
+  outline along the fold's normal, as the corner's backing images are: bright at the
+  outer edge, dimmer toward the fold. A pose is kept in units of the width
+  (`Hand`), so the header sticker can draw it again at its own size.
+- The outline is read off the backing image once it has loaded (`learnHull`: the
+  convex hull of its opaque pixels); until then the stylesheet's shape stands in
+  (`--disc` or `--round`). A press takes hold of the point of the outline furthest out
+  the way the paper there faces (`grip`: square to a side, turning round a corner
+  over `--gz`), so nothing past the outline folds before the pointer moves. The fold
+  turns with the pull (`--fold`), up to 33°, but only as far as the paper it would lift
+  beyond P stays within the fold's depth (`swingRoom`): a corner turns freely, a
+  straight side only a little at first, more the further it is pulled.
+- The grip is a band all round the outline (`.stk-grip`, `styles/stickers.css`):
+  26px across with a mouse (18px in, 8px out), 46px with a finger (28px in, 18px out),
+  a ring round the seal's disc and a rounded rectangle round the others, with a grab
+  cursor. Its parts are shapes hit-tested through their clip-paths: `.stk-grips` cuts
+  the band's outside, and the middle, `.stk-mid` (on top), is the sticker as a link,
+  where a finger scrolls the page and a tap opens it. The band is four grips, each
+  letting the browser scroll a finger the way that can never be a peel there
+  (`touch-action`, with `pinch-zoom` so two fingers zoom): the sides up and down
+  (`pan-y`: a move more along the vertical than across it is the browser's), the top
+  a finger going up (`pan-down`), the bottom (which reaches round the bottom corners)
+  a finger going down (`pan-up`). On the seal the sides are the sectors within 30° of
+  the horizontal, so their way in is always across.
+- The rest of a touch is read in its first 10px (`START_CONE` and `START_LEAN` in
+  `usePeel.ts`): within 60° of the way into the sticker from where it took hold, and
+  leaning at least 30° off the screen's vertical (a tilted sticker's way in can be
+  nearly upright, and a thumb scrolling the page goes up the screen), it peels; any
+  other way it scrolls, by hand (`usePeel` scrolls the page with the finger and lets
+  it glide on after a flick). So the left and right edges peel across, the corners
+  along their diagonals, and the top and bottom edges leaning: straight down the
+  screen from a top edge scrolls the page back up, unless the page is at its top
+  (nothing to scroll; then it peels). A peel from the top or the bottom that turns
+  along the screen's vertical before it is far enough to come off (its last 40px,
+  `TURN_SPAN`, within 30° of the vertical, up from the bottom or down from the top: a
+  thumb's arc) is handed back: the paper goes down and the page scrolls, making up
+  the way the finger went meanwhile without a jump (half again as fast as the finger,
+  until level). Where `pan-up` is not supported, every touch on the top and bottom
+  grips is read that way. A mouse has nothing to scroll and takes hold whichever way
+  it pulls.
+- The paper follows the pointer (in the sticker's own, tilted frame). Its travel gives
+  less and less past a peel of 0.46 (a rubber band that never quite stops: half of the
+  first 0.15 of extra pull, less of any more). Pushed back from there, it comes back
+  with the pointer at once: what the band held back is let go of (`slack`). It then
+  works its way back under the pointer: pushed further back, the slack shrinks with
+  the pull (so it lies flat just as the pointer reaches where it lies flat), and
+  pulled in again, it gains half of each move on the pointer. The drag writes
+  `--drag` (how far it is peeled) and `--fold`, and the sticker's `data-peel` says
+  what drives the fold: `drag`, `spring` (laid back down), `off` (let go to open) or
+  `hint`; `data-hand` is set while a fold by hand is drawn.
+- The bottom-right corner also lifts by itself: just at rest (`--rest`), so there is
+  something to see; a little more on a touchscreen (`pointer: coarse`), where nothing
+  else shows it; more on hover (`--hover`) and in a click's lift. That fold is the
+  stylesheet's own (the 45° line x + y = k, from `--peel`). A press on that corner
+  takes it over as it is (`data-took`: the corner's own fold drops to nothing at once
+  and the hand's draws the same pose); a press anywhere else lays the corner down
+  (0.16 s) while that side lifts, and it comes back up as the fold springs back. Each
+  fold cuts the other's face, so when both show, the deeper one wins.
+- Let go with it pulled past 0.34 (the pointer's travel as a part of the width · √2;
+  the sticker rises a little there, about the point taken hold of so it stays under
+  the pointer, `data-ready`, and a phone that can gives a 10 ms tick, once a press), or
+  flick it in (600 px/s into the sticker, within 30° of the way in, after 30 px), and
+  it comes off. Once far enough, it stays so until pushed back 0.02 under the line
+  (`READY_GIVE`, about 6px), so a finger resting on the line does not flicker the cue,
+  and letting go does what the cue last said. Off, it keeps that pose (its own corner
+  stays down, `--lift: 0`) and flies into the header as soon as its page is in, without
+  the click's lift first (`open(href, true)` in `DeskProvider`). The header sticker
+  takes the same pose before the transition captures it (`takePose` in
+  `DeskProvider`, which draws the fold again at the header's size), so the
+  cross-fade between the two images is between two of the same, from whichever side
+  it was peeled; once it has landed its fold and corner are pressed down flat (the
+  fold by script, `layDown`; the corner by `data-press`, `styles/masthead.css`). A
+  click's lift hands over the same way. Let go sooner, or while pushing it back down
+  (400 px/s, read from the pointer, which paper held back by the band may hardly
+  show), and a short spring (stiffness 520, damping 0.6) lays it back down: a side
+  flat, square again, and the corner to rest (or to the hover peel, under a mouse
+  still on it), handed back to the stylesheet just as it lies.
 - A press that does not move, or wanders less than a tap does (15px for a finger,
   6px for a mouse), is a tap or a click and opens the sticker as before; so do
   Enter and Space; a modifier or middle click opens a new tab. A drag's own click
@@ -376,20 +405,22 @@ bottom-right corner can be taken with a mouse or a finger and peeled back
   "Enter/Space" to open a sticker, so a sticker behaves as a button does there,
   where a link would scroll the page. Every other link keeps the link's keys.
 - Once a visit (`sessionStorage`), when the stickers first come into full view,
-  the first of them lifts its corner and lays it back down (`stk-hint`): not with
+  the first of them lifts its corner and lays it back down (`stk-hint`), then its left
+  edge does the same, smaller, by hand, so it is seen that any side lifts: not with
   reduced motion, and not once a sticker has been peeled. A pointer or the focus
-  arriving on it while it plays ends it, and the corner goes from where it was to
-  the hover (or rest) peel, with the spring.
+  arriving on it while it plays ends it, and the paper goes from where it was to the
+  hover (or rest) peel, with the spring.
 - After a project opened with a pointer (a click, a tap or a peel), the sticker
   that comes back is focused but quiet (`data-quiet`): no ring and no lift until a
   key is pressed. Chrome would show the ring there after a peel, which focuses
   nothing, so its script focus counts as the keyboard's (`lastInput` in
   `DeskProvider`).
-- With reduced motion the corner still follows the pointer (the reader moves it),
-  but it goes back down without the spring and opens without the view transition.
-- `tests/peel.spec.ts` drags with a mouse, and with touches sent through Chrome's
-  own input (CDP), so touch-action and scrolling are real; a flick's touches carry
-  their own times, so its speed does not depend on how busy the machine is.
+- With reduced motion the paper still follows the pointer (the reader moves it), but
+  it goes back down without the spring and opens without the view transition.
+- `tests/peel.spec.ts` drags with a mouse from every side and corner, and with
+  touches sent through Chrome's own input (CDP), so touch-action and scrolling are
+  real; a flick's touches carry their own times, so its speed does not depend on how
+  busy the machine is.
 
 ## Where the site differs from the design prototype
 
@@ -422,9 +453,11 @@ A new project also needs a sticker, because the Projects page is a hand-placed c
    long to reach returning visitors; give it a new file name to show it at once.
 2. In `styles/stickers.css`, add `.stk--<key>` with the art's `--ratio` (height / width),
    `--d0` (where the die-cut outline meets the bottom-right diagonal, as a fraction of
-   the width), `--rest` (how far the corner is lifted at rest, just enough to see)
-   and `--hover` (how far the corner lifts on hover). Peeling it by hand needs
-   nothing more.
+   the width), `--rest` (how far the corner is lifted at rest, just enough to see),
+   `--hover` (how far the corner lifts on hover), and the outline's shape for its grip:
+   `--disc` (a round one: its radius, as a fraction of the width) or `--round` (its
+   corner radius, as a fraction of the width; 0 for square corners). Peeling it by
+   hand from any side needs nothing more: the fold reads the outline off the backing.
 3. In `styles/projects.css`, place `.slot--<key>` on the 12-column grid and give its
    `.stk` a size (`--sh`) and tilt (`--tilt`), plus the mobile sizes.
 4. In `styles/masthead.css`, set the header size: `.slap .stk--<key> .stk-body { --sh }`.

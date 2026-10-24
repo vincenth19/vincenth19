@@ -201,9 +201,7 @@
 /* Flown in from the Projects page, it lands in the pose that sticker was lifted
    or peeled in (DeskProvider sets it), then its corner is pressed down flat. */
 .slap-stk[data-press] {
-	transition:
-		--peel 0.42s cubic-bezier(0.3, 0.7, 0.35, 1),
-		--fold 0.42s cubic-bezier(0.3, 0.7, 0.35, 1);
+	transition: --peel 0.42s cubic-bezier(0.3, 0.7, 0.35, 1);
 }
 /* flat, it shows no flap: not even the sliver of backing past the die-cut */
 .slap-stk:not([data-posed], [data-press]) .stk-flapwrap {

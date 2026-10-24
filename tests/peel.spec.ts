@@ -37,15 +37,182 @@ const peelOf = (el: Locator) =>
 		Number.parseFloat(getComputedStyle(e).getPropertyValue('--peel')),
 	);
 
-/** The middle of a sticker's grip (the corner to take hold of), with the sticker brought into view. */
-async function gripOf(page: Page, key: string): Promise<Point> {
-	await sticker(page, key).evaluate((el) =>
-		el.scrollIntoView({ block: 'center', behavior: 'instant' }),
+/** How far a fold by hand peels a sticker now (its --drag; components/fold.ts), or NaN without one. */
+const handOf = (el: Locator) =>
+	el.evaluate((e) =>
+		Number.parseFloat(getComputedStyle(e).getPropertyValue('--drag')),
 	);
-	const box = await sticker(page, key).locator('.stk-grip').boundingBox();
-	if (!box) throw new Error(`no grip on ${key}`);
-	return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+
+/** How far a sticker shows peeled: its fold by hand's, or else its own corner's. */
+const shownOf = (el: Locator) =>
+	el.evaluate((e) =>
+		Number.parseFloat(
+			getComputedStyle(e).getPropertyValue(
+				e.hasAttribute('data-hand') ? '--drag' : '--peel',
+			),
+		),
+	);
+
+/** The angle (degrees) a sticker's fold by hand lies at (--fold). */
+const foldOf = (el: Locator) =>
+	el.evaluate((e) =>
+		Number.parseFloat(getComputedStyle(e).getPropertyValue('--fold')),
+	);
+
+/** A side or a corner of a sticker. */
+type Where =
+	| 'top'
+	| 'right'
+	| 'bottom'
+	| 'left'
+	| 'top-left'
+	| 'top-right'
+	| 'bottom-left'
+	| 'bottom-right';
+
+const R = Math.SQRT1_2;
+/** The way into a sticker from each side and corner, in its own frame (y down). */
+const INTO: Record<Where, Point> = {
+	top: { x: 0, y: 1 },
+	right: { x: -1, y: 0 },
+	bottom: { x: 0, y: -1 },
+	left: { x: 1, y: 0 },
+	'top-left': { x: R, y: R },
+	'top-right': { x: -R, y: R },
+	'bottom-left': { x: R, y: -R },
+	'bottom-right': { x: -R, y: -R },
+};
+/** The angle (degrees) the paper there faces out: the fold's, square to the pull (components/fold.ts's --fold). */
+const FACING: Record<Where, number> = {
+	top: -90,
+	right: 0,
+	bottom: 90,
+	left: 180,
+	'top-left': -135,
+	'top-right': -45,
+	'bottom-left': 135,
+	'bottom-right': 45,
+};
+/** How far apart two angles (degrees) are, either way round. */
+const apart = (a: number, b: number) =>
+	Math.abs(((((a - b) % 360) + 540) % 360) - 180);
+
+/** A sticker in its own frame: its middle on screen, its tilt, its size, and a round one's radius (--disc, of the width). */
+type Frame = {
+	cx: number;
+	cy: number;
+	tilt: number;
+	w: number;
+	h: number;
+	disc: number;
+};
+
+/** A sticker's frame, the sticker brought into view (centred, or at the foot of the screen). */
+function frameOf(
+	page: Page,
+	key: string,
+	block: 'center' | 'end' | 'nearest' = 'center',
+): Promise<Frame> {
+	return sticker(page, key).evaluate((el, block) => {
+		el.scrollIntoView({ block, behavior: 'instant' });
+		const body = el.querySelector('.stk-body') as HTMLElement;
+		const r = el.getBoundingClientRect();
+		const m = /^(-?[\d.]+)deg$/.exec(getComputedStyle(el).rotate.trim());
+		const disc = Number.parseFloat(
+			getComputedStyle(body).getPropertyValue('--disc'),
+		);
+		return {
+			cx: r.left + r.width / 2,
+			cy: r.top + r.height / 2,
+			tilt: m ? (Number(m[1]) * Math.PI) / 180 : 0,
+			w: body.offsetWidth,
+			h: body.offsetHeight,
+			disc: Number.isFinite(disc) ? disc : 0,
+		};
+	}, block);
 }
+
+/** A way in a sticker's frame, on screen (turned by its tilt). */
+const turned = (f: Frame, v: Point): Point => ({
+	x: v.x * Math.cos(f.tilt) - v.y * Math.sin(f.tilt),
+	y: v.x * Math.sin(f.tilt) + v.y * Math.cos(f.tilt),
+});
+
+/** A point in a sticker's frame, on screen. */
+function onScreen(f: Frame, p: Point): Point {
+	const d = turned(f, { x: p.x - f.w / 2, y: p.y - f.h / 2 });
+	return { x: f.cx + d.x, y: f.cy + d.y };
+}
+
+/**
+ * Where to take hold of a sticker from a side or a corner, `inset` px in from
+ * its outline (on a round one, its disc), and the way into it from there, on
+ * screen (a unit), the sticker brought into view.
+ */
+async function edgeOf(
+	page: Page,
+	key: string,
+	where: Where,
+	inset = 8,
+	block: 'center' | 'end' | 'nearest' = 'center',
+): Promise<{ from: Point; inward: Point }> {
+	const f = await frameOf(page, key, block);
+	const into = INTO[where];
+	let p: Point;
+	if (f.disc > 0) {
+		const r = f.disc * f.w - inset;
+		p = { x: f.w / 2 - into.x * r, y: f.h / 2 - into.y * r };
+	} else {
+		const x = into.x > 0 ? 0 : into.x < 0 ? f.w : f.w / 2;
+		const y = into.y > 0 ? 0 : into.y < 0 ? f.h : f.h / 2;
+		p = { x: x + Math.sign(into.x) * inset, y: y + Math.sign(into.y) * inset };
+	}
+	return { from: onScreen(f, p), inward: turned(f, into) };
+}
+
+/** Where a sticker's bottom-right corner is taken hold of (the corner that lifts by itself), the sticker brought into view. */
+async function gripOf(
+	page: Page,
+	key: string,
+	block: 'center' | 'end' | 'nearest' = 'center',
+): Promise<Point> {
+	return (await edgeOf(page, key, 'bottom-right', 12, block)).from;
+}
+
+/** `steps` points from `from`, `distance` px along `way` (a unit) in all. */
+function along(
+	from: Point,
+	way: Point,
+	distance: number,
+	steps: number,
+): Point[] {
+	return Array.from({ length: steps }, (_, i) => {
+		const d = (distance * (i + 1)) / steps;
+		return { x: from.x + way.x * d, y: from.y + way.y * d };
+	});
+}
+
+/** `way` turned `deg` degrees (clockwise on screen). */
+function turn(way: Point, deg: number): Point {
+	const a = (deg * Math.PI) / 180;
+	return {
+		x: way.x * Math.cos(a) - way.y * Math.sin(a),
+		y: way.x * Math.sin(a) + way.y * Math.cos(a),
+	};
+}
+
+/** The cursor the page shows over a point, and what is there. */
+const under = (page: Page, p: Point) =>
+	page.evaluate(({ x, y }) => {
+		const el = document.elementFromPoint(x, y);
+		return {
+			cursor: el ? getComputedStyle(el).cursor : '',
+			grip: el?.classList.contains('stk-grip') ?? false,
+			side: (el as HTMLElement | null)?.dataset.side ?? null,
+			mid: el?.classList.contains('stk-mid') ?? false,
+			touch: el ? getComputedStyle(el).touchAction : '',
+		};
+	}, p);
 
 /** `steps` points from `from` to `distance` px up and to the left: the way a bottom-right corner peels. */
 function inwards(from: Point, distance: number, steps: number): Point[] {
@@ -276,10 +443,12 @@ test.describe('peeling a sticker with a mouse', () => {
 		const vts = await recordTransitions(page);
 		await page.goto('/');
 		const basilica = sticker(page, 'basilica');
-		const grip = basilica.locator('.stk-grip');
 		const from = await gripOf(page, 'basilica');
 		const entries = await page.evaluate(() => history.length);
-		await expect(grip).toHaveCSS('cursor', 'grab');
+		expect(await under(page, from)).toMatchObject({
+			grip: true,
+			cursor: 'grab',
+		});
 
 		await page.mouse.move(from.x, from.y);
 		await page.mouse.down();
@@ -287,13 +456,15 @@ test.describe('peeling a sticker with a mouse', () => {
 		for (const p of path.slice(0, 4)) await page.mouse.move(p.x, p.y);
 		// in hand: the corner follows the pointer, not yet far enough to come off
 		await expect(basilica).toHaveAttribute('data-peel', 'drag');
-		await expect(grip).toHaveCSS('cursor', 'grabbing');
+		// the hand took the corner over as it was (its own fold lies down meanwhile)
+		await expect(basilica).toHaveAttribute('data-took', '');
+		expect(await under(page, path[3])).toMatchObject({ cursor: 'grabbing' });
 		await expect(basilica).not.toHaveAttribute('data-ready');
-		const partway = await peelOf(basilica);
+		const partway = await handOf(basilica);
 		for (const p of path.slice(4)) await page.mouse.move(p.x, p.y);
 		// far enough: let go now and it comes off, and it says so
 		await expect(basilica).toHaveAttribute('data-ready', '');
-		expect(await peelOf(basilica)).toBeGreaterThan(partway);
+		expect(await handOf(basilica)).toBeGreaterThan(partway);
 		await page.waitForTimeout(200);
 		await page.mouse.up();
 
@@ -311,7 +482,9 @@ test.describe('peeling a sticker with a mouse', () => {
 		// and the header sticker it flew into landed in that pose (nothing to
 		// cross-fade), then had its corner pressed down
 		expect(open.landed ?? 0).toBeCloseTo(open.peel ?? 0, 1);
+		expect(open.landedFold ?? 0).toBeCloseTo(open.fold ?? 0, 0);
 		const header = page.locator('header.mast .slap-stk');
+		await expect(header).not.toHaveAttribute('data-hand');
 		await expect.poll(() => peelOf(header)).toBeLessThan(0.005);
 		// one step in history, as a click makes
 		expect(await page.evaluate(() => history.length)).toBe(entries + 1);
@@ -330,15 +503,17 @@ test.describe('peeling a sticker with a mouse', () => {
 
 		await page.mouse.down();
 		for (const p of inwards(from, 30, 6)) await page.mouse.move(p.x, p.y);
-		const pulled = await peelOf(covid);
+		const pulled = await handOf(covid);
 		expect(pulled).toBeGreaterThan(0.22);
 		expect(pulled).toBeLessThan(PEEL_OPEN);
 		await page.waitForTimeout(200);
 		await page.mouse.up();
 
-		// a short spring back down, to the hover peel (the mouse is still on it)
+		// a short spring back down, to the hover peel (the mouse is still on it),
+		// and the corner handed back to the stylesheet just as it lies
 		await expect(covid).toHaveAttribute('data-peel', 'spring');
 		await expect(covid).not.toHaveAttribute('data-peel', { timeout: 1500 });
+		await expect(covid).not.toHaveAttribute('data-hand');
 		expect(await peelOf(covid)).toBeCloseTo(0.2, 2);
 		// and flat(ish) again once the mouse leaves
 		await page.mouse.move(10, 10);
@@ -354,10 +529,7 @@ test.describe('peeling a sticker with a mouse', () => {
 		await page.goto('/');
 		const basilica = sticker(page, 'basilica');
 		const from = await gripOf(page, 'basilica');
-		const fold = () =>
-			basilica.evaluate((e) =>
-				Number.parseFloat(getComputedStyle(e).getPropertyValue('--fold')),
-			);
+		const fold = () => foldOf(basilica);
 		await page.mouse.move(from.x, from.y);
 		await page.mouse.down();
 		for (let i = 1; i <= 8; i++) {
@@ -374,6 +546,7 @@ test.describe('peeling a sticker with a mouse', () => {
 		await page.mouse.up();
 		// laid back down, square to the diagonal again
 		await expect(basilica).not.toHaveAttribute('data-peel', { timeout: 1500 });
+		await expect(basilica).not.toHaveAttribute('data-hand');
 		expect(await fold()).toBeCloseTo(45, 0);
 		await expect(page).toHaveURL(at('/'));
 	});
@@ -393,7 +566,7 @@ test.describe('peeling a sticker with a mouse', () => {
 		const seen: number[] = [];
 		for (const [i, p] of diagonal(from, 0, 300, 30).entries()) {
 			await page.mouse.move(p.x, p.y);
-			if ((i + 1) % 5 === 0 && i >= 19) seen.push(await peelOf(basilica));
+			if ((i + 1) % 5 === 0 && i >= 19) seen.push(await handOf(basilica));
 		}
 		// at 200, 250 and 300px: each pull further still lifts it, a little
 		expect(seen[1]).toBeGreaterThan(seen[0] + 0.003);
@@ -402,7 +575,7 @@ test.describe('peeling a sticker with a mouse', () => {
 		for (const p of diagonal(from, 300, 280, 4)) {
 			await page.mouse.move(p.x, p.y);
 		}
-		const back = seen[2] - (await peelOf(basilica));
+		const back = seen[2] - (await handOf(basilica));
 		expect(back).toBeGreaterThan((0.8 * 20) / (Math.SQRT2 * w));
 		// all the way back, and let go: it stays
 		await page.mouse.move(from.x, from.y, { steps: 6 });
@@ -424,17 +597,17 @@ test.describe('peeling a sticker with a mouse', () => {
 			for (const p of path) await page.mouse.move(p.x, p.y);
 		};
 		await go(diagonal(from, 0, 100, 10));
-		const fresh = await peelOf(basilica);
+		const fresh = await handOf(basilica);
 		// out past the band (it held back the last of that), all the way back,
 		// and out again as far as before
 		await go(diagonal(from, 100, 300, 20));
 		await go(diagonal(from, 300, 0, 30));
-		const back = await peelOf(basilica);
+		const back = await handOf(basilica);
 		await go(diagonal(from, 0, 100, 10));
 		// at the press again it is not lying flat, the pointer well up the paper
 		expect(back).toBeGreaterThan(0.05);
 		// and 100px in, it is where the same pull put it before: under the pointer
-		expect(Math.abs((await peelOf(basilica)) - fresh)).toBeLessThan(0.005);
+		expect(Math.abs((await handOf(basilica)) - fresh)).toBeLessThan(0.005);
 		await go(diagonal(from, 100, 0, 10));
 		await page.mouse.up();
 		await expect(basilica).not.toHaveAttribute('data-peel', { timeout: 1500 });
@@ -488,6 +661,143 @@ test.describe('peeling a sticker with a mouse', () => {
 	});
 });
 
+test.describe('peeling a sticker from any side with a mouse', () => {
+	test.use({ viewport: { width: 1440, height: 900 } });
+	test.beforeEach(async ({ context }) => skipHint(context));
+
+	// each side and corner, across the three outlines (a card, a stamp, a seal)
+	const from: [Where, string][] = [
+		['top', 'covid'],
+		['right', 'covid'],
+		['bottom', 'basilica'],
+		['left', 'superspace'],
+		['top-left', 'basilica'],
+		['top-right', 'covid'],
+		['bottom-left', 'superspace'],
+		['bottom-right', 'covid'],
+	];
+	for (const [where, key] of from) {
+		test(`a drag in from its ${where} ${where.includes('-') ? 'corner' : 'edge'} past the threshold peels it off and opens the project, from that pose (${key})`, async ({
+			page,
+		}) => {
+			const vts = await recordTransitions(page);
+			await page.goto('/');
+			const el = sticker(page, key);
+			const { from, inward } = await edgeOf(page, key, where, 10);
+			expect(await under(page, from)).toMatchObject({
+				grip: true,
+				cursor: 'grab',
+			});
+			const href = await el.getAttribute('href');
+			await page.mouse.move(from.x, from.y);
+			await page.mouse.down();
+			for (const p of along(from, inward, 170, 17)) {
+				await page.mouse.move(p.x, p.y);
+			}
+			// the paper on that side folds back toward the pointer, and is far enough
+			await expect(el).toHaveAttribute('data-ready', '');
+			expect(apart(await foldOf(el), FACING[where])).toBeLessThan(20);
+			await page.waitForTimeout(150);
+			await page.mouse.up();
+
+			await expect(page).toHaveURL(at(href ?? ''));
+			await vts.settled();
+			const [open] = await vts.take();
+			expect(open).toMatchObject({ direction: 'open', finished: true });
+			expect(open.pairs).toContain(`stk-${key}`);
+			// the flight starts from the pose it was let go in, that side folded back ...
+			expect(open.peel ?? 0).toBeGreaterThanOrEqual(PEEL_OPEN);
+			expect(apart(open.fold ?? 0, FACING[where])).toBeLessThan(20);
+			// ... and lands in the header in the same pose, which is then pressed flat
+			expect(open.landed ?? 0).toBeCloseTo(open.peel ?? 0, 2);
+			expect(open.landedFold ?? 0).toBeCloseTo(open.fold ?? 0, 0);
+			const header = page.locator('header.mast .slap-stk');
+			await expect(header).not.toHaveAttribute('data-hand');
+			await expect.poll(() => peelOf(header)).toBeLessThan(0.005);
+		});
+	}
+
+	test('a short drag from any side springs back flat, and the page stays', async ({
+		page,
+	}) => {
+		const vts = await recordTransitions(page);
+		await page.goto('/');
+		const covid = sticker(page, 'covid');
+		for (const where of ['left', 'top', 'right', 'bottom'] as const) {
+			const { from, inward } = await edgeOf(page, 'covid', where);
+			await page.mouse.move(from.x, from.y);
+			await page.mouse.down();
+			for (const p of along(from, inward, 40, 8)) {
+				await page.mouse.move(p.x, p.y);
+			}
+			// that side is lifted, not far enough to come off; the corner lies down
+			const pulled = await handOf(covid);
+			expect(pulled, where).toBeGreaterThan(0.08);
+			expect(pulled, where).toBeLessThan(PEEL_OPEN);
+			await expect(covid).not.toHaveAttribute('data-took');
+			await page.waitForTimeout(150);
+			await page.mouse.up();
+			await expect(covid).toHaveAttribute('data-peel', 'spring');
+			await expect(covid).not.toHaveAttribute('data-peel', { timeout: 1500 });
+			// flat again, nothing of the fold left, the corner back at the hover peel
+			await expect(covid).not.toHaveAttribute('data-hand');
+			await expect.poll(() => peelOf(covid), where).toBeCloseTo(0.2, 2);
+			await page.mouse.move(10, 10);
+			await expect.poll(() => peelOf(covid), where).toBeCloseTo(0.065, 2);
+		}
+		await page.waitForTimeout(300);
+		await expect(page).toHaveURL(at('/'));
+		expect(await vts.all()).toEqual([]);
+	});
+
+	test('the edge shows a grab cursor all round, and the middle is the link', async ({
+		page,
+	}) => {
+		await page.goto('/');
+		for (const key of ['superspace', 'basilica', 'covid']) {
+			for (const where of Object.keys(INTO) as Where[]) {
+				const { from } = await edgeOf(page, key, where, 6);
+				expect(await under(page, from), `${key} ${where}`).toMatchObject({
+					grip: true,
+					cursor: 'grab',
+				});
+			}
+			const f = await frameOf(page, key);
+			const middle = onScreen(f, { x: f.w / 2, y: f.h / 2 });
+			expect(await under(page, middle), key).toMatchObject({
+				mid: true,
+				cursor: 'pointer',
+			});
+		}
+	});
+
+	test('pulled across a side at a slant, the fold turns only a little, and more the further it goes', async ({
+		page,
+	}) => {
+		await page.goto('/');
+		const covid = sticker(page, 'covid');
+		const { from, inward } = await edgeOf(page, 'covid', 'left');
+		const slant = turn(inward, -45);
+		await page.mouse.move(from.x, from.y);
+		await page.mouse.down();
+		const path = along(from, slant, 160, 16);
+		const turns: number[] = [];
+		for (const [i, p] of path.entries()) {
+			await page.mouse.move(p.x, p.y);
+			if (i === 3 || i === 15) turns.push(apart(await foldOf(covid), 180));
+		}
+		// a straight side: a turned fold would lift paper all along it, so it
+		// turns little at first, more as the fold goes deeper, never past 33°
+		expect(turns[0]).toBeLessThan(12);
+		expect(turns[1]).toBeGreaterThan(turns[0]);
+		expect(turns[1]).toBeLessThanOrEqual(33.5);
+		await page.mouse.move(from.x, from.y, { steps: 8 });
+		await page.mouse.up();
+		await expect(covid).not.toHaveAttribute('data-peel', { timeout: 1500 });
+		await expect(page).toHaveURL(at('/'));
+	});
+});
+
 test.describe('peeling a sticker on a phone', () => {
 	test.use({
 		viewport: { width: 390, height: 844 },
@@ -496,27 +806,64 @@ test.describe('peeling a sticker on a phone', () => {
 	});
 	test.beforeEach(async ({ context }) => skipHint(context));
 
-	test('the corner is a grip of at least 44px, slightly lifted at rest; only it reads a touch', async ({
+	test('the edge, all round, is a grip at least 44px across; the corner is slightly lifted at rest; the middle is the page', async ({
 		page,
 	}) => {
 		await page.goto('/');
+		// the way the browser scrolls a finger itself on each part of the edge
+		// (two fingers zoom there, as anywhere); the rest of a touch is read first
+		const scrolls: Record<string, string> = {
+			top: 'pan-down pinch-zoom',
+			bottom: 'pan-up pinch-zoom',
+			left: 'pan-y pinch-zoom',
+			right: 'pan-y pinch-zoom',
+		};
 		for (const key of ['superspace', 'basilica', 'covid']) {
 			const el = sticker(page, key);
-			const size = await el
-				.locator('.stk-grip')
-				.evaluate((g) => [
-					(g as HTMLElement).offsetWidth,
-					(g as HTMLElement).offsetHeight,
-				]);
-			expect(Math.min(...size), key).toBeGreaterThanOrEqual(44);
+			for (const where of Object.keys(INTO) as Where[]) {
+				// across the outline, from well outside to well inside: how far a
+				// finger is on the grip
+				const f = await frameOf(page, key);
+				const { from } = await edgeOf(page, key, where, 0);
+				const into = turned(f, INTO[where]);
+				const hits = await page.evaluate(
+					({ from, into, key }) => {
+						let run = 0;
+						let most = 0;
+						const sides = new Set<string>();
+						for (let s = -40; s <= 90; s += 0.5) {
+							const at = document.elementFromPoint(
+								from.x + into.x * s,
+								from.y + into.y * s,
+							);
+							const grip = at?.closest('.stk-grip') as HTMLElement | null;
+							if (grip?.closest(`.stk--${key}`)) {
+								run += 0.5;
+								most = Math.max(most, run);
+								sides.add(grip.dataset.side ?? '');
+							} else {
+								run = 0;
+							}
+						}
+						return { most, sides: [...sides] };
+					},
+					{ from, into, key },
+				);
+				expect(hits.most, `${key} ${where}`).toBeGreaterThanOrEqual(44);
+				for (const side of hits.sides) {
+					const grip = el.locator(`.stk-grip[data-side="${side}"]`);
+					await expect(grip).toHaveCSS('touch-action', scrolls[side]);
+				}
+			}
 			// lifted more than with a mouse (0.055 to 0.065): on a touchscreen it is the only sign
 			expect(await peelOf(el), key).toBeGreaterThanOrEqual(0.08);
-			// a finger going down scrolls there as anywhere, and two fingers zoom;
-			// one going up is read first
-			await expect(el.locator('.stk-grip')).toHaveCSS(
-				'touch-action',
-				'pan-up pinch-zoom',
-			);
+			// the middle scrolls and taps as the page does
+			const f = await frameOf(page, key);
+			const middle = onScreen(f, { x: f.w / 2, y: f.h / 2 });
+			expect(await under(page, middle), key).toMatchObject({
+				mid: true,
+				touch: 'auto',
+			});
 			await expect(el).toHaveCSS('touch-action', 'auto');
 		}
 	});
@@ -535,6 +882,182 @@ test.describe('peeling a sticker on a phone', () => {
 		const [open] = await vts.take();
 		expect(open.pairs).toContain('stk-covid');
 		expect(open.peel ?? 0).toBeGreaterThanOrEqual(PEEL_OPEN);
+	});
+
+	test('a touch drag in from the left edge peels it off and opens the project', async ({
+		page,
+		context,
+	}) => {
+		const vts = await recordTransitions(page);
+		await page.goto('/');
+		const cdp = await context.newCDPSession(page);
+		const { from, inward } = await edgeOf(page, 'covid', 'left', 10);
+		await touchDrag(cdp, page, from, along(from, inward, 150, 15));
+		await expect(page).toHaveURL(at('/projects/covidtracker'));
+		await vts.settled();
+		const [open] = await vts.take();
+		expect(open.pairs).toContain('stk-covid');
+		expect(open.peel ?? 0).toBeGreaterThanOrEqual(PEEL_OPEN);
+		expect(apart(open.fold ?? 0, FACING.left)).toBeLessThan(20);
+		expect(open.landedFold ?? 0).toBeCloseTo(open.fold ?? 0, 0);
+	});
+
+	test('from the top edge, a finger straight down scrolls the page back up, and one down and across peels it off and opens the project', async ({
+		page,
+		context,
+	}) => {
+		const peels = await watchPeel(context);
+		const vts = await recordTransitions(page);
+		await page.goto('/');
+		const cdp = await context.newCDPSession(page);
+		// straight down the screen: a thumb scrolling the page back up
+		const top = await edgeOf(page, 'basilica', 'top', 10);
+		const before = await page.evaluate(() => window.scrollY);
+		await timedTouch(
+			cdp,
+			top.from,
+			along(top.from, { x: 0, y: 1 }, 120, 12),
+			16,
+			true,
+		);
+		await expect
+			.poll(() => page.evaluate(() => window.scrollY))
+			.toBeLessThan(before - 80);
+		await page.waitForTimeout(600);
+		await expect(page).toHaveURL(at('/'));
+		expect(await peels(page)).toEqual([]);
+		// down and across, leaning: a peel, its fold turned with the slant
+		await scrollStill(page);
+		const { from, inward } = await edgeOf(page, 'basilica', 'top', 10);
+		await touchDrag(cdp, page, from, along(from, turn(inward, 40), 170, 17));
+		await expect(page).toHaveURL(at('/projects/basilica'));
+		await vts.settled();
+		const [open] = await vts.take();
+		expect(open.pairs).toContain('stk-basilica');
+		expect(open.peel ?? 0).toBeGreaterThanOrEqual(PEEL_OPEN);
+		expect(apart(open.fold ?? 0, FACING.top)).toBeLessThan(40);
+	});
+
+	test('at the top of the page, a finger straight down from a top edge peels it: there is nothing to scroll back to', async ({
+		page,
+		context,
+	}) => {
+		const vts = await recordTransitions(page);
+		await page.goto('/');
+		const cdp = await context.newCDPSession(page);
+		const { from, inward } = await edgeOf(
+			page,
+			'superspace',
+			'top',
+			10,
+			'nearest',
+		);
+		expect(await page.evaluate(() => window.scrollY)).toBe(0);
+		await touchDrag(cdp, page, from, along(from, { x: 0, y: 1 }, 170, 17));
+		await expect(page).toHaveURL(at('/projects/super-space'));
+		await vts.settled();
+		const [open] = await vts.take();
+		expect(open.pairs).toContain('stk-superspace');
+		expect(apart(open.fold ?? 0, FACING.top)).toBeLessThan(20);
+		expect(inward.y).toBeGreaterThan(0.9);
+	});
+
+	test('a short touch drag from an edge springs back flat', async ({
+		page,
+		context,
+	}) => {
+		await page.goto('/');
+		const cdp = await context.newCDPSession(page);
+		const basilica = sticker(page, 'basilica');
+		const { from, inward } = await edgeOf(page, 'basilica', 'left', 10);
+		await touchDrag(cdp, page, from, along(from, inward, 40, 6));
+		await expect(basilica).toHaveAttribute('data-peel', 'spring');
+		await expect(basilica).not.toHaveAttribute('data-peel', {
+			timeout: 1500,
+		});
+		await expect(basilica).not.toHaveAttribute('data-hand');
+		expect(await peelOf(basilica)).toBeCloseTo(0.085, 2);
+		await page.waitForTimeout(300);
+		await expect(page).toHaveURL(at('/'));
+	});
+
+	test('swipes up and down the sides of a sticker scroll the page, and never peel it', async ({
+		page,
+		context,
+	}) => {
+		const peels = await watchPeel(context);
+		await page.goto('/');
+		const cdp = await context.newCDPSession(page);
+		for (const where of ['left', 'right'] as const) {
+			for (const down of [false, true]) {
+				await scrollStill(page);
+				const { from } = await edgeOf(page, 'basilica', where, 10);
+				const before = await page.evaluate(() => window.scrollY);
+				await timedTouch(
+					cdp,
+					from,
+					upwards(from, down ? -120 : 120, 12),
+					16,
+					true,
+				);
+				const label = `${where} ${down ? 'down' : 'up'}`;
+				await expect
+					.poll(() => page.evaluate(() => window.scrollY), label)
+					[down ? 'toBeLessThan' : 'toBeGreaterThan'](
+						before + (down ? -80 : 80),
+					);
+				await page.waitForTimeout(400);
+				await expect(page, label).toHaveURL(at('/'));
+			}
+		}
+		expect(await peels(page)).toEqual([]);
+	});
+
+	test('a swipe up from the bottom edge scrolls the page, straight or as a thumb’s arc, and never opens it', async ({
+		page,
+		context,
+	}) => {
+		const peels = await watchPeel(context);
+		await page.goto('/');
+		const cdp = await context.newCDPSession(page);
+		for (const key of ['superspace', 'covid']) {
+			await scrollStill(page);
+			const straight = await edgeOf(page, key, 'bottom', 10, 'end');
+			const before = await page.evaluate(() => window.scrollY);
+			await timedTouch(
+				cdp,
+				straight.from,
+				upwards(straight.from, 140, 14),
+				16,
+				true,
+			);
+			await expect
+				.poll(() => page.evaluate(() => window.scrollY), `${key} straight`)
+				.toBeGreaterThan(before + 110);
+			await page.waitForTimeout(500);
+			// leaning 36° at first (into the sticker), curling to 10° off the vertical
+			await scrollStill(page);
+			const { from } = await edgeOf(page, key, 'bottom', 10, 'end');
+			const start = await page.evaluate(() => window.scrollY);
+			const path: Point[] = [];
+			let finger = from;
+			for (let i = 0; i < 35; i++) {
+				const a = ((36 - (26 * i) / 34) * Math.PI) / 180;
+				finger = {
+					x: finger.x - 4 * Math.sin(a),
+					y: finger.y - 4 * Math.cos(a),
+				};
+				path.push(finger);
+			}
+			await timedTouch(cdp, from, path, 8, true);
+			await expect
+				.poll(() => page.evaluate(() => window.scrollY), `${key} arc`)
+				.toBeGreaterThan(start + 100);
+			await page.waitForTimeout(500);
+			await expect(page, key).toHaveURL(at('/'));
+		}
+		const seen = await peels(page);
+		expect(seen.filter((p) => /data-ready|data-peel=off/.test(p))).toEqual([]);
 	});
 
 	test('a quick flick of the corner peels it off, short of the threshold', async ({
@@ -689,14 +1212,9 @@ test.describe('peeling a sticker on a phone', () => {
 		const cdp = await context.newCDPSession(page);
 		for (const key of ['superspace', 'basilica', 'covid']) {
 			for (const deg of [18, 20]) {
-				// the grip low on the screen, so the page has room to scroll
+				// the corner low on the screen, so the page has room to scroll
 				await scrollStill(page);
-				await sticker(page, key).evaluate((el) =>
-					el.scrollIntoView({ block: 'end', behavior: 'instant' }),
-				);
-				const box = await sticker(page, key).locator('.stk-grip').boundingBox();
-				if (!box) throw new Error(`no grip on ${key}`);
-				const from = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+				const from = await gripOf(page, key, 'end');
 				const before = await page.evaluate(() => window.scrollY);
 				const room = await page.evaluate(
 					() =>
@@ -753,12 +1271,7 @@ test.describe('peeling a sticker on a phone', () => {
 				[36, 10, 140],
 			]) {
 				await scrollStill(page);
-				await sticker(page, key).evaluate((el) =>
-					el.scrollIntoView({ block: 'end', behavior: 'instant' }),
-				);
-				const box = await sticker(page, key).locator('.stk-grip').boundingBox();
-				if (!box) throw new Error(`no grip on ${key}`);
-				const from = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+				const from = await gripOf(page, key, 'end');
 				const before = await page.evaluate(() => window.scrollY);
 				// 4px a move, 120 moves a second
 				const steps = length / 4;
@@ -1097,14 +1610,16 @@ test('a pointer arriving while the hint plays takes over from it, without a jump
 	});
 	// ... and from where it was then, the corner goes to the hover peel,
 	// without sinking to rest first under the pointer (as the rest of the hint
-	// would have) or jumping up after it
+	// would have) or jumping up after it: the hand takes the corner over as it
+	// shows, and hands it back where the stylesheet puts it
 	const shown = await superspace.evaluate(
 		(el) =>
 			new Promise<number[]>((resolve) => {
 				const seen: number[] = [];
 				const frame = () => {
+					const by = el.hasAttribute('data-hand') ? '--drag' : '--peel';
 					seen.push(
-						Number.parseFloat(getComputedStyle(el).getPropertyValue('--peel')),
+						Number.parseFloat(getComputedStyle(el).getPropertyValue(by)),
 					);
 					if (seen.length < 60) requestAnimationFrame(frame);
 					else resolve(seen);
@@ -1113,7 +1628,8 @@ test('a pointer arriving while the hint plays takes over from it, without a jump
 			}),
 	);
 	expect(Math.min(...shown)).toBeGreaterThan(Math.min(shown[0], 0.125) - 0.006);
-	expect(await peelOf(superspace)).toBeCloseTo(0.13, 2);
+	await expect(superspace).not.toHaveAttribute('data-hand');
+	expect(await shownOf(superspace)).toBeCloseTo(0.13, 2);
 });
 
 test.describe('the hint, with reduced motion', () => {

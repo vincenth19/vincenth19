@@ -4,11 +4,27 @@
 	inherits: true;
 	initial-value: 0;
 }
-/* the angle a sticker's corner folds along (styles/stickers.css): the diagonal unless a hand turns it */
+/* the angle a sticker's fold by hand lies at (components/fold.ts writes it): the corner's own diagonal when no hand holds it */
 @property --fold {
 	syntax: '<angle>';
 	inherits: true;
 	initial-value: 45deg;
+}
+/* a sticker's grip, as lengths usePeel can read (styles/stickers.css) */
+@property --gin {
+	syntax: '<length>';
+	inherits: true;
+	initial-value: 0px;
+}
+@property --gout {
+	syntax: '<length>';
+	inherits: true;
+	initial-value: 0px;
+}
+@property --gz {
+	syntax: '<length>';
+	inherits: true;
+	initial-value: 0px;
 }
 
 :root {

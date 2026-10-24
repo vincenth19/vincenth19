@@ -11,35 +11,53 @@ import {
 	useRef,
 } from 'react';
 import { prefersReducedMotion } from './DeskProvider';
+import {
+	angleFrom,
+	dot,
+	drawHand,
+	grip as gripAt,
+	type Hand,
+	hullOf,
+	learnHull,
+	outermost,
+	type Point,
+	swingRoom,
+	turn,
+} from './fold';
 
 /*
- * Peeling a sticker by hand. The sticker's bottom-right corner (its grip,
- * .stk-grip) can be taken with a mouse, a pen or a finger and pulled: the
- * corner's tip follows the pointer, folding along the line halfway between
- * where the tip lies flat and where it is now (--peel and --fold in
- * styles/stickers.css). Let go far enough in, or flick it, and the sticker
- * comes off: `onOff` opens the project, from the peeled pose. Let go before
- * that and the corner springs back down.
+ * Peeling a sticker by hand, from any side. A press on its edge (a grip, the
+ * band .stk-grip all round its outline) takes hold of the outline there, and
+ * a pull folds the paper back as paper folds (components/fold.ts): the point
+ * taken hold of follows the pointer, and the fold is the line halfway between
+ * where it lay and where it is now. Let go far enough in, or flick it, and the
+ * sticker comes off: `onOff` opens the project, from the peeled pose. Let go
+ * before that and it springs back down.
  *
- * Pulled past PEEL_MAX the corner gives less and less, as a rubber band
- * does, but never stops; pushed back, it comes back with the pointer at once,
- * and works its way back under the pointer from there. Let go while pushing
- * it back down and it stays, however far it was.
+ * Pulled past PEEL_MAX it gives less and less, as a rubber band does, but
+ * never stops; pushed back, it comes back with the pointer at once, and works
+ * its way back under the pointer from there. Let go while pushing it back
+ * down and it stays, however far it was.
  *
- * A finger (or a pen) on the grip may also just be scrolling the page: the
- * first few pixels it moves decide. Up the diagonal, into the sticker, and
- * leaning off the screen's vertical, it peels; any other way it scrolls the
- * page, by hand here (the grip holds the touch), with the glide a flick
- * gives. A peel that turns up the screen before it is far enough to come off
- * (a thumb's arc) was a scroll after all, and is handed back.
+ * A finger (or a pen) on an edge may also just be scrolling the page: the
+ * first few pixels it moves decide. Into the sticker, and leaning off the
+ * screen's vertical, it peels; any other way it scrolls the page (by the
+ * browser, or by hand here, with the glide a flick gives). A peel from the top
+ * or the bottom that turns along the screen's vertical before it is far
+ * enough to come off (a thumb's arc) was a scroll after all, and is handed
+ * back.
  *
- * The drag writes --drag and --fold on the sticker, and the sticker's
- * data-peel says who drives --peel: "drag" (the pointer), "spring" (the spring
- * laying it down), "off" (let go to open: it stays peeled while it lifts and
- * flies) and "hint" (the once-a-visit hint, a CSS animation).
+ * The bottom-right corner also lifts by itself (at rest, on hover, in the
+ * hint, in a click's lift): that is the stylesheet's own fold, --peel. A press
+ * on that corner takes it over as it is (data-took); a press anywhere else
+ * lays it down while its own fold lifts. The hand's fold is drawn by script
+ * (drawHand), which writes --drag (how far it is peeled) and --fold; the
+ * sticker's data-peel says who drives it: "drag" (the pointer), "spring" (the
+ * spring laying it down), "off" (let go to open: it stays peeled while it
+ * lifts and flies) and "hint" (the once-a-visit hint).
  */
 
-/** Let go with the corner pulled this far (its tip's travel, as a peel: a fraction of the width) and the sticker comes off. */
+/** Let go with it pulled this far (the pointer's travel, as a peel: a part of the width · √2) and the sticker comes off. */
 const PEEL_OPEN = 0.34;
 /**
  * Once far enough to come off, it stays so until pushed back this much under
@@ -47,67 +65,95 @@ const PEEL_OPEN = 0.34;
  * not flicker the cue, and letting go does what the cue last said.
  */
 const READY_GIVE = 0.02;
-/** How far the corner follows the pointer one to one; past it, it gives less and less. */
+/** How far the paper follows the pointer one to one; past it, it gives less and less. */
 const PEEL_MAX = 0.46;
 /**
- * The rubber band past PEEL_MAX: the corner gives half of this to the first
+ * The rubber band past PEEL_MAX: the paper gives half of this to the first
  * PEEL_BAND of extra pull, and keeps on giving a little to any more (it never
  * gets all of it). Pushed back, it comes back with the pointer at once.
  */
 const PEEL_BAND = 0.15;
-/** How far (px) a press on the corner moves before it is a drag rather than a tap; a finger's or a pen's way is read there. */
+/** How far (px) a press on an edge moves before it is a drag rather than a tap; a finger's or a pen's way is read there. */
 const SLOP: Record<string, number> = { mouse: 3, pen: 8, touch: 10 };
 /** A press that wandered less than this (px) and did not come off is still a tap: the browser's click opens the sticker. */
 const TAP_SLOP: Record<string, number> = { mouse: 6, pen: 12, touch: 15 };
-/** A finger starts a peel only within this many degrees of the diagonal (into the sticker); any other way, it scrolls. */
-const START_CONE = 25;
+/** A finger starts a peel only within this many degrees of the way into the sticker, from where it took hold; any other way, it scrolls. */
+const START_CONE = 60;
 /**
  * ... and only leaning at least this many degrees off the screen's vertical,
- * whatever the sticker's tilt: a thumb scrolling the page goes up the screen.
+ * whatever the sticker's tilt (a thumb scrolling the page goes up the screen),
+ * unless the page cannot scroll that way (at its top, a finger going down).
  */
 const START_LEAN = 30;
 /**
- * Until a finger's peel is far enough to come off, it is handed back to
- * scrolling whenever its last this-many px go up the screen within START_LEAN
- * of the vertical: a thumb's arc that set off up the diagonal and curled up.
+ * Until a finger's peel from the top or the bottom is far enough to come off,
+ * it is handed back to scrolling whenever its last this-many px go along the
+ * screen's vertical within START_LEAN, the way the page scrolls: a thumb's arc
+ * that set off into the sticker and curled.
  */
 const TURN_SPAN = 40;
 /** How many of a finger's moves the trail recalls, for that. */
 const TRAIL = 96;
 /**
- * Pulled in again with the corner short of the pointer (pushed back from past
- * the band), the corner gains this much of each move on it, until it is under
- * the pointer again; a page scrolled by hand gains as much on the finger.
+ * Pulled in again with the paper short of the pointer (pushed back from past
+ * the band), it gains this much of each move on it, until it is under the
+ * pointer again; a page scrolled by hand gains as much on the finger.
  */
 const CATCH_UP = 0.5;
 /**
- * How far (degrees) the fold may turn from square to the diagonal, at most;
- * the sideways part of a pull past it is dropped. It turns with the pull up to
- * FOLD_KNEE, then gives way gently, so the corner never stops short.
+ * How far (degrees) the fold may turn from square to where it took hold, at
+ * most; the sideways part of a pull past it is dropped. It turns with the pull
+ * up to FOLD_KNEE (of FOLD_SWING), then gives way gently, so it never stops
+ * short.
  */
 const FOLD_SWING = 33;
 const FOLD_KNEE = 25;
-/** A flick: let go while the corner moves in this fast (px/s, along the diagonal) ... */
+/**
+ * A turned fold lifts paper beyond the point taken hold of: a side's, all the
+ * way along it. It turns only as far as that paper stays within this much of
+ * the fold's depth, so a corner (which has none) turns freely and a side a
+ * little more the further it is pulled (components/fold.ts, swingRoom).
+ */
+const FOLD_ROOM = 1;
+/** A flick: let go while the pointer moves in this fast (px/s, into the sticker from where it took hold) ... */
 const FLING_SPEED = 600;
-/** ... after pulling it in this far (px, along the diagonal) ... */
+/** ... after pulling it in this far (px, the same way) ... */
 const FLING_PULL = 30;
-/** ... and within this many degrees of the diagonal, and the sticker comes off too. */
+/** ... and within this many degrees of that way, and the sticker comes off too. */
 const FLING_CONE = 30;
-/** Let go while the pointer pushes the corner back down this fast (px/s, the way it was pulled) and it stays, however far it was. */
+/** Let go while the pointer pushes the paper back down this fast (px/s, the way it was pulled) and it stays, however far it was. */
 const PUSH_BACK = 400;
-/** The spring that lays the corner back down: stiffness (1/s²) and damping ratio (a little bounce). */
+/** The spring that lays it back down: stiffness (1/s²) and damping ratio (a little bounce). */
 const SPRING_K = 520;
 const SPRING_ZETA = 0.6;
-/** The fastest the corner may be thrown into the spring (peel/s). */
+/** The fastest it may be thrown into the spring (peel/s). */
 const SPRING_V_MAX = 4;
 /** How long after a drag the click it makes is still dropped (ms). */
 const CLICK_AFTER_DRAG_MS = 700;
-/** A page scrolled from the grip glides on after a flick, slowing with this time constant (s) ... */
+/** A page scrolled from an edge glides on after a flick, slowing with this time constant (s) ... */
 const GLIDE_TAU = 0.325;
 /** ... until it is slower than this (px/s). */
 const GLIDE_MIN = 20;
+/** The stylesheet's own corner: the bottom-right one, its fold square to the diagonal. */
+const CORNER = { x: Math.SQRT1_2, y: Math.SQRT1_2 };
+/** A press whose paper faces out within this many degrees of that corner's diagonal takes that corner over. */
+const CORNER_TAKE = 25;
 
-type Point = { x: number; y: number };
+/** Which grip a press is on (styles/stickers.css): it says which way the browser scrolls a finger itself. */
+type Side = 'top' | 'bottom' | 'left' | 'right';
+
+/**
+ * Where a press took hold, in the sticker's own frame (px): the point of the
+ * outline (`at`), the way the paper there faces out (`n`), the outline
+ * (`hull`, px) and the width. `corner`: the stylesheet's own corner.
+ */
+type Grab = {
+	at: Point;
+	n: Point;
+	hull: Point[];
+	w: number;
+	corner: boolean;
+};
 
 type Press = {
 	id: number;
@@ -116,29 +162,30 @@ type Press = {
 	x: number;
 	y: number;
 	t: number;
-	/** the sticker's tilt (radians), width and height (px): the drag is read in its own frame */
+	/** the sticker's tilt (radians): the drag is read in its own frame */
 	tilt: number;
-	w: number;
-	h: number;
-	/** where the corner's tip lies flat, in the sticker's frame */
-	flat: Point;
-	/** where the tip was when the press started (it may already be lifted) */
+	side: Side;
+	g: Grab;
+	/** the way into the sticker from where it took hold, on screen */
+	inward: Point;
+	/** where the point taken hold of was when the press started (it may be lifted already) */
 	tip: Point;
 	/** still a press (it may be a tap), a peel, or a scroll by hand ("native": the browser scrolls it) */
 	mode: 'press' | 'peel' | 'scroll' | 'native';
 	peel: number;
-	fold: number;
-	/** how far the tip has travelled, as a peel (the rubber band applied) */
+	/** how far (degrees) the fold has turned from square to where it took hold */
+	a: number;
+	/** how far it has travelled, as a peel (the rubber band applied) */
 	reach: number;
 	/** the same before the rubber band: how far the pointer has pulled it, less `slack` */
 	raw: number;
-	/** how far the pointer has pulled the tip (as a peel), slack and all */
+	/** how far the pointer has pulled it (as a peel), slack and all */
 	pull: number;
 	/**
-	 * How much of the pointer's pull (as a peel) the corner has let go of: a
+	 * How much of the pointer's pull (as a peel) the paper has let go of: a
 	 * pull past the band that came back again. The pointer slid on the paper
-	 * there; the corner follows it back from where it is, at once, and takes
-	 * the slack up again as the pointer moves on, either way.
+	 * there; the paper follows it back from where it is, at once, and takes the
+	 * slack up again as the pointer moves on, either way.
 	 */
 	slack: number;
 	/** far enough to come off (data-ready): letting go now opens it */
@@ -161,10 +208,27 @@ type Press = {
 	over: boolean;
 };
 
+/** A fold that moves by itself (a spring, the hint's edge): where it is, and how to stop it. */
+type Motion = {
+	g: Grab;
+	took: boolean;
+	peel: number;
+	a: number;
+	stop: () => void;
+};
+
+/** The folds moving by themselves, by sticker. */
+const moving = new WeakMap<HTMLElement, Motion>();
+
+function stopMotion(el: HTMLElement) {
+	moving.get(el)?.stop();
+	moving.delete(el);
+}
+
 export type Peel = {
-	/** A press on the sticker: on its grip it may become a peel. */
+	/** A press on the sticker: on a grip it may become a peel. */
 	onPointerDown: (event: PointerEvent<HTMLElement>) => void;
-	/** A link dragged out by its grip would carry the link away instead of peeling. */
+	/** A link dragged out by its edge would carry the link away instead of peeling. */
 	onDragStart: (event: DragEvent<HTMLElement>) => void;
 	/** True for the click a drag makes when it ends: it is dropped. */
 	dragged: (event: MouseEvent<HTMLElement>) => boolean;
@@ -176,16 +240,14 @@ export type Peel = {
 	drop: () => void;
 };
 
-/** A number custom property of the sticker (--peel, --rest, --hover, --d0, --fold in degrees), or `fallback`. */
-function prop(el: HTMLElement, name: string, fallback: number): number {
+/** A number custom property of the sticker (--peel, --rest, --hover, --d0, --gz in px), or `fallback`. */
+function prop(el: Element, name: string, fallback: number): number {
 	const value = Number.parseFloat(getComputedStyle(el).getPropertyValue(name));
 	return Number.isFinite(value) ? value : fallback;
 }
 
-/** The --peel the sticker shows now (animations and transitions included). */
+/** The --peel the sticker's own corner shows now (animations and transitions included). */
 const shownPeel = (el: HTMLElement) => prop(el, '--peel', 0);
-/** The angle (degrees) its corner folds along now. */
-const shownFold = (el: HTMLElement) => prop(el, '--fold', 45);
 
 /** The sticker's tilt (its CSS rotate), in radians. */
 function tiltOf(el: HTMLElement): number {
@@ -200,15 +262,24 @@ function local(dx: number, dy: number, tilt: number): Point {
 	return { x: dx * cos + dy * sin, y: -dx * sin + dy * cos };
 }
 
-/** How far (px) a move in the sticker's frame goes up the diagonal, into the sticker. */
-const along = (m: Point) => -(m.x + m.y) / Math.SQRT2;
-/** How many degrees a move in the sticker's frame is off the diagonal into the sticker (180: straight out). */
-const offDiagonal = (m: Point) =>
-	(Math.atan2(Math.abs(m.x - m.y) / Math.SQRT2, along(m)) * 180) / Math.PI;
+/** A way in the sticker's frame, on screen. */
+function onScreen(m: Point, tilt: number): Point {
+	const cos = Math.cos(tilt);
+	const sin = Math.sin(tilt);
+	return { x: m.x * cos - m.y * sin, y: m.x * sin + m.y * cos };
+}
 
 /** True when a move (dx, dy) on screen leans at least START_LEAN off the vertical. */
 const leans = (dx: number, dy: number) =>
 	Math.abs(dx) >= Math.tan((START_LEAN * Math.PI) / 180) * Math.abs(dy);
+
+/** True when a finger moving `dy` (down the screen when positive) would scroll the page: it is not at that end of it already. */
+function canScroll(dy: number): boolean {
+	const page = document.scrollingElement ?? document.documentElement;
+	return dy > 0
+		? window.scrollY > 0
+		: window.scrollY < page.scrollHeight - window.innerHeight - 1;
+}
 
 /** The rubber band: one to one up to PEEL_MAX, then less and less, but never nothing. */
 function band(raw: number): number {
@@ -224,65 +295,111 @@ function unband(reach: number): number {
 	return PEEL_MAX + (PEEL_BAND * y) / (PEEL_BAND - y);
 }
 
-/** How far (degrees) the fold turns for a pull `off` degrees from the diagonal: as far, up to FOLD_KNEE, then less and less, up to FOLD_SWING. */
-function swing(off: number): number {
+/** How far (degrees) the fold turns for a pull `off` degrees from square, `most` the most it may: as far, up to the knee, then less and less. */
+function swing(off: number, most: number): number {
 	const a = Math.abs(off);
-	if (a <= FOLD_KNEE) return off;
-	const room = FOLD_SWING - FOLD_KNEE;
-	return (
-		Math.sign(off) * (FOLD_KNEE + room * Math.tanh((a - FOLD_KNEE) / room))
-	);
+	const knee = (most * FOLD_KNEE) / FOLD_SWING;
+	if (a <= knee) return off;
+	const room = most - knee;
+	if (room <= 0) return Math.sign(off) * most;
+	return Math.sign(off) * (knee + room * Math.tanh((a - knee) / room));
+}
+
+/** The way the paper faces out, `a` degrees turned from where it took hold. */
+const facing = (g: Grab, a: number) => turn(g.n, a);
+
+/** Where the point taken hold of is for a pose: mirrored across the fold, which lies peel · w / √2 in from it. */
+function tipOf(g: Grab, peel: number, a: number): Point {
+	const n = facing(g, a);
+	const d = Math.SQRT2 * peel * g.w;
+	return { x: g.at.x - d * n.x, y: g.at.y - d * n.y };
+}
+
+/** A pose to draw (components/fold.ts), in units of the width. */
+function handOfPose(g: Grab, peel: number, a: number): Hand {
+	const n = facing(g, a);
+	return {
+		a: Math.atan2(n.y, n.x),
+		x: g.at.x / g.w,
+		y: g.at.y / g.w,
+		p: peel,
+	};
 }
 
 /**
- * Where the tip is for a pose: the flat tip mirrored across the fold. The
- * fold crosses the diagonal at w · (d0 + peel) / 2 in from the box's corner
- * on each axis, so it lies w · peel · (cos + sin) / 2 from the flat tip, and
- * the tip twice that.
- */
-function tipOf(flat: Point, w: number, peel: number, fold: number): Point {
-	const a = (fold * Math.PI) / 180;
-	const d = w * peel * (Math.cos(a) + Math.sin(a));
-	return { x: flat.x - d * Math.cos(a), y: flat.y - d * Math.sin(a) };
-}
-
-/**
- * The pose that puts the tip at `tip`: the fold is the line halfway between
- * it and where it lies flat, square to the way it was pulled. It turns at
- * most FOLD_SWING from the diagonal (past that, the pull's sideways part is
- * dropped), and the tip's travel, less `slack` (as a peel), takes the rubber
+ * The pose that puts the point taken hold of at `tip`: the fold is the line
+ * halfway between it and where it lay, square to the way it was pulled. It
+ * turns at most as far as the outline lets it (a corner freely, a side a
+ * little: swingRoom), FOLD_SWING at most (past that, the pull's sideways part
+ * is dropped), and its travel, less `slack` (as a peel), takes the rubber
  * band past PEEL_MAX. `pull` is the travel before the slack is taken off.
  */
 function poseOf(
-	flat: Point,
-	w: number,
+	g: Grab,
 	tip: Point,
 	slack = 0,
-): { peel: number; fold: number; reach: number; raw: number; pull: number } {
-	const vx = flat.x - tip.x;
-	const vy = flat.y - tip.y;
-	let len = Math.hypot(vx, vy);
-	let off = len > 0 ? (Math.atan2(vy, vx) * 180) / Math.PI - 45 : 0;
-	if (off > 180) off -= 360;
-	if (off < -180) off += 360;
-	const kept = swing(off);
+): { peel: number; a: number; reach: number; raw: number; pull: number } {
+	const v = { x: g.at.x - tip.x, y: g.at.y - tip.y };
+	let len = Math.hypot(v.x, v.y);
+	const off = len > 0 ? angleFrom(g.n, v) : 0;
+	const depth = Math.max(0, len * Math.cos((off * Math.PI) / 180)) / 2;
+	const most = swingRoom(
+		g.hull,
+		g.at,
+		g.n,
+		depth,
+		FOLD_ROOM,
+		FOLD_SWING,
+		off >= 0 ? 1 : -1,
+	);
+	const kept = swing(off, most);
 	len *= Math.cos(((off - kept) * Math.PI) / 180);
-	off = kept;
-	const pull = Math.max(0, len / (Math.SQRT2 * w));
+	const pull = Math.max(0, len / (Math.SQRT2 * g.w));
 	const raw = Math.max(0, pull - slack);
-	if (raw <= 0) return { peel: 0, fold: 45, reach: 0, raw: 0, pull };
+	if (raw <= 0) return { peel: 0, a: 0, reach: 0, raw: 0, pull };
 	const reach = band(raw);
-	len = reach * Math.SQRT2 * w;
-	// barely lifted, the fold's angle means little: it eases to the diagonal rather than swing
-	const fold = 45 + off * Math.min(1, len / 12);
-	const a = (fold * Math.PI) / 180;
-	return {
-		peel: len / (w * (Math.cos(a) + Math.sin(a))),
-		fold,
-		reach,
-		raw,
-		pull,
-	};
+	// barely lifted, the fold's angle means little: it eases to square rather than swing
+	const shown = reach * Math.SQRT2 * g.w;
+	return { peel: reach, a: kept * Math.min(1, shown / 12), reach, raw, pull };
+}
+
+/** True when two grabs took hold of the same place (a press on a fold still springing back). */
+function same(a: Grab, b: Grab): boolean {
+	if (a.corner || b.corner) return a.corner === b.corner;
+	return (
+		Math.abs(angleFrom(a.n, b.n)) < 30 &&
+		Math.hypot(a.at.x - b.at.x, a.at.y - b.at.y) < 0.2 * a.w
+	);
+}
+
+/** The sticker's size (px), its outline at that size, and the outline's corner rounding for a grip. */
+function measure(el: HTMLElement) {
+	const body = el.querySelector<HTMLElement>('.stk-body');
+	const w = body?.offsetWidth || el.offsetWidth || 1;
+	const h = body?.offsetHeight || el.offsetHeight || 1;
+	const hull = hullOf(el).map((p) => ({ x: p.x * w, y: p.y * w }));
+	const round = prop(body ?? el, '--gz', 0.17 * Math.min(w, h));
+	return { w, h, hull, round };
+}
+
+/** The stylesheet's own corner, as a grab: where its die-cut meets the diagonal (--d0), square to it. */
+function cornerGrab(el: HTMLElement): Grab {
+	const { w, h, hull } = measure(el);
+	const d = (w * prop(el, '--d0', 0)) / 2;
+	return { at: { x: w - d, y: h - d }, n: CORNER, hull, w, corner: true };
+}
+
+/** A press at (x, y) on screen: where it takes hold of the sticker. */
+function grabAt(el: HTMLElement, x: number, y: number, tilt: number): Grab {
+	const { w, h, hull, round } = measure(el);
+	const r = el.getBoundingClientRect();
+	const m = local(x - (r.left + r.width / 2), y - (r.top + r.height / 2), tilt);
+	const d = { x: w / 2 + m.x, y: h / 2 + m.y };
+	const found = gripAt(hull, d, round);
+	if (Math.abs(angleFrom(CORNER, found.n)) <= CORNER_TAKE) {
+		return cornerGrab(el);
+	}
+	return { at: found.at, n: found.n, hull, w, corner: false };
 }
 
 /**
@@ -314,12 +431,27 @@ function tick() {
 	}
 }
 
-/** True where a finger going down on the grip scrolls the page by itself (touch-action: pan-up pinch-zoom, styles/stickers.css). */
-function nativePanUp(): boolean {
+/** True where the top and bottom grips let the browser scroll a finger one way (touch-action: pan-down / pan-up, styles/stickers.css). */
+function nativePan(): boolean {
 	return (
 		typeof CSS !== 'undefined' &&
 		CSS.supports('touch-action', 'pan-up pinch-zoom')
 	);
+}
+
+/**
+ * True when the browser scrolls a finger's move from this grip itself (its
+ * touch-action): the sides let it scroll up and down (pan-y, a move more
+ * along the screen's vertical than across it), the top grip a finger going up
+ * (pan-down), the bottom one a finger going down (pan-up). The page sees no
+ * more of such a touch.
+ */
+function scrollsItself(side: Side, dx: number, dy: number): boolean {
+	if (side === 'left' || side === 'right') {
+		return Math.abs(dy) >= Math.abs(dx);
+	}
+	if (!nativePan()) return false;
+	return side === 'bottom' ? dy > 0 : dy < 0;
 }
 
 /** The page gliding on after a flick that scrolled it from a grip: 0 when it is not. */
@@ -371,17 +503,125 @@ function glide(speed: number) {
 }
 
 /**
- * The drag that peels a sticker by its corner. `onOff` is called when the
+ * Hands the sticker back to the stylesheet: no fold by hand, and its own
+ * corner at rest, hover, focus or lift. Its corner taken over (data-took)
+ * comes back as the hand left it, without a transition: data-took holds the
+ * transition off for a frame.
+ */
+function settle(el: HTMLElement) {
+	stopMotion(el);
+	const took = 'took' in el.dataset;
+	delete el.dataset.peel;
+	delete el.dataset.ready;
+	drawHand(el, null);
+	el.style.removeProperty('--lift');
+	if (took) {
+		void getComputedStyle(el).getPropertyValue('--peel');
+		requestAnimationFrame(() => {
+			if (!el.dataset.peel) delete el.dataset.took;
+		});
+	}
+}
+
+/**
+ * Lays a fold by hand back down, with a short spring, from `peel` (turned `a`
+ * degrees), thrown at `v` (peel/s). A corner taken over goes back to where the
+ * stylesheet puts it (the hover peel, under a mouse still on it, or rest),
+ * square to the diagonal, and is handed back to it; any other fold lies flat,
+ * square to where it took hold, while the stylesheet's corner comes back up.
+ */
+function springBack(
+	el: HTMLElement,
+	s: {
+		g: Grab;
+		took: boolean;
+		peel: number;
+		a: number;
+		v: number;
+		over: boolean;
+	},
+) {
+	stopMotion(el);
+	delete el.dataset.ready;
+	const hovers =
+		(s.over && matchMedia('(hover: hover) and (pointer: fine)').matches) ||
+		el.matches(':focus-visible:not([data-quiet]), [data-keyed]:focus');
+	const target = s.took ? prop(el, hovers ? '--hover' : '--rest', 0) : 0;
+	if (prefersReducedMotion()) {
+		settle(el);
+		return;
+	}
+	if (s.took) el.dataset.took = '';
+	else delete el.dataset.took;
+	el.dataset.peel = 'spring';
+	el.style.removeProperty('--lift');
+	const damping = 2 * SPRING_ZETA * Math.sqrt(SPRING_K);
+	let x = s.peel - target;
+	let v = Math.max(-SPRING_V_MAX, Math.min(SPRING_V_MAX, s.v));
+	let a = s.a;
+	let va = 0;
+	let last = 0;
+	let frame = 0;
+	const motion: Motion = {
+		g: s.g,
+		took: s.took,
+		peel: s.peel,
+		a: s.a,
+		stop: () => cancelAnimationFrame(frame),
+	};
+	moving.set(el, motion);
+	const draw = () => {
+		motion.peel = Math.max(0, target + x);
+		motion.a = a;
+		drawHand(el, handOfPose(s.g, motion.peel, a));
+	};
+	// from where it is, this frame: nothing jumps as the spring takes over
+	draw();
+	const step = (now: number) => {
+		// a frame's worth on the first frame; never more than three after a stall
+		let dt = last ? Math.min(0.05, Math.max(0, (now - last) / 1000)) : 1 / 60;
+		last = now;
+		while (dt > 0) {
+			const h = Math.min(dt, 1 / 240);
+			v += (-SPRING_K * x - damping * v) * h;
+			x += v * h;
+			va += (-SPRING_K * a - damping * va) * h;
+			a += va * h;
+			dt -= h;
+		}
+		if (
+			Math.abs(x) < 0.001 &&
+			Math.abs(v) < 0.02 &&
+			Math.abs(a) < 0.5 &&
+			Math.abs(va) < 5
+		) {
+			settle(el);
+			return;
+		}
+		draw();
+		frame = requestAnimationFrame(step);
+	};
+	frame = requestAnimationFrame(step);
+}
+
+/**
+ * The drag that peels a sticker from any side. `onOff` is called when the
  * sticker is let go to come off; it returns false when it cannot open now
- * (another is on its way), and the corner goes back down.
+ * (another is on its way), and it goes back down.
  */
 export function usePeel(
 	ref: RefObject<HTMLElement | null>,
 	onOff: () => boolean,
 ): Peel {
 	const press = useRef<Press | null>(null);
-	const spring = useRef(0);
 	const clickUntil = useRef(0);
+	/** The fold let go to open: where it lies, should the open not go. */
+	const held = useRef<{
+		g: Grab;
+		took: boolean;
+		peel: number;
+		a: number;
+	} | null>(null);
 	const off = useRef(onOff);
 	useEffect(() => {
 		off.current = onOff;
@@ -389,90 +629,15 @@ export function usePeel(
 	/** Ends the press in progress (removes its listeners); set while one is. */
 	const endPress = useRef<(() => void) | null>(null);
 
-	const stopSpring = useCallback(() => {
-		cancelAnimationFrame(spring.current);
-		spring.current = 0;
-	}, []);
-
-	/** Hands --peel back to the stylesheet (rest, hover, focus or lift). */
-	const settle = useCallback(
-		(el: HTMLElement) => {
-			stopSpring();
-			delete el.dataset.peel;
-			delete el.dataset.ready;
-			for (const name of ['--drag', '--fold', '--lift', '--tip-x', '--tip-y']) {
-				el.style.removeProperty(name);
-			}
-		},
-		[stopSpring],
-	);
-
-	/**
-	 * Lays the corner back down from `from` (folded at `fold`), thrown at
-	 * `velocity` (peel/s), with a short spring; the fold turns back square to
-	 * the diagonal with it.
-	 */
-	const springBack = useCallback(
-		(
-			el: HTMLElement,
-			from: number,
-			fold: number,
-			velocity: number,
-			over: boolean,
-		) => {
-			stopSpring();
-			delete el.dataset.ready;
-			// where it comes to rest: the hover peel under a mouse still on it, or flat(ish)
-			const hovers =
-				(over && matchMedia('(hover: hover) and (pointer: fine)').matches) ||
-				el.matches(':focus-visible:not([data-quiet]), [data-keyed]:focus');
-			const target = hovers ? prop(el, '--hover', 0) : prop(el, '--rest', 0);
-			if (prefersReducedMotion()) {
-				settle(el);
-				return;
-			}
-			// from where it is, this frame: nothing jumps as the spring takes over
-			el.style.setProperty('--drag', from.toFixed(4));
-			el.style.setProperty('--fold', `${fold.toFixed(2)}deg`);
-			el.dataset.peel = 'spring';
-			el.style.removeProperty('--lift');
-			const damping = 2 * SPRING_ZETA * Math.sqrt(SPRING_K);
-			let x = from - target;
-			let v = Math.max(-SPRING_V_MAX, Math.min(SPRING_V_MAX, velocity));
-			let a = fold - 45;
-			let va = 0;
-			let last = 0;
-			const step = (now: number) => {
-				// a frame's worth on the first frame; never more than three after a stall
-				let dt = last
-					? Math.min(0.05, Math.max(0, (now - last) / 1000))
-					: 1 / 60;
-				last = now;
-				while (dt > 0) {
-					const h = Math.min(dt, 1 / 240);
-					v += (-SPRING_K * x - damping * v) * h;
-					x += v * h;
-					va += (-SPRING_K * a - damping * va) * h;
-					a += va * h;
-					dt -= h;
-				}
-				if (
-					Math.abs(x) < 0.001 &&
-					Math.abs(v) < 0.02 &&
-					Math.abs(a) < 0.5 &&
-					Math.abs(va) < 5
-				) {
-					settle(el);
-					return;
-				}
-				el.style.setProperty('--drag', String(Math.max(0, target + x)));
-				el.style.setProperty('--fold', `${(45 + a).toFixed(2)}deg`);
-				spring.current = requestAnimationFrame(step);
-			};
-			spring.current = requestAnimationFrame(step);
-		},
-		[settle, stopSpring],
-	);
+	// the outline is read off the backing once it has loaded (components/fold.ts)
+	useEffect(() => {
+		const img = ref.current?.querySelector<HTMLImageElement>('img.stk-flap');
+		if (!img) return;
+		const read = () => learnHull(img);
+		if (img.complete) read();
+		else img.addEventListener('load', read, { once: true });
+		return () => img.removeEventListener('load', read);
+	}, [ref]);
 
 	const onPointerDown = useCallback(
 		(event: PointerEvent<HTMLElement>) => {
@@ -492,31 +657,32 @@ export function usePeel(
 			// a new press: the click an earlier drag made has come by now, if it was to
 			clickUntil.current = 0;
 			const target = event.target;
-			if (!(target instanceof Element) || !target.closest('.stk-grip')) return;
+			const grip =
+				target instanceof Element
+					? target.closest<HTMLElement>('.stk-grip')
+					: null;
+			if (!grip) return;
 			// a sticker already lifting or flying is not in hand
 			if (el.classList.contains('is-lifting') || el.dataset.peel === 'off') {
 				return;
 			}
 			if ('vt' in document.documentElement.dataset) return;
-			const body = el.querySelector<HTMLElement>('.stk-body');
-			const w = body?.offsetWidth || el.offsetWidth || 1;
-			const h = body?.offsetHeight || el.offsetHeight || 1;
-			const d0 = prop(el, '--d0', 0);
-			const flat = { x: w - (w * d0) / 2, y: h - (w * d0) / 2 };
+			const tilt = tiltOf(el);
+			const g = grabAt(el, event.clientX, event.clientY, tilt);
 			const p: Press = {
 				id: event.pointerId,
 				type: event.pointerType,
 				x: event.clientX,
 				y: event.clientY,
 				t: event.timeStamp,
-				tilt: tiltOf(el),
-				w,
-				h,
-				flat,
-				tip: flat,
+				tilt,
+				side: (grip.dataset.side as Side | undefined) ?? 'bottom',
+				g,
+				inward: onScreen({ x: -g.n.x, y: -g.n.y }, tilt),
+				tip: g.at,
 				mode: 'press',
 				peel: 0,
-				fold: 45,
+				a: 0,
 				reach: 0,
 				raw: 0,
 				pull: 0,
@@ -534,35 +700,36 @@ export function usePeel(
 			};
 			press.current = p;
 
-			/**
-			 * Shows the pose: --drag and --fold, and where the tip is (--tip-x,
-			 * --tip-y, in the sticker's box), for the cue that it is far enough to
-			 * come off, which lifts the sticker about its tip, so the tip stays
-			 * under the pointer (styles/stickers.css).
-			 */
-			const show = () => {
-				el.style.setProperty('--drag', p.peel.toFixed(4));
-				el.style.setProperty('--fold', `${p.fold.toFixed(2)}deg`);
-				const tip = tipOf(p.flat, p.w, p.peel, p.fold);
-				el.style.setProperty('--tip-x', `${tip.x.toFixed(1)}px`);
-				el.style.setProperty('--tip-y', `${tip.y.toFixed(1)}px`);
-			};
+			/** Shows the pose (components/fold.ts writes --drag, --fold, --tip-x and --tip-y with it). */
+			const show = () => drawHand(el, handOfPose(p.g, p.peel, p.a));
 
 			const begin = () => {
-				// from wherever the corner is now: at rest, hovered, mid-hint or mid-spring
-				stopSpring();
+				// from wherever it is now: at rest, hovered, mid-hint or mid-spring
+				const sprung = moving.get(el);
+				stopMotion(el);
 				p.mode = 'peel';
-				p.peel = shownPeel(el);
-				p.fold = shownFold(el);
-				p.tip = tipOf(p.flat, p.w, p.peel, p.fold);
-				const start = poseOf(p.flat, p.w, p.tip);
-				// a corner caught past the band (springing back from there) stays where it is
+				if (sprung && same(sprung.g, p.g)) {
+					p.g = sprung.g;
+					p.tip = tipOf(p.g, sprung.peel, sprung.a);
+				} else if (p.g.corner) {
+					// the stylesheet's own corner, taken over as it shows now
+					p.tip = tipOf(p.g, shownPeel(el), 0);
+				} else {
+					p.tip = p.g.at;
+				}
+				const start = poseOf(p.g, p.tip);
+				// paper caught past the band (springing back from there) stays where it is
 				p.slack = start.pull > PEEL_MAX ? start.pull - unband(start.pull) : 0;
-				p.pull = start.pull;
-				p.raw = start.pull - p.slack;
-				p.reach = band(p.raw);
+				const pose = poseOf(p.g, p.tip, p.slack);
+				p.pull = pose.pull;
+				p.raw = pose.raw;
+				p.reach = pose.reach;
+				p.peel = pose.peel;
+				p.a = pose.a;
 				// from the press: a flick can be over in a frame or two
 				p.samples.push({ t: p.t, x: 0, y: 0, peel: p.peel, reach: p.reach });
+				if (p.g.corner) el.dataset.took = '';
+				else delete el.dataset.took;
 				show();
 				el.dataset.peel = 'drag';
 				markHinted(); // it has been found: no need to show it
@@ -591,13 +758,16 @@ export function usePeel(
 			};
 
 			/**
-			 * A finger's peel: true when the way it went last (its last TURN_SPAN
-			 * px, or all of it, if shorter) goes up the screen without leaning,
-			 * as a thumb scrolling the page does.
+			 * A finger's peel from the top or the bottom: true when the way it
+			 * went last (its last TURN_SPAN px, or all of it, if shorter) goes
+			 * along the screen's vertical without leaning, the way the page
+			 * scrolls (up from the bottom, down from the top), and the page can
+			 * scroll that way: as a thumb scrolling the page does.
 			 */
-			const turnsUp = (dx: number, dy: number) => {
+			const turnsAway = (dx: number, dy: number) => {
 				p.trail.push({ x: dx, y: dy });
 				if (p.trail.length > TRAIL) p.trail.shift();
+				if (p.side === 'left' || p.side === 'right') return false;
 				// from the press, unless it has gone further than the trail recalls
 				let from: Point | null = p.trail.length < TRAIL ? { x: 0, y: 0 } : null;
 				for (let i = p.trail.length - 2; i >= 0; i--) {
@@ -610,7 +780,9 @@ export function usePeel(
 				if (!from) return false;
 				const tx = dx - from.x;
 				const ty = dy - from.y;
-				return ty < 0 && Math.hypot(tx, ty) >= 1 && !leans(tx, ty);
+				if (Math.hypot(tx, ty) < 1 || leans(tx, ty)) return false;
+				if (p.side === 'bottom' ? ty >= 0 : ty <= 0) return false;
+				return canScroll(ty);
 			};
 
 			const move = (e: globalThis.PointerEvent) => {
@@ -622,17 +794,21 @@ export function usePeel(
 				const m = local(dx, dy, p.tilt);
 				if (p.mode === 'press') {
 					if (p.far < (SLOP[p.type] ?? 4)) return;
-					// A finger decides here: up the diagonal it peels, if it leans
-					// off the screen's vertical too (a tilted sticker's diagonal may
-					// be nearly upright); any other way it scrolls (down, the browser
-					// scrolls it itself where it can). A mouse has nothing to
-					// scroll: it always takes the corner.
+					// A finger decides here: into the sticker it peels, if it leans
+					// off the screen's vertical too (a tilted sticker's way in may be
+					// nearly upright), or the page cannot scroll that way; any other
+					// way it scrolls, by the browser where the grip lets it. A mouse
+					// has nothing to scroll: it always takes hold.
+					const itself = scrollsItself(p.side, dx, dy);
+					const into =
+						Math.abs(angleFrom(p.inward, { x: dx, y: dy })) <= START_CONE;
 					if (
 						p.type === 'mouse' ||
-						(offDiagonal(m) <= START_CONE && leans(dx, dy))
+						(!itself && into && (leans(dx, dy) || !canScroll(dy)))
 					) {
 						begin();
-					} else if (dy > 0 && nativePanUp()) {
+					} else if (itself || p.side === 'left' || p.side === 'right') {
+						// the browser scrolls it (or, across a side, nothing does)
 						p.mode = 'native';
 						return;
 					} else {
@@ -641,13 +817,20 @@ export function usePeel(
 				} else if (
 					p.mode === 'peel' &&
 					p.type !== 'mouse' &&
-					turnsUp(dx, dy) &&
+					turnsAway(dx, dy) &&
 					!p.ready
 				) {
-					// It leaned at first but turned up the screen before it was far
-					// enough to come off: it was scrolling after all. The corner goes
-					// back down and the page scrolls.
-					springBack(el, p.peel, p.fold, 0, false);
+					// It leaned at first but turned along the screen before it was far
+					// enough to come off: it was scrolling after all. It goes back
+					// down and the page scrolls.
+					springBack(el, {
+						g: p.g,
+						took: p.g.corner,
+						peel: p.peel,
+						a: p.a,
+						v: 0,
+						over: false,
+					});
 					scrollByHand(e);
 				}
 				if (p.mode === 'scroll') {
@@ -675,25 +858,25 @@ export function usePeel(
 					return;
 				}
 				const tip = { x: p.tip.x + m.x, y: p.tip.y + m.y };
-				let pose = poseOf(p.flat, p.w, tip, p.slack);
+				let pose = poseOf(p.g, tip, p.slack);
 				if (pose.pull < p.pull && p.raw > PEEL_MAX) {
-					// Pushed back from past the band: the corner comes back as far as
+					// Pushed back from past the band: the paper comes back as far as
 					// the pointer does, at once. What the band kept back is let go of.
 					const back = Math.max(0, p.reach - (p.raw - pose.raw));
 					p.slack = pose.pull - unband(back);
 				} else if (p.slack > 0 && pose.pull < p.pull) {
 					// pushed back further: the slack shrinks with the pull, so the
-					// corner lies flat just as the pointer gets back to where it does
+					// paper lies flat just as the pointer gets back to where it does
 					p.slack *= pose.pull / p.pull;
 				} else if (p.slack > 0 && pose.pull > p.pull) {
-					// pulled in again: the corner gains on the pointer, until it is under it
+					// pulled in again: the paper gains on the pointer, until it is under it
 					p.slack = Math.max(0, p.slack - CATCH_UP * (pose.pull - p.pull));
 				}
 				// pushed down flat (or past): pulled out again, it lifts at once
 				p.slack = Math.min(p.slack, pose.pull);
-				pose = poseOf(p.flat, p.w, tip, p.slack);
+				pose = poseOf(p.g, tip, p.slack);
 				p.peel = pose.peel;
-				p.fold = pose.fold;
+				p.a = pose.a;
 				p.reach = pose.reach;
 				p.raw = pose.raw;
 				p.pull = pose.pull;
@@ -752,46 +935,48 @@ export function usePeel(
 					if (commit) glide(-speed.y + p.owed / GLIDE_TAU);
 					return;
 				}
-				// the flick: fast up the diagonal, far enough, and not off to one side
+				// the flick: fast into the sticker, far enough, and not off to one side
+				const inward = { x: -p.g.n.x, y: -p.g.n.y };
 				const last = {
 					x: p.samples.at(-1)?.x ?? 0,
 					y: p.samples.at(-1)?.y ?? 0,
 				};
-				const pull = along(last);
 				const flick = { x: speed.x, y: speed.y };
 				const flung =
-					along(flick) >= FLING_SPEED &&
-					offDiagonal(flick) <= FLING_CONE &&
-					pull >= FLING_PULL;
+					dot(flick, inward) >= FLING_SPEED &&
+					Math.abs(angleFrom(inward, flick)) <= FLING_CONE &&
+					dot(last, inward) >= FLING_PULL;
 				// Pushed back as it was let go: read from the pointer, which the
-				// corner (held back by the band past PEEL_MAX) may hardly show.
-				// Its speed the way the tip was pulled, out from where it lies flat.
+				// paper (held back by the band past PEEL_MAX) may hardly show.
+				// Its speed the way it was pulled, out from where it lay flat.
 				const out = {
-					x: p.tip.x + last.x - p.flat.x,
-					y: p.tip.y + last.y - p.flat.y,
+					x: p.tip.x + last.x - p.g.at.x,
+					y: p.tip.y + last.y - p.g.at.y,
 				};
 				const len = Math.hypot(out.x, out.y);
-				const outwards =
-					len > 1 ? (speed.x * out.x + speed.y * out.y) / len : along(flick);
+				const outwards = len > 1 ? dot(flick, out) / len : -dot(flick, inward);
 				const pushedBack = outwards <= -PUSH_BACK;
 				// far enough as the cue last said (data-ready), or flicked
 				const opens = commit && ((p.ready && !pushedBack) || flung);
 				if (opens) {
 					// It stays as peeled as it was let go (and as lifted, if it was
 					// far enough to say so) while it comes off and flies: the flight
-					// starts from here, at once (DeskProvider's open).
+					// starts from here, at once (DeskProvider's open). Its own
+					// corner stays down (--lift).
 					show();
-					el.style.setProperty('--lift', p.peel.toFixed(4));
+					el.style.setProperty('--lift', '0');
 					el.dataset.peel = 'off';
+					held.current = { g: p.g, took: p.g.corner, peel: p.peel, a: p.a };
 					if (off.current()) return;
 				}
-				springBack(
-					el,
-					p.peel,
-					p.fold,
-					opens ? 0 : speed.peel,
-					commit && p.over,
-				);
+				springBack(el, {
+					g: p.g,
+					took: p.g.corner,
+					peel: p.peel,
+					a: p.a,
+					v: opens ? 0 : speed.peel,
+					over: commit && p.over,
+				});
 			};
 
 			const up = (e: globalThis.PointerEvent) => {
@@ -820,7 +1005,7 @@ export function usePeel(
 				}
 				clickUntil.current = performance.now() + CLICK_AFTER_DRAG_MS;
 			};
-			// a long press on the corner is the start of a peel, not the link's menu
+			// a long press on an edge is the start of a peel, not the link's menu
 			const menu = (e: Event) => {
 				if (p.type !== 'mouse') e.preventDefault();
 			};
@@ -833,16 +1018,17 @@ export function usePeel(
 			el.addEventListener('lostpointercapture', lost);
 			endPress.current = () => release(false, performance.now());
 		},
-		[ref, springBack, stopSpring],
+		[ref],
 	);
 
 	// unmounting mid-drag (the page changed under it): drop the listeners
 	useEffect(
 		() => () => {
 			endPress.current?.();
-			stopSpring();
+			const el = ref.current;
+			if (el) stopMotion(el);
 		},
-		[stopSpring],
+		[ref],
 	);
 
 	const onDragStart = useCallback((event: DragEvent<HTMLElement>) => {
@@ -863,20 +1049,43 @@ export function usePeel(
 		if (!el) return;
 		const mode = el.dataset.peel;
 		if (mode === 'hint' || mode === 'spring') settle(el);
-	}, [ref, settle]);
+	}, [ref]);
 
 	const calm = useCallback(() => {
 		const el = ref.current;
 		if (el?.dataset.peel !== 'hint') return;
-		springBack(el, shownPeel(el), 45, 0, true);
-	}, [ref, springBack]);
+		// the hint's edge, by hand, goes down; its corner, the stylesheet's, is taken over
+		const beat = moving.get(el);
+		if (beat) {
+			springBack(el, {
+				g: beat.g,
+				took: false,
+				peel: beat.peel,
+				a: beat.a,
+				v: 0,
+				over: true,
+			});
+		} else {
+			springBack(el, {
+				g: cornerGrab(el),
+				took: true,
+				peel: shownPeel(el),
+				a: 0,
+				v: 0,
+				over: true,
+			});
+		}
+	}, [ref]);
 
 	const drop = useCallback(() => {
 		const el = ref.current;
-		if (el?.dataset.peel === 'off') {
-			springBack(el, shownPeel(el), shownFold(el), 0, false);
+		if (el?.dataset.peel !== 'off') return;
+		if (held.current) {
+			springBack(el, { ...held.current, v: 0, over: false });
+		} else {
+			settle(el);
 		}
-	}, [ref, springBack]);
+	}, [ref]);
 
 	return useMemo(
 		() => ({ onPointerDown, onDragStart, dragged, stop, calm, drop }),
@@ -884,13 +1093,17 @@ export function usePeel(
 	);
 }
 
-/* ── the hint: once a visit, one sticker's corner lifts and settles back ── */
+/* ── the hint: once a visit, one sticker's corner lifts and settles back,
+   then an edge of it does, so it is seen that any side lifts ── */
 
 const HINT_KEY = 'vh19:peel-hint';
 /** How long a sticker is in full view before its corner lifts (ms). */
 const HINT_DELAY = 450;
-/** The hint's length in styles/stickers.css, plus a margin, in case its end is never heard. */
+/** The corner's part's length in styles/stickers.css, plus a margin, in case its end is never heard. */
 const HINT_MS = 1600;
+/** The edge's part: how long it takes (ms), and how far it lifts (as a peel). */
+const EDGE_MS = 900;
+const EDGE_PEEL = 0.1;
 
 /** Set once the hint has played, or the reader has peeled a sticker, on this page load. */
 let hinted = false;
@@ -923,10 +1136,60 @@ function scheduleHint() {
 	}
 }
 
+/** How the hint's edge lifts over its time (0 to 1): up as if a nail caught it, a breath, then down. */
+function edgeLift(t: number): number {
+	if (t < 0.35) return 1 - (1 - t / 0.35) ** 3;
+	if (t < 0.5) return 1 - 0.08 * ((t - 0.35) / 0.15);
+	const u = (t - 0.5) / 0.5;
+	return 0.92 * (1 - u * u * (3 - 2 * u));
+}
+
 /**
- * Lifts the corner of the first sticker in full view (in reading order), once.
- * A pointer or the focus arriving on it while it plays ends it (StickerLink
- * calls `calm`), so the hover peel takes over from where the hint was.
+ * The hint's second part: the sticker's left edge lifts a little and lies
+ * back down, by hand (it is the hand's fold that can lift any side). A press
+ * or a pointer arriving meanwhile takes it from where it is.
+ */
+function liftEdge(el: HTMLElement, done: () => void) {
+	const { w, h, hull } = measure(el);
+	const n = { x: -1, y: 0 };
+	const g: Grab = {
+		at: outermost(hull, n, { x: 0, y: h / 2 }),
+		n,
+		hull,
+		w,
+		corner: false,
+	};
+	let frame = 0;
+	let start = 0;
+	const motion: Motion = {
+		g,
+		took: false,
+		peel: 0,
+		a: 0,
+		stop: () => cancelAnimationFrame(frame),
+	};
+	moving.set(el, motion);
+	const step = (now: number) => {
+		if (!start) start = now;
+		const t = (now - start) / EDGE_MS;
+		if (t >= 1) {
+			moving.delete(el);
+			drawHand(el, null);
+			done();
+			return;
+		}
+		motion.peel = EDGE_PEEL * edgeLift(t);
+		drawHand(el, handOfPose(g, motion.peel, 0));
+		frame = requestAnimationFrame(step);
+	};
+	frame = requestAnimationFrame(step);
+}
+
+/**
+ * Lifts the corner of the first sticker in full view (in reading order),
+ * then its left edge, once. A pointer or the focus arriving on it while it
+ * plays ends it (StickerLink calls `calm`), so the hover peel takes over from
+ * where the hint was.
  */
 function playHint() {
 	if (hintDone()) return;
@@ -946,20 +1209,34 @@ function playHint() {
 	}
 	markHinted();
 	el.dataset.peel = 'hint';
+	let timeout = 0;
+	const finish = () => {
+		window.clearTimeout(timeout);
+		if (el.dataset.peel === 'hint') delete el.dataset.peel;
+	};
 	const end = (event?: AnimationEvent) => {
 		if (event && event.animationName !== 'stk-hint') return;
 		window.clearTimeout(timeout);
 		el.removeEventListener('animationend', end);
-		if (el.dataset.peel === 'hint') delete el.dataset.peel;
+		// taken over meanwhile (a press, a pointer): nothing more to show
+		if (el.dataset.peel !== 'hint' || moving.has(el)) return;
+		liftEdge(el, finish);
+		// in case its frames never come (a hidden tab): put it away all the same
+		timeout = window.setTimeout(() => {
+			if (el.dataset.peel !== 'hint') return;
+			stopMotion(el);
+			drawHand(el, null);
+			finish();
+		}, EDGE_MS + 400);
 	};
 	el.addEventListener('animationend', end);
-	const timeout = window.setTimeout(end, HINT_MS);
+	timeout = window.setTimeout(end, HINT_MS);
 }
 
 /**
  * Teaches the peel once a visit: when the stickers first come into full view,
- * the first of them lifts its corner and lays it back down. Not with reduced
- * motion, and not once the reader has peeled one.
+ * the first of them lifts its corner and lays it back down, then its edge. Not
+ * with reduced motion, and not once the reader has peeled one.
  */
 export function usePeelHint(ref: RefObject<HTMLElement | null>) {
 	useEffect(() => {
@@ -988,7 +1265,11 @@ export function usePeelHint(ref: RefObject<HTMLElement | null>) {
 			observer.disconnect();
 			inView.delete(el);
 			scheduleHint();
-			if (el.dataset.peel === 'hint') delete el.dataset.peel;
+			if (el.dataset.peel === 'hint') {
+				stopMotion(el);
+				drawHand(el, null);
+				delete el.dataset.peel;
+			}
 		};
 	}, [ref]);
 }
