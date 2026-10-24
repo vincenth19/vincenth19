@@ -65,6 +65,19 @@ const tipOf = (el: Locator) =>
 		return { x: r.left, y: r.top };
 	});
 
+/**
+ * Waits for the next two frames. Newer Chromium can hand a CDP touch move to
+ * the page a frame after the command returns, so a pose read straight after it
+ * may still be the one before; on screen the paint always follows the event.
+ */
+const painted = (page: Page) =>
+	page.evaluate(
+		() =>
+			new Promise<void>((done) =>
+				requestAnimationFrame(() => requestAnimationFrame(() => done())),
+			),
+	);
+
 /** The angle (degrees) a sticker's fold by hand lies at (--fold). */
 const foldOf = (el: Locator) =>
 	el.evaluate((e) =>
@@ -1785,6 +1798,7 @@ test.describe('peeling a sticker on a phone', () => {
 			let last = Number.POSITIVE_INFINITY;
 			for (const [i, p] of along(from, inward, 98, 14).entries()) {
 				await touch('touchMove', [p]);
+				await painted(page);
 				if ((await el.getAttribute('data-hand')) === null) continue;
 				const t = await tipOf(el);
 				last = Math.hypot(t.x - p.x, t.y - p.y);
