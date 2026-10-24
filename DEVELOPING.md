@@ -265,27 +265,29 @@ Forward (a trackpad swipe included).
   picture). The new page is live under the flight, so it puts its heavy work off
   until the sticker has landed: `whenSettled()` resolves then (Super Space's
   launcher waits for it before it loads).
-- The navigation happens inside `document.startViewTransition`, which waits until
-  the new page is on screen (its own layout effects have scrolled it and moved focus)
-  and the fonts its first screen is laid out in have loaded (at most 150 ms; they
-  were fetched ahead, see below) before it captures it. The browser draws nothing new
+- The navigation happens inside `document.startViewTransition`, which waits until the
+  new page is on screen (its own layout effects have scrolled it and moved focus) and
+  the fonts its first screen is laid out in have loaded (at most 150 ms; they were
+  fetched ahead, see below) before it captures it. The browser draws nothing new
   meanwhile, so the flight only starts once the page's data is in. A sticker whose
   page is in (Next.js prefetched it as it came into view, or a pointer on a product
-  page's sticker did) flies at once, from the pose it is in: the flight is its lift.
-  One whose page is still on its way (a tap on Super Space, which has no hover to
-  fetch it ahead) lifts off the page (0.1 s) and waits, lifted (and bobbing after
-  0.2 s), until the page's data has come in, with the stylesheet and fonts it asked
-  for ahead: `DeskProvider` counts Next.js's requests for a page's data (`?_rsc=`) as
-  they go through `fetch`, and checks the preloads in the head against the fetches
-  that have finished (Resource Timing). A page that takes more than 1.5 s opens as a
-  plain navigation instead, and a transition never holds the screen for more than
-  1.2 s. A project opens at the top with its title focused; coming back puts the
-  Projects page where it was when the project opened (as the browser's Back would),
-  the sticker focused, and scrolls only as far as it takes to bring the whole sticker
-  on screen (to the middle only for one that would be off it). A page still coasting
-  from a flick when Back or Forward is pressed stops there (`stopCoasting`: the root
-  is held at `overflow: hidden` for two frames, which ends a fling), so the next page
-  lands where it puts itself.
+  page's sticker did) flies at once, in the click's own task, from the pose it is in:
+  the flight is its lift. So does one peeled off by hand, in the task it is let go in,
+  from the fold it was let go in (see Peeling a sticker). One whose page is still on
+  its way (a tap on Super Space, which has no hover to fetch it ahead) lifts off the
+  page (0.1 s; one peeled off keeps its fold, and flies as soon as the page is in) and
+  waits, lifted (and bobbing after 0.2 s), until the page's data has come in, with the
+  stylesheet and fonts it asked for ahead: `DeskProvider` counts Next.js's requests
+  for a page's data (`?_rsc=`) as they go through `fetch`, and checks the preloads in
+  the head against the fetches that have finished (Resource Timing). A page that takes
+  more than 1.5 s opens as a plain navigation instead, and a transition never holds
+  the screen for more than 1.2 s. A project opens at the top with its title focused;
+  coming back puts the Projects page where it was when the project opened (as the
+  browser's Back would), the sticker focused, and scrolls only as far as it takes to
+  bring the whole sticker on screen (to the middle only for one that would be off it).
+  A page still coasting from a flick when Back or Forward is pressed stops there
+  (`stopCoasting`: the root is held at `overflow: hidden` for two frames, which ends a
+  fling), so the next page lands where it puts itself.
 - Back or Forward pressed as the flight starts wins: the flight's own step is
   dropped; pressed during the flight, the flight ends where it is and the step
   happens at once. A flight longer than a screen (back from the foot of a long page,
@@ -400,23 +402,28 @@ taken by its edge, from any side or corner, with a mouse or a finger, and peeled
   fold cuts the other's face, so when both show, the deeper one wins.
 - Let go with it pulled past 0.34 (the pointer's travel as a part of the width · √2;
   the sticker rises a little there, about the point taken hold of so it stays under
-  the pointer, `data-ready`, and a phone that can gives a 10 ms tick, once a press), or
-  flick it in (600 px/s into the sticker, within 30° of the way in, after 30 px), and
-  it comes off. Once far enough, it stays so until pushed back 0.02 under the line
+  the pointer, `data-ready`, and a phone that can gives a 10 ms tick, once a press),
+  or flick it in (600 px/s into the sticker, within 30° of the way in, after 30 px),
+  and it comes off. Once far enough, it stays so until pushed back 0.02 under the line
   (`READY_GIVE`, about 6px), so a finger resting on the line does not flicker the cue,
   and letting go does what the cue last said. Off, it keeps that pose (its own corner
-  stays down, `--lift: 0`) and flies into the header as soon as its page is in, without
-  the click's lift first (`open(href, true)` in `DeskProvider`). The header sticker
-  takes the same pose before the transition captures it (`takePose` in
-  `DeskProvider`, which draws the fold again at the header's size), so the
-  cross-fade between the two images is between two of the same, from whichever side
-  it was peeled; once it has landed its fold and corner are pressed down flat (the
-  fold by script, `layDown`; the corner by `data-press`, `styles/masthead.css`). A
-  click's lift hands over the same way. Let go sooner, or while pushing it back down
-  (400 px/s, read from the pointer, which paper held back by the band may hardly
-  show), and a short spring (stiffness 520, damping 0.6) lays it back down: a side
-  flat, square again, and the corner to rest (or to the hover peel, under a mouse
-  still on it), handed back to the stylesheet just as it lies.
+  stays down, `--lift: 0`) and flies into the header from it (`open(href, true)` in
+  `DeskProvider`): with its page in (prefetched as it came into view, or fetched since
+  a pointer came onto a product page's sticker), at once, in the task it was let go
+  in, as a click's flight starts (see Page transitions); otherwise as soon as the page
+  is in, waiting in that pose meanwhile (risen off the page, its corner down, bobbing
+  after 0.2 s). Called off before it flies (Back or Forward won), it springs back
+  down. The header sticker takes the same pose before the transition captures it
+  (`takePose` in `DeskProvider`, which draws the fold again at the header's size), so
+  the cross-fade between the two images is between two of the same, from whichever
+  side it was peeled; once it has landed its fold and corner are pressed down flat
+  (the fold by script, `layDown`; the corner by `data-press`, `styles/masthead.css`).
+  A click's pose (at rest or on hover, or lifted while its page loads) hands over the
+  same way. Let go sooner, or while pushing it back down (400 px/s, read from the
+  pointer, which paper held back by the band may hardly show), and a short spring
+  (stiffness 520, damping 0.6) lays it back down: a side flat, square again, and the
+  corner to rest (or to the hover peel, under a mouse still on it), handed back to the
+  stylesheet just as it lies.
 - A press that does not move, or wanders less than a tap does (15px for a finger,
   6px for a mouse), is a tap or a click and opens the sticker as before; so do
   Enter and Space; a modifier or middle click opens a new tab. A drag's own click
@@ -441,7 +448,10 @@ taken by its edge, from any side or corner, with a mouse or a finger, and peeled
 - `tests/peel.spec.ts` drags with a mouse from every side and corner, and with
   touches sent through Chrome's own input (CDP), so touch-action and scrolling are
   real; a flick's touches carry their own times, so its speed does not depend on how
-  busy the machine is.
+  busy the machine is. It also checks the hand-off: peeled off with its page in, the
+  transition starts in the release's own task with no lift, the flight animating
+  transform alone; peeled off before its page is in, it waits in its fold, its
+  corner down, and flies from it once the page comes.
 
 ## Where the site differs from the design prototype
 

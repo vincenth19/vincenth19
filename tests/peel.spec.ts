@@ -796,6 +796,198 @@ test.describe('peeling a sticker from any side with a mouse', () => {
 		await expect(covid).not.toHaveAttribute('data-peel', { timeout: 1500 });
 		await expect(page).toHaveURL(at('/'));
 	});
+
+	test('peeled off with its page in, it flies at once from the fold it was let go in: no lift first, on the compositor', async ({
+		page,
+	}) => {
+		const vts = await recordTransitions(page);
+		await page.addInitScript(() => {
+			type Seen = {
+				inTask: number | null;
+				started: number;
+				lifted: boolean;
+				props: string[];
+			};
+			const w = window as unknown as { __off: Seen };
+			w.__off = { inTask: null, started: 0, lifted: false, props: [] };
+			const seen = w.__off;
+			// how many transitions had started by the end of the release's own task
+			window.addEventListener(
+				'pointerup',
+				() => {
+					window.setTimeout(() => {
+						seen.inTask = seen.started;
+					}, 0);
+				},
+				{ capture: true },
+			);
+			const start = document.startViewTransition?.bind(document);
+			if (!start) return;
+			document.startViewTransition = ((
+				update: ViewTransitionUpdateCallback,
+			) => {
+				seen.started += 1;
+				const vt = start(update);
+				// what the flight animates, once the page has retimed it
+				vt.ready
+					.then(() => new Promise((r) => setTimeout(r, 0)))
+					.then(() => {
+						for (const a of document.documentElement.getAnimations({
+							subtree: true,
+						})) {
+							const effect = a.effect as KeyframeEffect | null;
+							const pseudo = effect?.pseudoElement ?? '';
+							if (!pseudo.startsWith('::view-transition-group(stk-')) continue;
+							for (const f of effect?.getKeyframes() ?? []) {
+								for (const p of Object.keys(f)) {
+									if (
+										![
+											'offset',
+											'easing',
+											'composite',
+											'computedOffset',
+										].includes(p) &&
+										!seen.props.includes(p)
+									) {
+										seen.props.push(p);
+									}
+								}
+							}
+						}
+					})
+					.catch(() => {});
+				return vt;
+			}) as typeof document.startViewTransition;
+			new MutationObserver(() => {
+				if (document.querySelector('.stk.is-lifting')) seen.lifted = true;
+			}).observe(document, {
+				subtree: true,
+				attributes: true,
+				attributeFilter: ['class'],
+			});
+		});
+		await page.goto('/');
+		const covid = sticker(page, 'covid');
+		const { from, inward } = await edgeOf(page, 'covid', 'left', 10);
+		// in view, its page is prefetched: it is in before the peel starts
+		await expect
+			.poll(() =>
+				page.evaluate(() =>
+					performance
+						.getEntriesByType('resource')
+						.some((r) => r.name.includes('/projects/covidtracker?_rsc')),
+				),
+			)
+			.toBe(true);
+		await page.waitForTimeout(400);
+		await page.mouse.move(from.x, from.y);
+		await page.mouse.down();
+		for (const p of along(from, inward, 170, 17)) {
+			await page.mouse.move(p.x, p.y);
+		}
+		await expect(covid).toHaveAttribute('data-ready', '');
+		await page.waitForTimeout(150);
+		await page.mouse.up();
+
+		await expect(page).toHaveURL(at('/projects/covidtracker'));
+		await vts.settled();
+		const [open] = await vts.take();
+		expect(open).toMatchObject({ direction: 'open', finished: true });
+		expect(open.pairs).toContain('stk-covid');
+		// the flight starts from the fold it was let go in, the left side folded back,
+		// and lands in the header in that pose, then pressed flat
+		expect(open.peel ?? 0).toBeGreaterThanOrEqual(PEEL_OPEN);
+		expect(apart(open.fold ?? 0, FACING.left)).toBeLessThan(20);
+		expect(open.landed ?? 0).toBeCloseTo(open.peel ?? 0, 2);
+		expect(open.landedFold ?? 0).toBeCloseTo(open.fold ?? 0, 0);
+		const header = page.locator('header.mast .slap-stk');
+		await expect(header).not.toHaveAttribute('data-hand');
+		await expect.poll(() => peelOf(header)).toBeLessThan(0.005);
+		const seen = await page.evaluate(
+			() =>
+				(
+					window as unknown as {
+						__off: {
+							inTask: number | null;
+							started: number;
+							lifted: boolean;
+							props: string[];
+						};
+					}
+				).__off,
+		);
+		// no lift and no wait: the transition starts in the release's own task
+		expect(seen.lifted).toBe(false);
+		expect(seen.inTask).toBe(1);
+		expect(seen.started).toBe(1);
+		// and the sticker's flight is moved and scaled by the compositor alone
+		expect(seen.props).toContain('transform');
+		expect(seen.props).not.toContain('width');
+		expect(seen.props).not.toContain('height');
+	});
+
+	test('peeled off before its page is in, it waits in its fold, its corner down, then flies from it', async ({
+		page,
+	}) => {
+		const vts = await recordTransitions(page);
+		await page.goto('/');
+		await page.evaluate(() => {
+			const w = window as unknown as { __vtAt: number };
+			w.__vtAt = 0;
+			new MutationObserver(() => {
+				if (!w.__vtAt && document.documentElement.dataset.vt) {
+					w.__vtAt = performance.now();
+				}
+			}).observe(document.documentElement, { attributes: true });
+		});
+		// Super Space's page is fetched only once a pointer comes onto its
+		// sticker (it is not prefetched in view); it is held back until let go
+		let letIn = () => {};
+		const held = new Promise<void>((resolve) => {
+			letIn = resolve;
+		});
+		let released = 0;
+		await page.route('**/projects/super-space?_rsc=*', async (route) => {
+			await held;
+			released = await page.evaluate(() => performance.now());
+			await route.continue();
+		});
+		const ss = sticker(page, 'superspace');
+		const { from, inward } = await edgeOf(page, 'superspace', 'left', 10);
+		await page.mouse.move(from.x, from.y);
+		await page.mouse.down();
+		for (const p of along(from, inward, 170, 17)) {
+			await page.mouse.move(p.x, p.y);
+		}
+		await expect(ss).toHaveAttribute('data-ready', '');
+		const fold = await foldOf(ss);
+		await page.mouse.up();
+
+		// it waits off the page, bobbing, in the fold it was let go in; its own
+		// corner stays down
+		await expect(ss).toHaveClass(/is-waiting/);
+		await expect(ss).toHaveAttribute('data-peel', 'off');
+		await expect(ss).toHaveAttribute('data-hand', '');
+		expect(await peelOf(ss)).toBeLessThan(0.005);
+		expect(apart(await foldOf(ss), fold)).toBeLessThan(0.5);
+		letIn();
+
+		await expect(page).toHaveURL(at('/projects/super-space'));
+		await vts.settled();
+		const [open] = await vts.take();
+		expect(open).toMatchObject({ direction: 'open', finished: true });
+		expect(open.pairs).toContain('stk-superspace');
+		const started = await page.evaluate(
+			() => (window as unknown as { __vtAt: number }).__vtAt,
+		);
+		expect(released).toBeGreaterThan(0);
+		expect(started).toBeGreaterThan(released);
+		// and flies from that pose, and lands in it
+		expect(open.peel ?? 0).toBeGreaterThanOrEqual(PEEL_OPEN);
+		expect(apart(open.fold ?? 0, fold)).toBeLessThan(0.5);
+		expect(open.landed ?? 0).toBeCloseTo(open.peel ?? 0, 2);
+		expect(open.landedFold ?? 0).toBeCloseTo(open.fold ?? 0, 0);
+	});
 });
 
 test.describe('peeling a sticker on a phone', () => {

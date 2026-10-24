@@ -66,8 +66,9 @@ type Desk = {
 	from: string | null;
 	/**
 	 * The href of the sticker on the Projects page that flies in the running
-	 * transition, and whether it is lifting off the page first (a click whose
-	 * page is still loading) or not (a click whose page is in, Forward).
+	 * transition, and whether it is lifting off the page first (a click or a
+	 * peel whose page is still loading) or not (a click or a peel whose page is
+	 * in, Forward).
 	 * `waiting`: lifted a while, its page still not in. Null when no sticker on
 	 * this page is about to fly.
 	 */
@@ -76,7 +77,8 @@ type Desk = {
 	 * Open a project from its sticker: fly it into the header, at once when its
 	 * page is in, else lifted off the page until it is. Ignored while another
 	 * opens: then it returns false. `peeled`: it was peeled off by hand, which
-	 * lifted it already, so it flies (from that pose) as soon as its page is in.
+	 * lifted it already, so it flies from the fold it was let go in: at once
+	 * when its page is in, else as soon as it is (without the click's LIFT_MS).
 	 */
 	open: (href: string, peeled?: boolean) => boolean;
 	/** A pointer or the focus is on (or a finger down on) a sticker that does not prefetch: its page starts loading. */
@@ -843,13 +845,17 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 				go();
 				return true;
 			}
-			// A click, its page in: it flies at once, from the pose it is in (the
-			// flight is its lift), so the frame after the click is the flight's
-			// first. (One peeled off by hand keeps its lift, below: it flies as
-			// soon as its page is in, which it is then.)
+			// Its page in, it flies at once, from the pose it is in: a click's rest
+			// or hover pose (the flight is its lift), or the fold a sticker peeled
+			// off by hand was let go in, from whichever side (bookPose reads it,
+			// takePose draws it on the header sticker). The frame after the click
+			// or the release is the flight's first.
 			const self = { cancelled: false };
 			lift.current = self;
-			if (!peeled && pageReady(href)) {
+			if (pageReady(href)) {
+				// Peeled off, it is named now: called off before it flies (a step
+				// in the same task), it is laid back down (StickerLink).
+				if (peeled) setFlight({ href, lift: false });
 				// (after this task: a tab clicked in the same one still wins)
 				queueMicrotask(() => {
 					if (self.cancelled) return;
@@ -864,7 +870,8 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 				() => setFlight({ href, lift: true, waiting: true }),
 				WAIT_BOB_MS,
 			);
-			// Its page is not in yet: the sticker lifts, and waits lifted (the
+			// Its page is not in yet: the sticker lifts (peeled off by hand, it
+			// keeps its fold, and its corner stays down), and waits lifted (the
 			// page still drawing) until its page is in, with the stylesheet and
 			// fonts it asked for; only then does it fly, so the flight never
 			// freezes the screen on a page still loading. A page too slow for

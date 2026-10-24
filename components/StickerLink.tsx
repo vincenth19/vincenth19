@@ -68,13 +68,15 @@ export function StickerLink({
 	const peel = usePeel(ref, () => desk.open(href, true));
 	usePeelHint(ref);
 
-	// The open was called off while it lifted (Back or Forward won): a sticker
-	// peeled off by hand goes back down.
-	const wasLifting = useRef(false);
+	// The open was called off before it flew, while it lifted or in the task
+	// it was let go in (Back or Forward won): a sticker peeled off by hand goes
+	// back down. (Once it flies, the page changes: this one is gone.)
+	const opening = desk.flight?.href === href;
+	const wasOpening = useRef(false);
 	useEffect(() => {
-		if (wasLifting.current && !lifting) peel.drop();
-		wasLifting.current = Boolean(lifting);
-	}, [lifting, peel]);
+		if (wasOpening.current && !opening) peel.drop();
+		wasOpening.current = opening;
+	}, [opening, peel]);
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: runs once, when the page mounts after leaving a project
 	useLayoutEffect(() => {
