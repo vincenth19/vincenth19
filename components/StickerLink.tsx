@@ -20,6 +20,13 @@ import {
 } from './DeskProvider';
 import { usePeel, usePeelHint } from './usePeel';
 
+/**
+ * How long (ms) a pointer rests on a sticker that does not prefetch before its
+ * page starts loading: one passing over it does not fetch a product page's
+ * data, stylesheet and fonts for nothing.
+ */
+const INTENT_MS = 100;
+
 type Props = Pick<Project, 'sticker'> & {
 	href: string;
 	stickerKey: Project['key'];
@@ -43,9 +50,10 @@ type Props = Pick<Project, 'sticker'> & {
  * It can also be peeled by hand, from any side: its edge, all round (the
  * grips), folds back under a mouse or a finger that pulls it, and let go far
  * enough in (or flicked) the sticker comes off and flies from there; let go
- * sooner and it springs back down (components/usePeel.ts). A finger on an
- * edge that goes any other way than into the sticker, leaning, scrolls the
- * page, as anywhere else on it; the middle is the page.
+ * sooner and it springs back down (components/usePeel.ts). A mouse over an
+ * edge lifts that edge a little. A finger on an edge that goes any other way
+ * than into the sticker, leaning (or straight in, after holding still a
+ * moment), scrolls the page, as anywhere else on it; the middle is the page.
  */
 export function StickerLink({
 	href,
@@ -62,8 +70,12 @@ export function StickerLink({
 	const flies = desk.flight ? desk.flight.href === href : returning;
 	const lifting = desk.flight?.href === href && desk.flight.lift;
 	const waiting = lifting && desk.flight?.waiting;
-	// about to be clicked: its page starts loading now
+	// about to be clicked: its page starts loading now (a pointer that only
+	// passes over it on its way elsewhere fetches nothing: it has to rest on
+	// it a moment, INTENT_MS, or press)
 	const intent = prefetch === false ? () => desk.intent(href) : undefined;
+	const resting = useRef(0);
+	useEffect(() => () => window.clearTimeout(resting.current), []);
 	// peeled off by hand: it opens from the pose it was let go in, at once
 	const peel = usePeel(ref, () => desk.open(href, true));
 	usePeelHint(ref);
@@ -127,7 +139,8 @@ export function StickerLink({
 			return;
 		}
 		e.preventDefault();
-		desk.open(href);
+		// another is on its way: a lifted edge goes back down
+		if (!desk.open(href)) peel.drop();
 	}
 
 	// Space opens it too, as Enter does (on key up, as a button does); it does
@@ -154,13 +167,19 @@ export function StickerLink({
 		ref.current?.click();
 	}
 	function onPointerDown(e: PointerEvent<HTMLAnchorElement>) {
+		window.clearTimeout(resting.current);
 		intent?.();
 		peel.onPointerDown(e);
 	}
 	// a pointer or the focus arriving while the hint plays: the hint gives way
 	function onPointerEnter() {
-		intent?.();
+		window.clearTimeout(resting.current);
+		if (intent) resting.current = window.setTimeout(intent, INTENT_MS);
 		peel.calm();
+	}
+	function onPointerLeave() {
+		window.clearTimeout(resting.current);
+		peel.unhover();
 	}
 	function onFocus() {
 		intent?.();
@@ -187,6 +206,8 @@ export function StickerLink({
 				delete e.currentTarget.dataset.keyed;
 			}}
 			onPointerEnter={onPointerEnter}
+			onPointerMove={peel.hover}
+			onPointerLeave={onPointerLeave}
 			onPointerDown={onPointerDown}
 			onDragStart={peel.onDragStart}
 			onFocus={onFocus}

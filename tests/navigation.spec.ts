@@ -70,10 +70,16 @@ test('Super Space flies into the header as its page opens, and Back flies it hom
 		['open', true],
 		['close', true],
 	]);
-	// only the sticker was captured on its own: the book and the product page's
-	// stage went, and came, with the page around them
+	// the product page's stage (11,000px tall) was never captured on its own:
+	// it went, and came, with the page around it; the book, on one side only,
+	// went or came with no partner, and the socials moved
 	for (const run of runs) {
-		expect([...run.names].sort()).toEqual(['root', 'stk-superspace']);
+		expect(
+			run.names.filter(
+				(n) => !['root', 'book', 'socials', 'stk-superspace'].includes(n),
+			),
+		).toEqual([]);
+		expect(run.pairs).not.toContain('book');
 	}
 	expect(problems).toEqual([]);
 });

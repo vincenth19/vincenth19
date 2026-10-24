@@ -327,6 +327,18 @@ function watchPageData() {
 		res.then((r) => r.clone().arrayBuffer()).then(done, done);
 		return res;
 	};
+	// The stylesheets and fonts a page asks for ahead go into the head as its
+	// data comes in: each is noted as that page's (the ones whose data is on
+	// its way, or came in a moment ago), so a page waits only for its own.
+	try {
+		new MutationObserver((records) => {
+			for (const r of records) {
+				for (const node of r.addedNodes) {
+					if (node instanceof HTMLLinkElement && isPreload(node)) own(node);
+				}
+			}
+		}).observe(document.head, { childList: true });
+	} catch {}
 	// Every fetch that has finished (Resource Timing), so a preload still on
 	// its way can be told from one that is in.
 	try {
@@ -339,22 +351,49 @@ function watchPageData() {
 /** The URLs whose fetch has finished. */
 const fetched = new Set<string>();
 
+/** The stylesheets and fonts each page asked for ahead, by path. */
+const preloadsOf = new Map<string, Set<HTMLLinkElement>>();
+
+const isPreload = (link: HTMLLinkElement) =>
+	link.rel === 'preload' && (link.as === 'font' || link.as === 'style');
+
+/** Notes a preload as the page's whose data is on its way (or came in within the last second). */
+function own(link: HTMLLinkElement) {
+	const now = performance.now();
+	let paths = [...loading].filter(([, n]) => n > 0).map(([p]) => p);
+	if (paths.length === 0) {
+		let last: string | null = null;
+		let at = Number.NEGATIVE_INFINITY;
+		for (const [p, t] of loaded) {
+			if (t > at) {
+				at = t;
+				last = p;
+			}
+		}
+		paths = last !== null && now - at < 1000 ? [last] : [];
+	}
+	for (const p of paths) {
+		const set = preloadsOf.get(p) ?? new Set();
+		set.add(link);
+		preloadsOf.set(p, set);
+	}
+}
+
 // Watch from the start, before Next.js prefetches the stickers' pages as they
 // come into view, so those count too.
 if (typeof window !== 'undefined') watchPageData();
 
 /**
- * The stylesheets and fonts a page about to open asked for ahead (Next.js puts
+ * The stylesheets and fonts the page at `path` asked for ahead (Next.js puts
  * a page's preloads in the head as soon as its data comes in) that are still
  * on their way. Waited for before the flight, so the new page is drawn in its
- * own fonts from its first frame.
+ * own fonts from its first frame. Only that page's: another page's (a pointer
+ * crossed Super Space's sticker on its way) are not this one's to wait for.
  */
-function preloadsPending(): boolean {
+function preloadsPending(path: string): boolean {
 	const now = performance.now();
-	for (const link of document.head.querySelectorAll<HTMLLinkElement>(
-		'link[rel="preload"][as="font"], link[rel="preload"][as="style"]',
-	)) {
-		if (!link.href || fetched.has(link.href)) continue;
+	for (const link of preloadsOf.get(path) ?? []) {
+		if (!link.isConnected || !link.href || fetched.has(link.href)) continue;
 		// one that never comes in (offline, say) is not waited for again
 		const seen = preloadSeen.get(link);
 		if (seen === undefined) preloadSeen.set(link, now);
@@ -379,7 +418,7 @@ function pageReady(path: string): boolean {
 		age >= 50 &&
 		age < FRESH_MS &&
 		(loading.get(path) ?? 0) === 0 &&
-		!preloadsPending()
+		!preloadsPending(path)
 	);
 }
 
@@ -400,7 +439,7 @@ function pageLoaded(path: string, max: number): Promise<boolean> {
 			if (
 				(loading.get(path) ?? 0) === 0 &&
 				(last === undefined ? now - start >= 200 : now - last >= 50) &&
-				!preloadsPending()
+				!preloadsPending(path)
 			) {
 				finish(true);
 				return;
@@ -459,24 +498,59 @@ function startPageTransition(
 			running = null;
 			delete root.dataset.vt;
 			delete root.dataset.vtFar;
-			for (const done of settling.splice(0)) done();
+			delete root.dataset.vtStill;
+			for (const done of landing.splice(0)) done();
+			// after the header sticker's press down, which starts now (pressDown)
+			window.setTimeout(settle, 0);
 		});
 	return true;
 }
 
-/** Work waiting for the running transition to end (`whenSettled`). */
+/** Work waiting for the running transition to land (`whenLanded`), and for the landing to be pressed down too (`whenSettled`). */
+const landing: (() => void)[] = [];
 const settling: (() => void)[] = [];
+/** Until when (performance.now()) the landed header sticker is being pressed down (pressDown). */
+let pressUntil = 0;
+
+function settle() {
+	if (running) return;
+	const wait = pressUntil - performance.now();
+	if (wait > 0) {
+		window.setTimeout(settle, wait);
+		return;
+	}
+	for (const done of settling.splice(0)) done();
+}
+
+/** True while a page transition runs (the new page is put in place under it). */
+export function transitionRunning(): boolean {
+	return running !== null;
+}
 
 /**
- * Resolves once no page transition runs: at once when none does. A new page
- * puts off its heavy work with it (loading a chunk, building an index), so the
- * work does not compete with the flight for the main thread: the main thread
- * is not needed to run the flight, but the new page is live under it, and its
- * work would hold up the frames that show it.
+ * Resolves once no page transition runs: at once when none does. The new
+ * page is live under the flight, and what it does meanwhile would hold up
+ * the frames that show it: it puts off the rest of itself until then (Super
+ * Space's sections below its first screen, AfterLanding).
+ */
+export function whenLanded(): Promise<void> {
+	if (!running) return Promise.resolve();
+	return new Promise((resolve) => landing.push(resolve));
+}
+
+/**
+ * Resolves once no page transition runs and the landed sticker has been
+ * pressed down (its fold is laid down by script, PRESS_MS): at once when
+ * neither is happening. A new page puts off its heavy work with it (loading
+ * a chunk, building an index), so the work does not compete with the flight
+ * or the press for the main thread.
  */
 export function whenSettled(): Promise<void> {
-	if (!running) return Promise.resolve();
-	return new Promise((resolve) => settling.push(resolve));
+	if (!running && performance.now() >= pressUntil) return Promise.resolve();
+	return new Promise((resolve) => {
+		settling.push(resolve);
+		if (!running) settle();
+	});
 }
 
 /** A 2D affine transform, as CSS's matrix(a, b, c, d, e, f). */
@@ -637,6 +711,7 @@ function takePose(pose: Pose | null): HTMLElement | null {
  * down by script, as fast); then the flaps are put away.
  */
 function pressDown(el: HTMLElement) {
+	pressUntil = performance.now() + PRESS_MS;
 	delete el.dataset.posed;
 	el.dataset.press = '';
 	el.style.removeProperty('--peel');
@@ -767,6 +842,12 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 			const root = document.documentElement;
 			const from = window.location.href;
 			const before = flyingSticker()?.getBoundingClientRect().top;
+			const book = () =>
+				document.querySelector('.book')?.getBoundingClientRect().top;
+			const socials = () =>
+				document.querySelector('.mast .socials')?.getBoundingClientRect().top;
+			const bookBefore = book();
+			const socialsBefore = socials();
 			const update = async () => {
 				// Back or Forward pressed after the flight began, before the page changed:
 				// that step wins, and this one neither pushes nor animates.
@@ -793,6 +874,13 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 					await shownNext;
 				}
 				busy.current = false; // also when the page timed out
+				// The header sticker takes the flying sticker's pose first: that
+				// changes only how it is painted, so the reads below find the new
+				// page's layout as it is, and lay it out once.
+				const landing = takePose(pose);
+				if (landing) {
+					running?.finished.catch(() => {}).finally(() => pressDown(landing));
+				}
 				// A sticker that would fly further than a screen (back from far down a
 				// long page) would be off screen for most of its flight: its flight is
 				// kept to just past the edge of the screen (tuneFlights).
@@ -804,9 +892,17 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 				) {
 					root.dataset.vtFar = '';
 				}
-				const landing = takePose(pose);
-				if (landing) {
-					running?.finished.catch(() => {}).finally(() => pressDown(landing));
+				// The book and the socials move to where the new page has them,
+				// unless that is most of a screen away (a project opened from far
+				// down the Projects page, or back to it, or back from far down a
+				// product page): then the old ones go, and the new page is there
+				// where it is (styles/transitions.css).
+				const far = (a: number | undefined, b: number | undefined) =>
+					a !== undefined &&
+					b !== undefined &&
+					Math.abs(b - a) > window.innerHeight * 0.4;
+				if (far(bookBefore, book()) || far(socialsBefore, socials())) {
+					root.dataset.vtStill = '';
 				}
 				// the page has been laid out (above): its fonts are on their way
 				await Promise.all([stickersDecoded(), fontsIn()]);
@@ -1019,9 +1115,11 @@ export function prefersReducedMotion(): boolean {
  * next frame. This puts the page's own position back on that frame, before it
  * paints.
  */
-export function keepScroll() {
-	const x = window.scrollX;
-	const y = window.scrollY;
+export function keepScroll(at?: { x: number; y: number }) {
+	// (given where, it reads nothing now: reading the scroll position would lay
+	// out a page just put in, ahead of its time)
+	const x = at ? at.x : window.scrollX;
+	const y = at ? at.y : window.scrollY;
 	requestAnimationFrame(() => {
 		if (window.scrollX !== x || window.scrollY !== y) window.scrollTo(x, y);
 	});

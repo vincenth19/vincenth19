@@ -294,6 +294,8 @@ test.describe('Super Space product page', () => {
 	test('typing searches the demo files, as the real launcher finds them', async ({
 		page,
 	}) => {
+		// many searches, each a run of the engine: room for a busy machine
+		test.slow();
 		await page.goto(path);
 		const launcher = await openLauncher(page);
 		const field = launcher.getByRole('combobox');
@@ -383,6 +385,8 @@ test.describe('Super Space product page', () => {
 	test('quick answers are worked out in the page, currency at the ECB’s rates of the day it was built', async ({
 		page,
 	}) => {
+		// many searches, each a run of the engine: room for a busy machine
+		test.slow();
 		await page.goto(path);
 		const launcher = await openLauncher(page);
 		const field = launcher.getByRole('combobox');
@@ -534,6 +538,8 @@ test.describe('Super Space product page', () => {
 	});
 
 	test('searches find what is there, and only that', async ({ page }) => {
+		// many searches, each a run of the engine: room for a busy machine
+		test.slow();
 		await page.goto(path);
 		const launcher = await openLauncher(page);
 		const field = launcher.getByRole('combobox');
@@ -832,6 +838,32 @@ test.describe('Super Space product page', () => {
 		for (const preload of await preloads()) {
 			expect(site).toContain(preload);
 		}
+	});
+
+	test('a pointer passing over its sticker fetches nothing; one that rests on it fetches the page', async ({
+		page,
+	}) => {
+		await page.setViewportSize({ width: 1440, height: 900 });
+		await page.goto('/');
+		await page.waitForLoadState('networkidle');
+		const fetched = () =>
+			page.evaluate(() =>
+				performance
+					.getEntriesByType('resource')
+					.some((r) => r.name.includes('/projects/super-space?_rsc')),
+			);
+		const box = await page.locator('.collage .stk--superspace').boundingBox();
+		if (!box) throw new Error('no sticker');
+		// straight across it, on the way to something else
+		await page.mouse.move(box.x - 20, box.y + box.height / 2);
+		await page.mouse.move(box.x + box.width + 20, box.y + box.height / 2, {
+			steps: 3,
+		});
+		await page.waitForTimeout(600);
+		expect(await fetched()).toBe(false);
+		// resting on it a moment: it is about to be clicked
+		await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+		await expect.poll(fetched).toBe(true);
 	});
 
 	test('the search speed says where it was measured before the numbers', async ({

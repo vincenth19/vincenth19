@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { AfterLanding } from '@/components/AfterLanding';
 import {
 	Closing,
 	Demo,
@@ -44,13 +45,16 @@ export default async function SuperSpacePage() {
 			id="content"
 		>
 			<Hero />
-			<Demo film={getFilm()} rates={rates} />
-			{superSpace.beats.map((beat) => (
-				<FeatureBeat key={beat.key} beat={beat} />
-			))}
-			<Install />
-			<Faq />
-			<Closing />
+			{/* opened in a page transition, the rest comes once the sticker has landed */}
+			<AfterLanding>
+				<Demo key="demo" film={getFilm()} rates={rates} />
+				{superSpace.beats.map((beat) => (
+					<FeatureBeat key={beat.key} beat={beat} />
+				))}
+				<Install key="install" />
+				<Faq key="faq" />
+				<Closing key="closing" />
+			</AfterLanding>
 		</main>
 	);
 }

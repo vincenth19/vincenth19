@@ -280,6 +280,11 @@
 		--peel: var(--hover);
 		translate: 0 -2px;
 	}
+	/* the mouse on an edge lifts that edge (usePeel, by hand) instead of the
+	   corner, which stays at rest meanwhile */
+	.stk[data-peel='hover'] {
+		--peel: var(--rest, 0);
+	}
 }
 /* focused from the keyboard: lifted and ringed. Focused back by the page after a
    project opened from a tap or a peel (data-quiet, StickerLink), it shows

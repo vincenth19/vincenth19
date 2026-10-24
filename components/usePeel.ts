@@ -21,6 +21,7 @@ import {
 	learnHull,
 	outermost,
 	type Point,
+	sideOf,
 	swingRoom,
 	turn,
 } from './fold';
@@ -41,11 +42,14 @@ import {
  *
  * A finger (or a pen) on an edge may also just be scrolling the page: the
  * first few pixels it moves decide. Into the sticker, and leaning off the
- * screen's vertical, it peels; any other way it scrolls the page (by the
- * browser, or by hand here, with the glide a flick gives). A peel from the top
- * or the bottom that turns along the screen's vertical before it is far
- * enough to come off (a thumb's arc) was a scroll after all, and is handed
- * back.
+ * screen's vertical, it peels; straight up or down the screen from a top or a
+ * bottom edge it peels only when the finger held still a moment first
+ * (HOLD_MS), as a hand taking hold of an edge does and a thumb flicking the
+ * page does not; any other way it scrolls the page (by the browser, or by
+ * hand here, with the glide a flick gives). A peel from the top or the bottom
+ * that turns along the screen's vertical before it is far enough to come off
+ * (a thumb's arc), or one taken by a held finger that sets off fast (a swipe
+ * after a pause), was a scroll after all, and is handed back.
  *
  * The bottom-right corner also lifts by itself (at rest, on hover, in the
  * hint, in a click's lift): that is the stylesheet's own fold, --peel. A press
@@ -82,9 +86,23 @@ const START_CONE = 60;
 /**
  * ... and only leaning at least this many degrees off the screen's vertical,
  * whatever the sticker's tilt (a thumb scrolling the page goes up the screen),
- * unless the page cannot scroll that way (at its top, a finger going down).
+ * unless it held still first (HOLD_MS). At the page's end, where nothing
+ * scrolls that way, a quick straight flick still does not peel: it is the
+ * habit of a thumb asking for more page, not a hand taking hold.
  */
 const START_LEAN = 30;
+/**
+ * A finger that held still this long (ms) on a top or bottom edge before it
+ * moved took hold of it: straight in, along the screen's vertical, it peels.
+ * A thumb scrolling the page is moving within a frame or two of touching.
+ */
+const HOLD_MS = 140;
+/**
+ * ... but a held finger that then sets off faster than this (px/s), before
+ * the sticker is far enough to come off, is a swipe after a pause: the paper
+ * goes back down and the page scrolls. A hand peeling pulls slower.
+ */
+const HELD_SWIPE = 1000;
 /**
  * Until a finger's peel from the top or the bottom is far enough to come off,
  * it is handed back to scrolling whenever its last this-many px go along the
@@ -102,12 +120,20 @@ const TRAIL = 96;
 const CATCH_UP = 0.5;
 /**
  * How far (degrees) the fold may turn from square to where it took hold, at
- * most; the sideways part of a pull past it is dropped. It turns with the pull
- * up to FOLD_KNEE (of FOLD_SWING), then gives way gently, so it never stops
- * short.
+ * most. It turns with the pull up to FOLD_KNEE (of FOLD_SWING); a pull that
+ * leans further than the fold may turn slides the point taken hold of along
+ * the outline instead (as a fingertip slides along an edge it drags
+ * sideways), so the paper stays under the pointer and the fold close to
+ * square (`regrip`).
  */
 const FOLD_SWING = 33;
 const FOLD_KNEE = 25;
+/**
+ * A round sticker has no side for its fold to stay square to (a fold on a
+ * disc is the same at any angle), so it turns as far as the pull, up to this,
+ * as far as swingRoom lets it.
+ */
+const FOLD_SWING_DISC = 80;
 /**
  * A turned fold lifts paper beyond the point taken hold of: a side's, all the
  * way along it. It turns only as far as that paper stays within this much of
@@ -134,6 +160,8 @@ const CLICK_AFTER_DRAG_MS = 700;
 const GLIDE_TAU = 0.325;
 /** ... until it is slower than this (px/s). */
 const GLIDE_MIN = 20;
+/** How far a mouse over an edge lifts it, where the pointer is (as a peel): enough to see that the edge comes up. */
+const HOVER_PEEL = 0.08;
 /** The stylesheet's own corner: the bottom-right one, its fold square to the diagonal. */
 const CORNER = { x: Math.SQRT1_2, y: Math.SQRT1_2 };
 /** A press whose paper faces out within this many degrees of that corner's diagonal takes that corner over. */
@@ -153,6 +181,8 @@ type Grab = {
 	hull: Point[];
 	w: number;
 	corner: boolean;
+	/** a round sticker (--disc): its fold may turn as far as the pull, there being no side to keep square to */
+	disc: boolean;
 };
 
 type Press = {
@@ -166,6 +196,12 @@ type Press = {
 	tilt: number;
 	side: Side;
 	g: Grab;
+	/** where the paper is held now: `g`, or a point the pointer slid along the outline to (`regrip`) */
+	shown: Grab;
+	/** the peel the paper already had when it was taken (the corner's own lift): it counts for nothing */
+	base: number;
+	/** a finger that held still before it moved, straight in from a top or bottom edge (HOLD_MS) */
+	held: boolean;
 	/** the way into the sticker from where it took hold, on screen */
 	inward: Point;
 	/** where the point taken hold of was when the press started (it may be lifted already) */
@@ -214,6 +250,12 @@ type Motion = {
 	took: boolean;
 	peel: number;
 	a: number;
+	/**
+	 * The little lift a mouse over an edge gives it (`hoverEdge`): a press
+	 * takes it over, as the corner's own lift is. `aim` moves it along the
+	 * edge with the pointer, or lays it down (0).
+	 */
+	hover?: { aim: (g: Grab, to: number) => void };
 	stop: () => void;
 };
 
@@ -238,6 +280,10 @@ export type Peel = {
 	calm: () => void;
 	/** The sticker let go to open did not go: lay it back down. */
 	drop: () => void;
+	/** A mouse moving over the sticker: on an edge, that edge lifts a little (on the corner, the corner does). */
+	hover: (event: PointerEvent<HTMLElement>) => void;
+	/** The mouse left it: the edge lies back down. */
+	unhover: () => void;
 };
 
 /** A number custom property of the sticker (--peel, --rest, --hover, --d0, --gz in px), or `fallback`. */
@@ -281,24 +327,27 @@ function canScroll(dy: number): boolean {
 		: window.scrollY < page.scrollHeight - window.innerHeight - 1;
 }
 
-/** The rubber band: one to one up to PEEL_MAX, then less and less, but never nothing. */
-function band(raw: number): number {
-	if (raw <= PEEL_MAX) return Math.max(0, raw);
-	const x = raw - PEEL_MAX;
-	return PEEL_MAX + (PEEL_BAND * x) / (PEEL_BAND + x);
+/**
+ * The rubber band: one to one up to PEEL_MAX past `base` (the lift the paper
+ * had when it was taken), then less and less, but never nothing.
+ */
+function band(raw: number, base = 0): number {
+	if (raw <= base + PEEL_MAX) return Math.max(0, raw);
+	const x = raw - base - PEEL_MAX;
+	return base + PEEL_MAX + (PEEL_BAND * x) / (PEEL_BAND + x);
 }
 
 /** The pull that the rubber band turns into `reach`. */
-function unband(reach: number): number {
-	if (reach <= PEEL_MAX) return reach;
-	const y = Math.min(reach - PEEL_MAX, PEEL_BAND * 0.999);
-	return PEEL_MAX + (PEEL_BAND * y) / (PEEL_BAND - y);
+function unband(reach: number, base = 0): number {
+	if (reach <= base + PEEL_MAX) return reach;
+	const y = Math.min(reach - base - PEEL_MAX, PEEL_BAND * 0.999);
+	return base + PEEL_MAX + (PEEL_BAND * y) / (PEEL_BAND - y);
 }
 
-/** How far (degrees) the fold turns for a pull `off` degrees from square, `most` the most it may: as far, up to the knee, then less and less. */
-function swing(off: number, most: number): number {
+/** How far (degrees) the fold turns for a pull `off` degrees from square, `most` the most it may (of `cap`): as far, up to the knee, then less and less. */
+function swing(off: number, most: number, cap = FOLD_SWING): number {
 	const a = Math.abs(off);
-	const knee = (most * FOLD_KNEE) / FOLD_SWING;
+	const knee = cap > FOLD_SWING ? most * 0.9 : (most * FOLD_KNEE) / FOLD_SWING;
 	if (a <= knee) return off;
 	const room = most - knee;
 	if (room <= 0) return Math.sign(off) * most;
@@ -326,41 +375,116 @@ function handOfPose(g: Grab, peel: number, a: number): Hand {
 	};
 }
 
+type Pose = {
+	peel: number;
+	a: number;
+	reach: number;
+	raw: number;
+	pull: number;
+	/** where the paper is held: the grab, or the point slid along the outline to (`regrip`) */
+	g: Grab;
+};
+
 /**
- * The pose that puts the point taken hold of at `tip`: the fold is the line
- * halfway between it and where it lay, square to the way it was pulled. It
- * turns at most as far as the outline lets it (a corner freely, a side a
- * little: swingRoom), FOLD_SWING at most (past that, the pull's sideways part
- * is dropped), and its travel, less `slack` (as a peel), takes the rubber
- * band past PEEL_MAX. `pull` is the travel before the slack is taken off.
+ * How a pull to `tip` from where `g` took hold folds the paper: the fold is
+ * the line halfway between the two, square to the pull, turned (`off`
+ * degrees from square) as far as the outline lets it (`kept`: a corner
+ * freely, a side a little, swingRoom; FOLD_SWING at most). `len` is the part
+ * of the pull the fold takes (all of it when it turns as far as the pull).
  */
-function poseOf(
-	g: Grab,
-	tip: Point,
-	slack = 0,
-): { peel: number; a: number; reach: number; raw: number; pull: number } {
+function foldOf(g: Grab, tip: Point) {
 	const v = { x: g.at.x - tip.x, y: g.at.y - tip.y };
-	let len = Math.hypot(v.x, v.y);
-	const off = len > 0 ? angleFrom(g.n, v) : 0;
-	const depth = Math.max(0, len * Math.cos((off * Math.PI) / 180)) / 2;
+	const length = Math.hypot(v.x, v.y);
+	const off = length > 0 ? angleFrom(g.n, v) : 0;
+	const depth = Math.max(0, length * Math.cos((off * Math.PI) / 180)) / 2;
 	const most = swingRoom(
 		g.hull,
 		g.at,
 		g.n,
 		depth,
 		FOLD_ROOM,
-		FOLD_SWING,
+		g.disc ? FOLD_SWING_DISC : FOLD_SWING,
 		off >= 0 ? 1 : -1,
 	);
-	const kept = swing(off, most);
-	len *= Math.cos(((off - kept) * Math.PI) / 180);
+	const kept = swing(off, most, g.disc ? FOLD_SWING_DISC : FOLD_SWING);
+	return {
+		off,
+		kept,
+		len: length * Math.cos(((off - kept) * Math.PI) / 180),
+		lateral: Math.abs(dot(v, { x: -g.n.y, y: g.n.x })),
+	};
+}
+
+/** The grab slid `s` px along its side (`way` a unit along it). */
+function slid(g: Grab, way: Point, s: number): Grab {
+	return { ...g, at: { x: g.at.x + way.x * s, y: g.at.y + way.y * s } };
+}
+
+/**
+ * Where a pull to `tip` holds the paper: where `g` took hold, unless the
+ * pull leans further than the fold may turn there. Then the point held
+ * slides along the side toward the way the pointer went, just as far as the
+ * fold, turned as far as it may, is square to the pull: the paper stays under
+ * the pointer (a fingertip dragged sideways slides along the edge), and the
+ * fold stays close to square, where dropping the sideways part of the pull
+ * would leave the paper behind. It slides no further than the side runs
+ * straight. The stylesheet's own corner turns freely and never slides, nor
+ * does a round sticker's fold (it turns as far as the pull instead).
+ */
+function regrip(g: Grab, tip: Point): Grab {
+	if (g.corner || g.disc) return g;
+	const first = foldOf(g, tip);
+	if (Math.abs(first.off - first.kept) < 0.25) return g;
+	// toward the side the pull leans to (t is n turned a right angle
+	// clockwise; a pull leaning that way turns the fold anticlockwise, off < 0)
+	const t = { x: -g.n.y, y: g.n.x };
+	const sign = first.off < 0 ? 1 : -1;
+	const way = { x: t.x * sign, y: t.y * sign };
+	// how far the side runs on that way, straight, from where it took hold
+	const side = sideOf(g.hull, g.n);
+	const along = dot(t, g.at);
+	const room = Math.max(0, sign > 0 ? side.hi - along : along - side.lo);
+	const fits = (s: number) => {
+		const f = foldOf(slid(g, way, s), tip);
+		return Math.abs(f.off - f.kept) < 0.25;
+	};
+	let lo = 0;
+	let hi = Math.min(first.lateral, room);
+	if (hi <= 0) return g;
+	if (!fits(hi)) return slid(g, way, hi);
+	for (let i = 0; i < 14; i++) {
+		const mid = (lo + hi) / 2;
+		if (fits(mid)) hi = mid;
+		else lo = mid;
+	}
+	return slid(g, way, hi);
+}
+
+/**
+ * The pose that puts the paper held at `tip` (`regrip`: the point taken
+ * hold of, or one slid along the outline from it): the fold is the line
+ * halfway between it and where it lay, square to the way it was pulled, and
+ * its travel, less `slack` (as a peel), takes the rubber band past PEEL_MAX
+ * beyond `base` (the lift it had when it was taken). `pull` is the travel
+ * before the slack is taken off.
+ */
+function poseOf(g0: Grab, tip: Point, slack = 0, base = 0): Pose {
+	const g = regrip(g0, tip);
+	const { kept, len } = foldOf(g, tip);
 	const pull = Math.max(0, len / (Math.SQRT2 * g.w));
 	const raw = Math.max(0, pull - slack);
-	if (raw <= 0) return { peel: 0, a: 0, reach: 0, raw: 0, pull };
-	const reach = band(raw);
+	if (raw <= 0) return { peel: 0, a: 0, reach: 0, raw: 0, pull, g };
+	const reach = band(raw, base);
 	// barely lifted, the fold's angle means little: it eases to square rather than swing
 	const shown = reach * Math.SQRT2 * g.w;
-	return { peel: reach, a: kept * Math.min(1, shown / 12), reach, raw, pull };
+	return {
+		peel: reach,
+		a: kept * Math.min(1, shown / 12),
+		reach,
+		raw,
+		pull,
+		g,
+	};
 }
 
 /** True when two grabs took hold of the same place (a press on a fold still springing back). */
@@ -379,19 +503,27 @@ function measure(el: HTMLElement) {
 	const h = body?.offsetHeight || el.offsetHeight || 1;
 	const hull = hullOf(el).map((p) => ({ x: p.x * w, y: p.y * w }));
 	const round = prop(body ?? el, '--gz', 0.17 * Math.min(w, h));
-	return { w, h, hull, round };
+	const disc = prop(body ?? el, '--disc', 0) > 0;
+	return { w, h, hull, round, disc };
 }
 
 /** The stylesheet's own corner, as a grab: where its die-cut meets the diagonal (--d0), square to it. */
 function cornerGrab(el: HTMLElement): Grab {
-	const { w, h, hull } = measure(el);
+	const { w, h, hull, disc } = measure(el);
 	const d = (w * prop(el, '--d0', 0)) / 2;
-	return { at: { x: w - d, y: h - d }, n: CORNER, hull, w, corner: true };
+	return {
+		at: { x: w - d, y: h - d },
+		n: CORNER,
+		hull,
+		w,
+		corner: true,
+		disc,
+	};
 }
 
 /** A press at (x, y) on screen: where it takes hold of the sticker. */
 function grabAt(el: HTMLElement, x: number, y: number, tilt: number): Grab {
-	const { w, h, hull, round } = measure(el);
+	const { w, h, hull, round, disc } = measure(el);
 	const r = el.getBoundingClientRect();
 	const m = local(x - (r.left + r.width / 2), y - (r.top + r.height / 2), tilt);
 	const d = { x: w / 2 + m.x, y: h / 2 + m.y };
@@ -399,7 +531,7 @@ function grabAt(el: HTMLElement, x: number, y: number, tilt: number): Grab {
 	if (Math.abs(angleFrom(CORNER, found.n)) <= CORNER_TAKE) {
 		return cornerGrab(el);
 	}
-	return { at: found.at, n: found.n, hull, w, corner: false };
+	return { at: found.at, n: found.n, hull, w, corner: false, disc };
 }
 
 /**
@@ -461,7 +593,9 @@ let stopGlide = () => {};
 /** Lets the page glide on at `speed` px/s (down the page when positive), slowing down, as a flicked page does. */
 function glide(speed: number) {
 	stopGlide();
-	if (Math.abs(speed) < GLIDE_MIN * 4 || prefersReducedMotion()) return;
+	// (with reduced motion too: a page flicked coasts on, as the browser's own
+	// scrolling does there; it is the reader's own motion, not an effect)
+	if (Math.abs(speed) < GLIDE_MIN * 4) return;
 	let v = speed;
 	let top = window.scrollY;
 	let last = 0;
@@ -605,6 +739,87 @@ function springBack(
 }
 
 /**
+ * A mouse over an edge (not the corner, which lifts by itself) lifts that
+ * edge a little, by hand, where the pointer is: any side can be taken. It
+ * follows the pointer along the edge, and lies back down (`to` 0) when the
+ * pointer leaves the edge. A short spring, as the fold's own; at once with
+ * reduced motion.
+ */
+function hoverEdge(el: HTMLElement, g: Grab | null, to: number) {
+	const now = moving.get(el);
+	if (now?.hover) {
+		now.hover.aim(g ?? now.g, to);
+		return;
+	}
+	if (!g || !(to > 0)) return;
+	let grab = g;
+	let target = to;
+	let x = 0;
+	let v = 0;
+	let last = 0;
+	let frame = 0;
+	const draw = () => {
+		motion.peel = Math.max(0, x);
+		drawHand(el, handOfPose(grab, motion.peel, 0));
+	};
+	const damping = 2 * SPRING_ZETA * Math.sqrt(SPRING_K);
+	const step = (time: number) => {
+		let dt = last ? Math.min(0.05, Math.max(0, (time - last) / 1000)) : 1 / 60;
+		last = time;
+		while (dt > 0) {
+			const h = Math.min(dt, 1 / 240);
+			v += (-SPRING_K * (x - target) - damping * v) * h;
+			x += v * h;
+			dt -= h;
+		}
+		if (Math.abs(x - target) < 0.001 && Math.abs(v) < 0.02) {
+			x = target;
+			frame = 0;
+			if (target <= 0) {
+				settle(el);
+				return;
+			}
+			draw();
+			return;
+		}
+		draw();
+		frame = requestAnimationFrame(step);
+	};
+	const aim = (next: Grab, value: number) => {
+		grab = next;
+		motion.g = next;
+		target = value;
+		// lifting, its corner stays at rest; going down, the corner may lift again
+		el.dataset.peel = value > 0 ? 'hover' : 'spring';
+		if (prefersReducedMotion()) {
+			x = value;
+			v = 0;
+			if (value <= 0) settle(el);
+			else draw();
+			return;
+		}
+		if (!frame) {
+			last = 0;
+			frame = requestAnimationFrame(step);
+		}
+	};
+	const motion: Motion = {
+		g,
+		took: false,
+		peel: 0,
+		a: 0,
+		hover: { aim },
+		stop: () => {
+			cancelAnimationFrame(frame);
+			frame = 0;
+		},
+	};
+	moving.set(el, motion);
+	delete el.dataset.took;
+	aim(g, to);
+}
+
+/**
  * The drag that peels a sticker from any side. `onOff` is called when the
  * sticker is let go to come off; it returns false when it cannot open now
  * (another is on its way), and it goes back down.
@@ -678,6 +893,9 @@ export function usePeel(
 				tilt,
 				side: (grip.dataset.side as Side | undefined) ?? 'bottom',
 				g,
+				shown: g,
+				base: 0,
+				held: false,
 				inward: onScreen({ x: -g.n.x, y: -g.n.y }, tilt),
 				tip: g.at,
 				mode: 'press',
@@ -701,7 +919,16 @@ export function usePeel(
 			press.current = p;
 
 			/** Shows the pose (components/fold.ts writes --drag, --fold, --tip-x and --tip-y with it). */
-			const show = () => drawHand(el, handOfPose(p.g, p.peel, p.a));
+			const show = () => drawHand(el, handOfPose(p.shown, p.peel, p.a));
+			/** Takes `pose` as the press's own. */
+			const take = (pose: Pose) => {
+				p.peel = pose.peel;
+				p.a = pose.a;
+				p.reach = pose.reach;
+				p.raw = pose.raw;
+				p.pull = pose.pull;
+				p.shown = pose.g;
+			};
 
 			const begin = () => {
 				// from wherever it is now: at rest, hovered, mid-hint or mid-spring
@@ -711,21 +938,24 @@ export function usePeel(
 				if (sprung && same(sprung.g, p.g)) {
 					p.g = sprung.g;
 					p.tip = tipOf(p.g, sprung.peel, sprung.a);
+					// an edge lifted by the mouse over it: that lift is not the pull's
+					if (sprung.hover) p.base = sprung.peel;
 				} else if (p.g.corner) {
-					// the stylesheet's own corner, taken over as it shows now
-					p.tip = tipOf(p.g, shownPeel(el), 0);
+					// The stylesheet's own corner, taken over as it shows now. Its
+					// lift (at rest, or hovered) counts for nothing: it opens after
+					// as long a pull as any other side does.
+					p.base = shownPeel(el);
+					p.tip = tipOf(p.g, p.base, 0);
 				} else {
 					p.tip = p.g.at;
 				}
-				const start = poseOf(p.g, p.tip);
+				const start = poseOf(p.g, p.tip, 0, p.base);
 				// paper caught past the band (springing back from there) stays where it is
-				p.slack = start.pull > PEEL_MAX ? start.pull - unband(start.pull) : 0;
-				const pose = poseOf(p.g, p.tip, p.slack);
-				p.pull = pose.pull;
-				p.raw = pose.raw;
-				p.reach = pose.reach;
-				p.peel = pose.peel;
-				p.a = pose.a;
+				p.slack =
+					start.pull > p.base + PEEL_MAX
+						? start.pull - unband(start.pull, p.base)
+						: 0;
+				take(poseOf(p.g, p.tip, p.slack, p.base));
 				// from the press: a flick can be over in a frame or two
 				p.samples.push({ t: p.t, x: 0, y: 0, peel: p.peel, reach: p.reach });
 				if (p.g.corner) el.dataset.took = '';
@@ -767,6 +997,8 @@ export function usePeel(
 			const turnsAway = (dx: number, dy: number) => {
 				p.trail.push({ x: dx, y: dy });
 				if (p.trail.length > TRAIL) p.trail.shift();
+				// held, it went straight from the start: it is not a thumb's arc
+				if (p.held) return false;
 				if (p.side === 'left' || p.side === 'right') return false;
 				// from the press, unless it has gone further than the trail recalls
 				let from: Point | null = p.trail.length < TRAIL ? { x: 0, y: 0 } : null;
@@ -785,6 +1017,24 @@ export function usePeel(
 				return canScroll(ty);
 			};
 
+			/** A held finger's peel: true when it now goes as fast as a swipe does (HELD_SWIPE). */
+			const swipes = (e: globalThis.PointerEvent) => {
+				if (!p.held) return false;
+				const v = velocity(
+					[
+						...p.samples,
+						{
+							t: e.timeStamp,
+							...local(e.clientX - p.x, e.clientY - p.y, p.tilt),
+							peel: 0,
+							reach: 0,
+						},
+					],
+					e.timeStamp,
+				);
+				return Math.hypot(v.x, v.y) > HELD_SWIPE;
+			};
+
 			const move = (e: globalThis.PointerEvent) => {
 				if (e.pointerId !== p.id) return;
 				const dx = e.clientX - p.x;
@@ -796,16 +1046,19 @@ export function usePeel(
 					if (p.far < (SLOP[p.type] ?? 4)) return;
 					// A finger decides here: into the sticker it peels, if it leans
 					// off the screen's vertical too (a tilted sticker's way in may be
-					// nearly upright), or the page cannot scroll that way; any other
-					// way it scrolls, by the browser where the grip lets it. A mouse
-					// has nothing to scroll: it always takes hold.
+					// nearly upright), or if it held still a moment before it moved
+					// (it took hold of the edge: a thumb scrolling the page moves at
+					// once); any other way it scrolls, by the browser where the grip
+					// lets it. At the page's end too: a quick straight flick there
+					// asks for more page, and must not open a project. A mouse has
+					// nothing to scroll: it always takes hold.
 					const itself = scrollsItself(p.side, dx, dy);
 					const into =
 						Math.abs(angleFrom(p.inward, { x: dx, y: dy })) <= START_CONE;
-					if (
-						p.type === 'mouse' ||
-						(!itself && into && (leans(dx, dy) || !canScroll(dy)))
-					) {
+					const leaning = leans(dx, dy);
+					const still = e.timeStamp - p.t >= HOLD_MS;
+					if (p.type === 'mouse' || (!itself && into && (leaning || still))) {
+						p.held = p.type !== 'mouse' && !leaning;
 						begin();
 					} else if (itself || p.side === 'left' || p.side === 'right') {
 						// the browser scrolls it (or, across a side, nothing does)
@@ -817,14 +1070,15 @@ export function usePeel(
 				} else if (
 					p.mode === 'peel' &&
 					p.type !== 'mouse' &&
-					turnsAway(dx, dy) &&
-					!p.ready
+					!p.ready &&
+					(turnsAway(dx, dy) || swipes(e))
 				) {
 					// It leaned at first but turned along the screen before it was far
-					// enough to come off: it was scrolling after all. It goes back
-					// down and the page scrolls.
+					// enough to come off, or it was held but set off as fast as a
+					// swipe: it was scrolling after all. It goes back down and the
+					// page scrolls.
 					springBack(el, {
-						g: p.g,
+						g: p.shown,
 						took: p.g.corner,
 						peel: p.peel,
 						a: p.a,
@@ -858,12 +1112,12 @@ export function usePeel(
 					return;
 				}
 				const tip = { x: p.tip.x + m.x, y: p.tip.y + m.y };
-				let pose = poseOf(p.g, tip, p.slack);
-				if (pose.pull < p.pull && p.raw > PEEL_MAX) {
+				let pose = poseOf(p.g, tip, p.slack, p.base);
+				if (pose.pull < p.pull && p.raw > p.base + PEEL_MAX) {
 					// Pushed back from past the band: the paper comes back as far as
 					// the pointer does, at once. What the band kept back is let go of.
 					const back = Math.max(0, p.reach - (p.raw - pose.raw));
-					p.slack = pose.pull - unband(back);
+					p.slack = pose.pull - unband(back, p.base);
 				} else if (p.slack > 0 && pose.pull < p.pull) {
 					// pushed back further: the slack shrinks with the pull, so the
 					// paper lies flat just as the pointer gets back to where it does
@@ -874,12 +1128,8 @@ export function usePeel(
 				}
 				// pushed down flat (or past): pulled out again, it lifts at once
 				p.slack = Math.min(p.slack, pose.pull);
-				pose = poseOf(p.g, tip, p.slack);
-				p.peel = pose.peel;
-				p.a = pose.a;
-				p.reach = pose.reach;
-				p.raw = pose.raw;
-				p.pull = pose.pull;
+				pose = poseOf(p.g, tip, p.slack, p.base);
+				take(pose);
 				p.samples.push({
 					t: e.timeStamp,
 					x: m.x,
@@ -889,7 +1139,9 @@ export function usePeel(
 				});
 				if (p.samples.length > 12) p.samples.shift();
 				show();
-				const ready = p.reach >= PEEL_OPEN - (p.ready ? READY_GIVE : 0);
+				// (the lift it had when taken, the corner's own, is not the pull's)
+				const ready =
+					p.reach - p.base >= PEEL_OPEN - (p.ready ? READY_GIVE : 0);
 				if (ready !== p.ready) {
 					p.ready = ready;
 					if (ready) {
@@ -942,7 +1194,10 @@ export function usePeel(
 					y: p.samples.at(-1)?.y ?? 0,
 				};
 				const flick = { x: speed.x, y: speed.y };
+				// (a held finger's straight pull opens only by being pulled far enough:
+				// flicked, it is too like a thumb asking for more page)
 				const flung =
+					!p.held &&
 					dot(flick, inward) >= FLING_SPEED &&
 					Math.abs(angleFrom(inward, flick)) <= FLING_CONE &&
 					dot(last, inward) >= FLING_PULL;
@@ -966,11 +1221,16 @@ export function usePeel(
 					show();
 					el.style.setProperty('--lift', '0');
 					el.dataset.peel = 'off';
-					held.current = { g: p.g, took: p.g.corner, peel: p.peel, a: p.a };
+					held.current = {
+						g: p.shown,
+						took: p.g.corner,
+						peel: p.peel,
+						a: p.a,
+					};
 					if (off.current()) return;
 				}
 				springBack(el, {
-					g: p.g,
+					g: p.shown,
 					took: p.g.corner,
 					peel: p.peel,
 					a: p.a,
@@ -1048,7 +1308,16 @@ export function usePeel(
 		const el = ref.current;
 		if (!el) return;
 		const mode = el.dataset.peel;
-		if (mode === 'hint' || mode === 'spring') settle(el);
+		const now = moving.get(el);
+		if (mode === 'hover' && now && now.peel > 0) {
+			// a click on a lifted edge: it flies from that pose, as a peel does
+			// (and is laid back down if it does not go: drop)
+			stopMotion(el);
+			el.dataset.peel = 'off';
+			held.current = { g: now.g, took: false, peel: now.peel, a: 0 };
+			return;
+		}
+		if (mode === 'hint' || mode === 'spring' || mode === 'hover') settle(el);
 	}, [ref]);
 
 	const calm = useCallback(() => {
@@ -1087,9 +1356,50 @@ export function usePeel(
 		}
 	}, [ref]);
 
+	const hover = useCallback(
+		(event: PointerEvent<HTMLElement>) => {
+			const el = ref.current;
+			if (!el || event.pointerType !== 'mouse' || press.current) return;
+			// held, springing, lifting, flying or hinting: not now
+			if (
+				(el.dataset.peel && !moving.get(el)?.hover) ||
+				el.classList.contains('is-lifting') ||
+				'vt' in document.documentElement.dataset ||
+				!matchMedia('(hover: hover) and (pointer: fine)').matches
+			) {
+				return;
+			}
+			const grip =
+				event.target instanceof Element
+					? event.target.closest('.stk-grip')
+					: null;
+			const g = grip
+				? grabAt(el, event.clientX, event.clientY, tiltOf(el))
+				: null;
+			// over the middle, or over the corner that lifts by itself: the edge lies down
+			if (!g || g.corner) hoverEdge(el, null, 0);
+			else hoverEdge(el, g, HOVER_PEEL);
+		},
+		[ref],
+	);
+
+	const unhover = useCallback(() => {
+		const el = ref.current;
+		if (el && moving.get(el)?.hover) hoverEdge(el, null, 0);
+	}, [ref]);
+
 	return useMemo(
-		() => ({ onPointerDown, onDragStart, dragged, stop, calm, drop }),
-		[onPointerDown, onDragStart, dragged, stop, calm, drop],
+		() => ({
+			onPointerDown,
+			onDragStart,
+			dragged,
+			stop,
+			calm,
+			drop,
+			hover,
+			unhover,
+		}),
+		[onPointerDown, onDragStart, dragged, stop, calm, drop, hover, unhover],
 	);
 }
 
@@ -1103,7 +1413,7 @@ const HINT_DELAY = 450;
 const HINT_MS = 1600;
 /** The edge's part: how long it takes (ms), and how far it lifts (as a peel). */
 const EDGE_MS = 900;
-const EDGE_PEEL = 0.1;
+const EDGE_PEEL = 0.18;
 
 /** Set once the hint has played, or the reader has peeled a sticker, on this page load. */
 let hinted = false;
@@ -1145,12 +1455,13 @@ function edgeLift(t: number): number {
 }
 
 /**
- * The hint's second part: the sticker's left edge lifts a little and lies
+ * The hint's second part: the sticker's left edge lifts (as far as the corner
+ * did, so it reads as a side coming up, not a sliver) and lies
  * back down, by hand (it is the hand's fold that can lift any side). A press
  * or a pointer arriving meanwhile takes it from where it is.
  */
 function liftEdge(el: HTMLElement, done: () => void) {
-	const { w, h, hull } = measure(el);
+	const { w, h, hull, disc } = measure(el);
 	const n = { x: -1, y: 0 };
 	const g: Grab = {
 		at: outermost(hull, n, { x: 0, y: h / 2 }),
@@ -1158,6 +1469,7 @@ function liftEdge(el: HTMLElement, done: () => void) {
 		hull,
 		w,
 		corner: false,
+		disc,
 	};
 	let frame = 0;
 	let start = 0;

@@ -29,7 +29,7 @@ export function FocusTitle({
 		if (from === null) return;
 		if (toTop) {
 			window.scrollTo(0, 0);
-			keepScroll();
+			keepScroll({ x: 0, y: 0 });
 		}
 		ref.current?.focus({ preventScroll: true });
 	}, []);

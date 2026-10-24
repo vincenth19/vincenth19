@@ -2,20 +2,42 @@
    Opening a project and leaving it run as a view transition (DeskProvider):
    the sticker flies between its spot on the Projects page and the header (the
    two share a view-transition-name, set inline by StickerLink and MastFrame),
-   and the old page fades off the new one around it.
+   the book and the socials, which both pages have, move to where the new page
+   has them (the masthead is taller with a sticker in it) on the flight's own
+   timing, and what differs (the leaf's page, the masthead's name or Back
+   arrow) is swapped in place, quickly.
 
-   The sticker is the only thing named, so the only thing captured on its own:
-   everything else (the book, a product page's stage, the masthead) is the
-   page, and goes with it in one cross-fade. Everything here animates transform
-   and opacity only, so the compositor runs it without the main thread: the
-   sticker's change in size is folded into its transform by DeskProvider
-   (tuneFlights) once the transition is ready. */
+   Named, while a transition runs (data-vt): the sticker, the book (its tabs
+   with it) and the socials. Not a product page's stage (Super Space's is
+   eleven thousand pixels tall; it is the page, the root), nor the masthead.
+   Everything here animates transform and opacity only, so the compositor runs
+   it without the main thread: a group's change in size is folded into its
+   transform by DeskProvider (tuneFlights) once the transition is ready. */
 :root {
 	/* one timing for every flight, opening a project and leaving it */
 	--vt-dur: 0.44s;
 	--vt-ease: cubic-bezier(0.2, 0, 0, 1);
-	/* how long the old page takes to fade off the new one */
-	--vt-fade: 0.18s;
+	/* How long the old page takes to fade off the new one, where they differ:
+	   short and front-loaded, so only two frames show it at more than a third
+	   (the old page's opacity a frame apart at 60 Hz, after the first: 0.65,
+	   0.37, 0.19, 0.07, 0.02) */
+	--vt-fade: 0.1s;
+	--vt-fade-ease: cubic-bezier(0.2, 0.4, 0.4, 1);
+}
+:root[data-vt] .book {
+	view-transition-name: book;
+}
+:root[data-vt] .mast .socials {
+	view-transition-name: socials;
+}
+/* A book (or the socials) that would slide most of a screen (a project
+   opened from far down the Projects page, or back to it, or back from far
+   down a product page) is not moved: the old one goes, and the new page is
+   there where it is. DeskProvider sets data-vt-still once the new page is in,
+   so it only changes how the new page is captured. */
+:root[data-vt-still] .book,
+:root[data-vt-still] .mast .socials {
+	view-transition-name: none;
 }
 
 /* The page under the snapshots does not take clicks while a transition runs;
@@ -33,19 +55,34 @@
 		animation-duration: var(--vt-dur);
 		animation-timing-function: var(--vt-ease);
 	}
-	::view-transition-group(root) {
+	/* the page, then the book and the socials over it, then the sticker */
+	::view-transition-group(root),
+	::view-transition-group(book),
+	::view-transition-group(socials) {
 		z-index: 0;
 	}
-	/* The new page is there from the first frame, and the old one fades off
-	   it: no frame shows neither (the screen never dips to the dark under the
-	   desk), and nothing is blended (plus-lighter would brighten the desk where
-	   the two overlap). */
-	::view-transition-old(root) {
+	/* The new page (and the new book) is there from the first frame, and the
+	   old one fades off it: no frame shows neither (the screen never dips to
+	   the dark under the desk), and nothing is blended (plus-lighter would
+	   brighten the desk where the two overlap). In the book, the two leaves
+	   lie in the same place as it moves, so only the pages' contents change. */
+	::view-transition-old(root),
+	::view-transition-old(book) {
 		z-index: 1;
 		mix-blend-mode: normal;
-		animation: vt-fade-out var(--vt-fade) ease-out both;
+		animation: vt-fade-out var(--vt-fade) var(--vt-fade-ease) both;
 	}
-	::view-transition-new(root) {
+	::view-transition-new(root),
+	::view-transition-new(book) {
+		mix-blend-mode: normal;
+		animation: none;
+	}
+	/* the socials are the same on both pages: they only move */
+	::view-transition-old(socials) {
+		animation: none;
+		opacity: 0;
+	}
+	::view-transition-new(socials) {
 		mix-blend-mode: normal;
 		animation: none;
 	}
@@ -53,7 +90,7 @@
 	   Writing or Resume, or coming back from there) gets out of the way, or
 	   settles in, rather than lie over the page */
 	::view-transition-old(*):only-child {
-		animation: vt-sink var(--vt-fade) ease-out both;
+		animation: vt-sink var(--vt-fade) var(--vt-fade-ease) both;
 	}
 	::view-transition-new(*):only-child {
 		animation: vt-rise var(--vt-dur) 0.06s var(--vt-ease) both;

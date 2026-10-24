@@ -211,10 +211,15 @@ export function reach(hull: Point[], n: Point): number {
 }
 
 /**
- * The point of the outline furthest along `n`, the one nearest to `near` where
- * a straight edge lies square to `n` (a side, rather than a corner).
+ * The part of the outline furthest along `n`: its support line n · X = h,
+ * and where along that line (t = n turned a right angle clockwise, t · X)
+ * the outline runs on it, from `lo` to `hi`: a straight edge square to `n`
+ * (a side), or a single point (a corner, or a round outline).
  */
-export function outermost(hull: Point[], n: Point, near: Point): Point {
+export function sideOf(
+	hull: Point[],
+	n: Point,
+): { h: number; lo: number; hi: number } {
 	const h = reach(hull, n);
 	const t = { x: -n.y, y: n.x };
 	let lo = Number.POSITIVE_INFINITY;
@@ -227,6 +232,16 @@ export function outermost(hull: Point[], n: Point, near: Point): Point {
 			hi = Math.max(hi, s);
 		}
 	}
+	return { h, lo, hi };
+}
+
+/**
+ * The point of the outline furthest along `n`, the one nearest to `near` where
+ * a straight edge lies square to `n` (a side, rather than a corner).
+ */
+export function outermost(hull: Point[], n: Point, near: Point): Point {
+	const { h, lo, hi } = sideOf(hull, n);
+	const t = { x: -n.y, y: n.x };
 	const s = Math.min(hi, Math.max(lo, dot(t, near)));
 	return { x: n.x * h + t.x * s, y: n.y * h + t.y * s };
 }
@@ -259,7 +274,8 @@ function contains(poly: Point[], p: Point): boolean {
 	return true;
 }
 
-function nearestOn(poly: Point[], p: Point): Point {
+/** The point of a convex polygon's outline nearest to `p`. */
+export function nearestOn(poly: Point[], p: Point): Point {
 	let best = poly[0];
 	let dist = Number.POSITIVE_INFINITY;
 	for (let i = 0; i < poly.length; i++) {

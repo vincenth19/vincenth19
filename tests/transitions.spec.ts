@@ -193,9 +193,15 @@ test('Super Space: the launcher works between Back and Forward, and the header s
 	expect(runs.map((v) => v.direction)).toEqual(['open', 'close', 'open']);
 	for (const run of runs) {
 		expect(run.pairs).toContain('stk-superspace');
-		// the book gives way to the stage, or the stage to the book, with the
-		// page: neither is captured on its own (the stage is 11,000px tall)
-		expect([...run.names].sort()).toEqual(['root', 'stk-superspace']);
+		// the book gives way to the stage, or the stage to the book: the stage
+		// (11,000px tall) is the page, never captured on its own, and the book,
+		// on one side only, goes or comes with no partner
+		expect(
+			run.names.filter(
+				(n) => !['root', 'book', 'socials', 'stk-superspace'].includes(n),
+			),
+		).toEqual([]);
+		expect(run.pairs).not.toContain('book');
 	}
 	expect(problems).toEqual([]);
 });
@@ -443,10 +449,115 @@ test('a sticker opened from far down the Projects page leaves the book where it 
 	await expect(page).toHaveURL(at('/projects/covidtracker'));
 	await vts.settled();
 	const [open] = await vts.take();
-	// the sticker flies; the book does not slide a screen's height under it: it
-	// is never captured on its own, and goes with the page
+	// the sticker flies; the book does not slide a screen's height under it,
+	// nor do the socials: the old ones go, and the new page is there in place
 	expect(open.pairs).toContain('stk-covid');
-	expect([...open.names].sort()).toEqual(['root', 'stk-covid']);
+	expect(open.pairs).not.toContain('book');
+	expect(open.pairs).not.toContain('socials');
+});
+
+test('opened from the top of the Projects page, the book and the socials move with the flight, on the compositor, and the old leaf is gone in a tenth of a second', async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 1440, height: 900 });
+	await page.addInitScript(() => {
+		type Part = { name: string; props: string[]; from: string; to: string };
+		const w = window as unknown as {
+			__parts: Part[];
+			__fades: Record<string, number>;
+			__images: Record<string, string>;
+		};
+		w.__parts = [];
+		w.__fades = {};
+		w.__images = {};
+		const start = document.startViewTransition?.bind(document);
+		if (!start) return;
+		document.startViewTransition = ((update: ViewTransitionUpdateCallback) => {
+			const vt = start(update);
+			vt.ready
+				.then(() => new Promise((r) => setTimeout(r, 0)))
+				.then(() => {
+					for (const a of document.documentElement.getAnimations({
+						subtree: true,
+					})) {
+						const effect = a.effect as KeyframeEffect | null;
+						const m = /^::view-transition-(group|old)\((.+)\)$/.exec(
+							effect?.pseudoElement ?? '',
+						);
+						if (!m || !effect) continue;
+						if (m[1] === 'old') {
+							w.__fades[m[2]] = Number(effect.getComputedTiming().endTime);
+							continue;
+						}
+						const k = effect.getKeyframes();
+						const props = new Set<string>();
+						for (const f of k) {
+							for (const p of Object.keys(f)) {
+								if (
+									!['offset', 'easing', 'composite', 'computedOffset'].includes(
+										p,
+									)
+								) {
+									props.add(p);
+								}
+							}
+						}
+						w.__parts.push({
+							name: m[2],
+							props: [...props],
+							from: String(k[0]?.transform ?? ''),
+							to: String(k.at(-1)?.transform ?? ''),
+						});
+						// the old and the new image of a moving part (they animate
+						// nothing of their own, so they are read off their style)
+						if (m[2] === 'book' || m[2] === 'socials') {
+							for (const part of ['old', 'new']) {
+								w.__images[`${part} ${m[2]}`] = getComputedStyle(
+									document.documentElement,
+									`::view-transition-${part}(${m[2]})`,
+								).width;
+							}
+						}
+					}
+				})
+				.catch(() => {});
+			return vt;
+		}) as typeof document.startViewTransition;
+	});
+	const vts = await recordTransitions(page);
+	await page.goto('/');
+	expect(await scrollY(page)).toBe(0);
+	await page.getByRole('link', { name: 'Basilica. Open project' }).click();
+	await expect(page).toHaveURL(at('/projects/basilica'));
+	await vts.settled();
+	const [open] = await vts.take();
+	expect(open.pairs).toContain('stk-basilica');
+	const { parts, fades, images } = await page.evaluate(() => {
+		const w = window as unknown as {
+			__parts: { name: string; props: string[]; from: string; to: string }[];
+			__fades: Record<string, number>;
+			__images: Record<string, string>;
+		};
+		return { parts: w.__parts, fades: w.__fades, images: w.__images };
+	});
+	// one book, one row of tabs, one row of socials: each, old and new, is
+	// one part that moves to its new place (the masthead is taller with the
+	// sticker in it), rather than two layouts showing at once
+	for (const image of ['old book', 'new book', 'old socials', 'new socials']) {
+		expect(images[image], image).toMatch(/px$/);
+	}
+	for (const name of ['book', 'socials']) {
+		const part = parts.find((p) => p.name === name);
+		expect(part, name).toBeDefined();
+		// it moves (down, under the taller masthead) by transform alone
+		expect(part?.props, name).toEqual(['transform']);
+		const y = (t: string | undefined) =>
+			Number(/matrix\(([^)]+)\)/.exec(t ?? '')?.[1].split(',')[5]);
+		expect(y(part?.to) - y(part?.from), name).toBeGreaterThan(100);
+	}
+	// the old page's leaf and masthead are off the new one in 0.1 s
+	expect(fades.root).toBeLessThanOrEqual(100);
+	expect(fades.book).toBeLessThanOrEqual(100);
 });
 
 test('a prefetched sticker flies at once, on the compositor, and the new page waits for it to land', async ({
@@ -566,9 +677,156 @@ test('a prefetched sticker flies at once, on the compositor, and the new page wa
 	expect(seen.props).toContain(
 		'::view-transition-group(stk-superspace) transform',
 	);
-	// the launcher loads once the sticker has landed, not during the flight
+	// the launcher loads once the sticker has landed and been pressed down
+	// (0.42 s), not during the flight nor the press
 	expect(seen.launcher).not.toBeNull();
-	expect(seen.launcher ?? 0).toBeGreaterThanOrEqual(seen.finished[0]);
+	expect(seen.launcher ?? 0).toBeGreaterThanOrEqual(seen.finished[0] + 400);
+});
+
+test('opened in a transition, Super Space puts in its first screen only, and the rest once the sticker has landed', async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 1440, height: 900 });
+	await page.addInitScript(() => {
+		const w = window as unknown as {
+			__parts: { atCapture: number; atLanding: number };
+		};
+		w.__parts = { atCapture: -1, atLanding: -1 };
+		const count = () => document.querySelectorAll('main.ss > section').length;
+		const start = document.startViewTransition?.bind(document);
+		if (!start) return;
+		document.startViewTransition = ((update: ViewTransitionUpdateCallback) => {
+			const vt = start(update);
+			// the new page as the transition captures it
+			vt.ready.then(() => {
+				w.__parts.atCapture = count();
+			});
+			vt.finished.then(() => {
+				w.__parts.atLanding = count();
+			});
+			return vt;
+		}) as typeof document.startViewTransition;
+	});
+	const vts = await recordTransitions(page);
+	await page.goto('/');
+	const sticker = page.getByRole('link', {
+		name: 'Super Space, 2026. Open project',
+	});
+	await sticker.hover();
+	await page.waitForTimeout(600);
+	await sticker.click();
+	await expect(page).toHaveURL(at('/projects/super-space'));
+	await vts.settled();
+	const parts = () =>
+		page.evaluate(
+			() =>
+				(window as unknown as { __parts: { atCapture: number } }).__parts
+					.atCapture,
+		);
+	// the hero alone, in the update the screen holds still for
+	expect(await parts()).toBe(1);
+	// then the rest, a part a frame
+	const all = await page.evaluate(async () => {
+		const res = await fetch(location.pathname);
+		const html = await res.text();
+		const doc = new DOMParser().parseFromString(html, 'text/html');
+		return doc.querySelectorAll('main.ss > section').length;
+	});
+	expect(all).toBeGreaterThan(5);
+	await expect(page.locator('main.ss > section')).toHaveCount(all);
+	await expect(page.locator('.ss-later')).toHaveCount(0);
+	// loaded afresh, it is all there from the start, as the server sent it
+	await page.reload();
+	expect(
+		await page.evaluate(
+			() => document.querySelectorAll('main.ss > section').length,
+		),
+	).toBe(all);
+});
+
+test('Super Space reloaded far down the page comes back to the same place', async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 1440, height: 900 });
+	await page.goto('/projects/super-space');
+	const pi = page.locator('main.ss > section').nth(5);
+	await pi.evaluate((el) =>
+		el.scrollIntoView({ block: 'start', behavior: 'instant' }),
+	);
+	await page.waitForTimeout(300);
+	const top = () => pi.evaluate((el) => el.getBoundingClientRect().top);
+	const before = await top();
+	await page.reload();
+	await page.waitForTimeout(600);
+	// every section has its real height from the start: nothing to guess at
+	expect(Math.abs((await top()) - before)).toBeLessThan(2);
+});
+
+test('a page already in flies at once, though another page’s fonts are still on their way', async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 1440, height: 900 });
+	const vts = await recordTransitions(page);
+	await page.addInitScript(() => {
+		const w = window as unknown as { __clicked: number; __started: number };
+		w.__clicked = 0;
+		w.__started = 0;
+		window.addEventListener(
+			'click',
+			() => {
+				w.__clicked = performance.now();
+			},
+			{ capture: true },
+		);
+		const start = document.startViewTransition?.bind(document);
+		if (!start) return;
+		document.startViewTransition = ((update: ViewTransitionUpdateCallback) => {
+			w.__started = performance.now();
+			return start(update);
+		}) as typeof document.startViewTransition;
+	});
+	// once the Projects page is in, any font asked for comes very slowly
+	let slow = false;
+	await page.route(/\.woff2(\?|$)/, async (route) => {
+		if (slow) await new Promise((r) => setTimeout(r, 4000));
+		await route.continue().catch(() => {});
+	});
+	await page.goto('/');
+	await page.waitForLoadState('networkidle');
+	slow = true;
+	const basilica = page.getByRole('link', { name: 'Basilica. Open project' });
+	// Basilica's page is prefetched as it comes into view
+	await expect
+		.poll(() =>
+			page.evaluate(() =>
+				performance
+					.getEntriesByType('resource')
+					.some((r) => r.name.includes('/projects/basilica?_rsc')),
+			),
+		)
+		.toBe(true);
+	const fonts = () =>
+		page.evaluate(
+			() =>
+				document.head.querySelectorAll('link[rel="preload"][as="font"]').length,
+		);
+	const before = await fonts();
+	// the pointer rests on Super Space on its way: its page asks for its fonts
+	await page
+		.getByRole('link', { name: 'Super Space, 2026. Open project' })
+		.hover();
+	await expect.poll(fonts).toBeGreaterThan(before);
+	await basilica.click();
+	await expect(page).toHaveURL(at('/projects/basilica'));
+	await vts.settled();
+	const [open] = await vts.take();
+	expect(open.pairs).toContain('stk-basilica');
+	const { clicked, started } = await page.evaluate(() => {
+		const w = window as unknown as { __clicked: number; __started: number };
+		return { clicked: w.__clicked, started: w.__started };
+	});
+	// it did not wait for Super Space's fonts: the flight started in the click's task
+	expect(started - clicked).toBeLessThan(100);
 });
 
 test('a lifted sticker waits for its page before it flies, so the screen never freezes on a slow page', async ({
@@ -585,10 +843,16 @@ test('a lifted sticker waits for its page before it flies, so the screen never f
 			}
 		}).observe(document.documentElement, { attributes: true });
 	});
-	// Super Space's page data comes slowly
+	// Super Space's page data comes slowly (its first request: the page asks
+	// for it in two, one after the other, and both held would come close to
+	// the 1.5 s a page may take before it opens without the flight)
 	let released = 0;
+	let first = true;
 	await page.route('**/projects/super-space?_rsc=*', async (route) => {
-		await new Promise((r) => setTimeout(r, 350));
+		if (first) {
+			first = false;
+			await new Promise((r) => setTimeout(r, 350));
+		}
 		released = await page.evaluate(() => performance.now());
 		await route.continue();
 	});

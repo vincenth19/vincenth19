@@ -92,15 +92,11 @@
 		);
 	mask-image: linear-gradient(180deg, transparent, #000 160px);
 }
-/* Below the first screen, a section is laid out and drawn only once it nears
-   the screen. Opened from the Projects page, the page is put in place inside
-   the view transition that flies the sticker into the header, while the
-   screen holds still: then only the hero is laid out, not eleven thousand
-   pixels of page (and the launcher's font is not asked for yet). `auto`
-   keeps a section's real height once it has been drawn. */
-.ss > :not(.ss-hero) {
-	content-visibility: auto;
-	contain-intrinsic-size: auto 720px;
+/* Opened in a page transition, the page is put in place with its first
+   screen only (AfterLanding adds the rest once the sticker has landed); a
+   screen of the stage stands in for the rest until its first part is in. */
+.ss-later {
+	height: 100vh;
 }
 .ss:focus {
 	outline: none;
