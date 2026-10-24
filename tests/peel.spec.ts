@@ -809,8 +809,10 @@ test.describe('peeling a sticker from any side with a mouse', () => {
 			const el = sticker(page, key);
 			const rest = await peelOf(el);
 			for (const where of ['left', 'top', 'right', 'bottom'] as const) {
-				const { from } = await edgeOf(page, key, where, 6);
-				await page.mouse.move(from.x - 40, from.y - 40);
+				const { from, inward } = await edgeOf(page, key, where, 6);
+				// in from outside that edge, so the mouse is never over the middle
+				// (which would lift the corner on the way)
+				await page.mouse.move(from.x - inward.x * 40, from.y - inward.y * 40);
 				await page.mouse.move(from.x, from.y, { steps: 4 });
 				// that side folds back a little (by hand, square to it) ...
 				await expect(el, `${key} ${where}`).toHaveAttribute(
