@@ -30,14 +30,13 @@
 :root[data-vt] .mast .socials {
 	view-transition-name: socials;
 }
-/* A book (or the socials) that would slide most of a screen (a project
-   opened from far down the Projects page, or back to it, or back from far
-   down a product page) is not moved: the old one goes, and the new page is
-   there where it is. DeskProvider sets data-vt-still once the new page is in,
-   so it only changes how the new page is captured. */
-:root[data-vt-still] .book,
-:root[data-vt-still] .mast .socials {
-	view-transition-name: none;
+/* Each is a layer of its own at all times, so the transition takes them as
+   they are drawn already. Named only as it starts, the book would have to
+   be drawn again apart from the page (and the page again without it), all
+   of it, in the moment the screen holds still before the flight. */
+.book,
+.mast .socials {
+	will-change: transform;
 }
 
 /* The page under the snapshots does not take clicks while a transition runs;
@@ -94,6 +93,18 @@
 	}
 	::view-transition-new(*):only-child {
 		animation: vt-rise var(--vt-dur) 0.06s var(--vt-ease) both;
+	}
+	/* ... but a book or socials with no partner (Super Space has no book) are
+	   the page's: the new one is there from the first frame, the old one fades
+	   off with the old page. (These outrank the two rules above, which a name's
+	   own rule, with no :only-child, would not.) */
+	::view-transition-new(book):only-child,
+	::view-transition-new(socials):only-child {
+		animation: none;
+	}
+	::view-transition-old(book):only-child,
+	::view-transition-old(socials):only-child {
+		animation: vt-fade-out var(--vt-fade) var(--vt-fade-ease) both;
 	}
 }
 

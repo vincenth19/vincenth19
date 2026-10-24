@@ -575,6 +575,21 @@ test.describe('Super Space product page', () => {
 		await search(field, '🐶');
 		await expect(rows.filter({ hasText: 'IMG_2041.jpg' })).toHaveCount(1);
 		await expect(rows.filter({ hasText: 'IMG_2078.jpg' })).toHaveCount(1);
+		// and the emoji typed comes first, before one named for the same word
+		// (🥳 is "party" and "birthday" too): Enter acts on it
+		for (const [typed, name] of [
+			['🎂', 'Birthday cake'],
+			['🎉', 'Party popper'],
+		]) {
+			await search(field, typed);
+			const strip = rows.first().locator('.ssl-emoji');
+			await expect(strip.first(), typed).toHaveText(typed);
+			await expect(
+				rows.first().locator('.ssl-emoji.is-picked'),
+				typed,
+			).toHaveText(typed);
+			await expect(rows.first(), typed).toContainText(name);
+		}
 		// a kind's word at the end of a long sentence is a word of it, not a scope
 		await search(field, 'the moon keeps whispering about yesterday text');
 		await expect(launcher.locator('.ssl-pill')).toHaveCount(0);
@@ -840,30 +855,66 @@ test.describe('Super Space product page', () => {
 		}
 	});
 
-	test('a pointer passing over its sticker fetches nothing; one that rests on it fetches the page', async ({
+	test('a pointer passing over its sticker fetches nothing, however slowly; one that rests on it fetches the page', async ({
 		page,
 	}) => {
+		// the page's time is the test's: a pass takes as long as it says,
+		// however busy the machine is
+		await page.clock.install();
+		await page.addInitScript(() => {
+			try {
+				window.sessionStorage.setItem('vh19:peel-hint', '1');
+			} catch {}
+		});
 		await page.setViewportSize({ width: 1440, height: 900 });
+		// (asked of the network, not of the page, whose clock is the test's)
+		let asked = false;
+		page.on('request', (r) => {
+			if (/\/projects\/super-space\?_rsc/.test(r.url())) asked = true;
+		});
+		const fetched = () => asked;
 		await page.goto('/');
 		await page.waitForLoadState('networkidle');
-		const fetched = () =>
-			page.evaluate(() =>
-				performance
-					.getEntriesByType('resource')
-					.some((r) => r.name.includes('/projects/super-space?_rsc')),
-			);
 		const box = await page.locator('.collage .stk--superspace').boundingBox();
 		if (!box) throw new Error('no sticker');
-		// straight across it, on the way to something else
-		await page.mouse.move(box.x - 20, box.y + box.height / 2);
-		await page.mouse.move(box.x + box.width + 20, box.y + box.height / 2, {
-			steps: 3,
-		});
-		await page.waitForTimeout(600);
-		expect(await fetched()).toBe(false);
+		const y = box.y + box.height / 2;
+		await page.clock.pauseAt(Date.now() + 1000);
+		// across it, on the way to something else, slowly: 16px every 40ms
+		// (400 px/s), so it is on the sticker for most of a second
+		await page.mouse.move(box.x - 20, y);
+		for (let x = box.x - 4; x <= box.x + box.width + 20; x += 16) {
+			await page.mouse.move(x, y);
+			await page.clock.runFor(40);
+		}
+		await page.clock.runFor(1000);
+		expect(fetched()).toBe(false);
 		// resting on it a moment: it is about to be clicked
-		await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+		await page.mouse.move(box.x + box.width / 2, y);
+		await page.clock.runFor(150);
+		await page.clock.resume();
 		await expect.poll(fetched).toBe(true);
+	});
+
+	test('the key hints say what the keys do on the row chosen', async ({
+		page,
+	}) => {
+		await page.goto(path);
+		const launcher = await openLauncher(page);
+		const field = launcher.getByRole('combobox');
+		await search(field, 'apartment lease bond document');
+		const rows = launcher.getByRole('option');
+		const hints = launcher.locator('.ssl-hints');
+		// down to the last row, the web's: it has no parts, and ↓ goes no further
+		const count = await rows.count();
+		for (let i = 0; i <= count; i++) await field.press('ArrowDown');
+		await expect(rows.last()).toHaveAttribute('aria-selected', 'true');
+		await expect(hints).not.toContainText('then ← →');
+		// and Ctrl+Enter there copies its search's link
+		await expect(hints).toContainText('ctrl ↵ copy link');
+		await field.press('Control+Enter');
+		await expect(launcher.locator('.ssl-toast')).toContainText(
+			'Would copy https://duckduckgo.com/?q=',
+		);
 	});
 
 	test('the search speed says where it was measured before the numbers', async ({

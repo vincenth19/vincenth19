@@ -23,9 +23,14 @@ import { usePeel, usePeelHint } from './usePeel';
 /**
  * How long (ms) a pointer rests on a sticker that does not prefetch before its
  * page starts loading: one passing over it does not fetch a product page's
- * data, stylesheet and fonts for nothing.
+ * data, stylesheet and fonts for nothing. Resting: it has not moved more than
+ * REST_PX since; each move further starts the wait again, so a pointer
+ * crossing the sticker, however slowly, never comes to rest on it.
  */
 const INTENT_MS = 100;
+const REST_PX = 4;
+/** How far (px) a press may move and still show pressed: further, it is not a click or a tap. */
+const PRESS_SLOP = 10;
 
 type Props = Pick<Project, 'sticker'> & {
 	href: string;
@@ -74,19 +79,52 @@ export function StickerLink({
 	// passes over it on its way elsewhere fetches nothing: it has to rest on
 	// it a moment, INTENT_MS, or press)
 	const intent = prefetch === false ? () => desk.intent(href) : undefined;
-	const resting = useRef(0);
-	useEffect(() => () => window.clearTimeout(resting.current), []);
+	/** The pointer's wait to come to rest on it: where it was when the wait began, and whether it asked already. */
+	const resting = useRef({ timer: 0, x: 0, y: 0, asked: false });
+	useEffect(() => () => window.clearTimeout(resting.current.timer), []);
+	/** The pointer is at (x, y): it may come to rest there. */
+	function restAt(x: number, y: number) {
+		const r = resting.current;
+		window.clearTimeout(r.timer);
+		if (!intent || r.asked) return;
+		r.x = x;
+		r.y = y;
+		r.timer = window.setTimeout(() => {
+			r.asked = true;
+			intent();
+		}, INTENT_MS);
+	}
 	// peeled off by hand: it opens from the pose it was let go in, at once
 	const peel = usePeel(ref, () => desk.open(href, true));
 	usePeelHint(ref);
+
+	/**
+	 * Pressed (a click or a tap on its way), it comes up a little at once
+	 * (data-pressed, styles/stickers.css): the screen answers the press even
+	 * where the flight is slow to start (a slow phone holds the screen still
+	 * while the new page is put in place). It stays up for the flight to start
+	 * from; a press that does not click (a drag, a scroll) lets it down.
+	 */
+	const pressing = useRef(0);
+	const pressedAt = useRef({ x: 0, y: 0 });
+	const unpress = () => {
+		window.clearTimeout(pressing.current);
+		const el = ref.current;
+		if (el) delete el.dataset.pressed;
+	};
+	useEffect(() => () => window.clearTimeout(pressing.current), []);
 
 	// The open was called off before it flew, while it lifted or in the task
 	// it was let go in (Back or Forward won): a sticker peeled off by hand goes
 	// back down. (Once it flies, the page changes: this one is gone.)
 	const opening = desk.flight?.href === href;
 	const wasOpening = useRef(false);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: unpress reads only refs
 	useEffect(() => {
-		if (wasOpening.current && !opening) peel.drop();
+		if (wasOpening.current && !opening) {
+			peel.drop();
+			unpress();
+		}
 		wasOpening.current = opening;
 	}, [opening, peel]);
 
@@ -127,9 +165,11 @@ export function StickerLink({
 		if (peel.dragged(e)) {
 			// the click a peel makes as it ends: the peel already opened it, or put it back
 			e.preventDefault();
+			unpress();
 			return;
 		}
 		if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
+			unpress();
 			return; // new tab, new window, download: let the browser do it
 		}
 		peel.stop(); // the hint or a spring stops where it is, and it lifts from there
@@ -139,8 +179,13 @@ export function StickerLink({
 			return;
 		}
 		e.preventDefault();
-		// another is on its way: a lifted edge goes back down
-		if (!desk.open(href)) peel.drop();
+		// it flies from the press (kept up for it); another is on its way: a
+		// lifted edge goes back down
+		window.clearTimeout(pressing.current);
+		if (!desk.open(href)) {
+			peel.drop();
+			unpress();
+		}
 	}
 
 	// Space opens it too, as Enter does (on key up, as a button does); it does
@@ -167,18 +212,51 @@ export function StickerLink({
 		ref.current?.click();
 	}
 	function onPointerDown(e: PointerEvent<HTMLAnchorElement>) {
-		window.clearTimeout(resting.current);
+		window.clearTimeout(resting.current.timer);
+		resting.current.asked = true;
 		intent?.();
+		if (
+			e.isPrimary &&
+			e.button === 0 &&
+			!(e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) &&
+			canAnimate()
+		) {
+			window.clearTimeout(pressing.current);
+			pressedAt.current = { x: e.clientX, y: e.clientY };
+			e.currentTarget.dataset.pressed = '';
+		}
 		peel.onPointerDown(e);
 	}
+	// let go: the click comes at once if it is one (it keeps the press up)
+	function onPointerUp() {
+		window.clearTimeout(pressing.current);
+		pressing.current = window.setTimeout(unpress, 200);
+	}
 	// a pointer or the focus arriving while the hint plays: the hint gives way
-	function onPointerEnter() {
-		window.clearTimeout(resting.current);
-		if (intent) resting.current = window.setTimeout(intent, INTENT_MS);
+	function onPointerEnter(e: PointerEvent<HTMLAnchorElement>) {
+		resting.current.asked = false;
+		restAt(e.clientX, e.clientY);
 		peel.calm();
 	}
-	function onPointerLeave() {
-		window.clearTimeout(resting.current);
+	function onPointerMove(e: PointerEvent<HTMLAnchorElement>) {
+		// a press that sets off (a drag, a finger scrolling by hand) is not a click
+		const at = pressedAt.current;
+		if (
+			'pressed' in e.currentTarget.dataset &&
+			Math.hypot(e.clientX - at.x, e.clientY - at.y) > PRESS_SLOP
+		) {
+			unpress();
+		}
+		const r = resting.current;
+		if (Math.hypot(e.clientX - r.x, e.clientY - r.y) > REST_PX) {
+			restAt(e.clientX, e.clientY);
+		}
+		peel.hover(e);
+	}
+	function onPointerLeave(e: PointerEvent<HTMLAnchorElement>) {
+		window.clearTimeout(resting.current.timer);
+		// (a finger leaves as it lifts, before its click: only a mouse dragged off lets go)
+		if (e.pointerType === 'mouse') unpress();
 		peel.unhover();
 	}
 	function onFocus() {
@@ -206,9 +284,11 @@ export function StickerLink({
 				delete e.currentTarget.dataset.keyed;
 			}}
 			onPointerEnter={onPointerEnter}
-			onPointerMove={peel.hover}
+			onPointerMove={onPointerMove}
 			onPointerLeave={onPointerLeave}
 			onPointerDown={onPointerDown}
+			onPointerUp={onPointerUp}
+			onPointerCancel={unpress}
 			onDragStart={peel.onDragStart}
 			onFocus={onFocus}
 		>

@@ -259,12 +259,14 @@ test('Super Space’s “All projects” link flies the sticker home from the fo
 		return { far: w.__far, from: w.__from, height: window.innerHeight };
 	});
 	expect(seen.far).toBe(true);
-	// it still flies, but from just above the screen, not ten thousand pixels away,
-	// and the socials fade with the page instead of sliding down through it
+	// it still flies, but from just above the screen, not ten thousand pixels
+	// away, and the socials come down with it from no further than a screen
 	expect(close.pairs).toContain('stk-superspace');
 	expect(seen.from).not.toBeNull();
 	expect(seen.from ?? 0).toBeGreaterThan(-seen.height);
-	expect(close.pairs).not.toContain('socials');
+	expect(close.pairs).toContain('socials');
+	expect(close.moves.socials).toBeGreaterThan(0);
+	expect(close.moves.socials).toBeLessThanOrEqual(seen.height + 1);
 });
 
 test('Back from a project opened at the top of the Projects page lands at the top, not scrolled down to the sticker', async ({
@@ -434,27 +436,38 @@ test('the Back arrow steps back in history rather than adding a step', async ({
 	expect(await page.evaluate(() => history.length)).toBe(fresh + 1);
 });
 
-test('a sticker opened from far down the Projects page leaves the book where it is', async ({
-	page,
-}) => {
-	const vts = await recordTransitions(page);
-	await page.setViewportSize({ width: 390, height: 844 });
-	await page.goto('/');
-	const sticker = page.getByRole('link', {
-		name: 'CovidTracker, 2021. Open project',
+for (const viewport of [
+	{ width: 390, height: 844 },
+	{ width: 1280, height: 720 },
+]) {
+	test(`a sticker opened from far down the Projects page takes the book and the socials with it, from no further than a screen away (${viewport.width})`, async ({
+		page,
+	}) => {
+		const vts = await recordTransitions(page);
+		await page.setViewportSize(viewport);
+		await page.goto('/');
+		const sticker = page.getByRole('link', {
+			name: 'CovidTracker, 2021. Open project',
+		});
+		await sticker.scrollIntoViewIfNeeded();
+		expect(await scrollY(page)).toBeGreaterThan(400);
+		await sticker.click();
+		await expect(page).toHaveURL(at('/projects/covidtracker'));
+		await vts.settled();
+		const [open] = await vts.take();
+		// one book and one row of socials, old and new, each moving to its new
+		// place: never the old page's over the new one's, two rows of tabs a
+		// fade apart
+		expect(open.pairs).toContain('stk-covid');
+		expect(open.pairs).toContain('book');
+		expect(open.pairs).toContain('socials');
+		// down to the top of the project, but from no further than a screen
+		for (const name of ['book', 'socials']) {
+			expect(open.moves[name], name).toBeGreaterThan(100);
+			expect(open.moves[name], name).toBeLessThanOrEqual(viewport.height + 1);
+		}
 	});
-	await sticker.scrollIntoViewIfNeeded();
-	expect(await scrollY(page)).toBeGreaterThan(400);
-	await sticker.click();
-	await expect(page).toHaveURL(at('/projects/covidtracker'));
-	await vts.settled();
-	const [open] = await vts.take();
-	// the sticker flies; the book does not slide a screen's height under it,
-	// nor do the socials: the old ones go, and the new page is there in place
-	expect(open.pairs).toContain('stk-covid');
-	expect(open.pairs).not.toContain('book');
-	expect(open.pairs).not.toContain('socials');
-});
+}
 
 test('opened from the top of the Projects page, the book and the socials move with the flight, on the compositor, and the old leaf is gone in a tenth of a second', async ({
 	page,
@@ -701,8 +714,11 @@ test('opened in a transition, Super Space puts in its first screen only, and the
 			vt.ready.then(() => {
 				w.__parts.atCapture = count();
 			});
+			// a moment after it lands, while the landed sticker is pressed down
 			vt.finished.then(() => {
-				w.__parts.atLanding = count();
+				setTimeout(() => {
+					w.__parts.atLanding = count();
+				}, 200);
 			});
 			return vt;
 		}) as typeof document.startViewTransition;
@@ -723,8 +739,25 @@ test('opened in a transition, Super Space puts in its first screen only, and the
 				(window as unknown as { __parts: { atCapture: number } }).__parts
 					.atCapture,
 		);
-	// the hero alone, in the update the screen holds still for
+	// the hero alone, in the update the screen holds still for, and still as
+	// the landed sticker is pressed down: the rest waits for that too
 	expect(await parts()).toBe(1);
+	await expect
+		.poll(() =>
+			page.evaluate(
+				() =>
+					(window as unknown as { __parts: { atLanding: number } }).__parts
+						.atLanding,
+			),
+		)
+		.toBeGreaterThan(-1);
+	expect(
+		await page.evaluate(
+			() =>
+				(window as unknown as { __parts: { atLanding: number } }).__parts
+					.atLanding,
+		),
+	).toBe(1);
 	// then the rest, a part a frame
 	const all = await page.evaluate(async () => {
 		const res = await fetch(location.pathname);
@@ -924,6 +957,248 @@ test('Back pressed during the flight steps back at once, without a second flight
 	await expect(sticker).toBeFocused();
 	await vts.settled();
 	expect((await vts.take()).map((v) => v.direction)).toEqual(['open']);
+});
+
+test('leaving Super Space, the book is there from the transition’s first frame, under the page fading off', async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 1440, height: 900 });
+	await page.addInitScript(() => {
+		const w = window as unknown as {
+			__book: { width: string; animation: string; opacity: string }[];
+		};
+		w.__book = [];
+		const start = document.startViewTransition?.bind(document);
+		if (!start) return;
+		document.startViewTransition = ((update: ViewTransitionUpdateCallback) => {
+			const vt = start(update);
+			vt.ready
+				.then(() => {
+					const style = getComputedStyle(
+						document.documentElement,
+						'::view-transition-new(book)',
+					);
+					w.__book.push({
+						width: style.width,
+						animation: style.animationName,
+						opacity: style.opacity,
+					});
+				})
+				.catch(() => {});
+			return vt;
+		}) as typeof document.startViewTransition;
+	});
+	await page.goto('/projects/super-space');
+	await page.getByRole('link', { name: 'Back', exact: true }).click();
+	await expect(page).toHaveURL(at('/'));
+	await page.waitForFunction(() => !('vt' in document.documentElement.dataset));
+	const [book] = await page.evaluate(
+		() =>
+			(
+				window as unknown as {
+					__book: { width: string; animation: string; opacity: string }[];
+				}
+			).__book,
+	);
+	// the new book, with no partner on the stage (Super Space has none), is
+	// shown as it is: it does not rise in after a pause, as a sticker would
+	expect(book.width).toMatch(/px$/);
+	expect(book.animation).toBe('none');
+	expect(book.opacity).toBe('1');
+});
+
+test('the page holds still under the flight: a wheel turned meanwhile does not scroll it', async ({
+	page,
+	context,
+}) => {
+	await page.setViewportSize({ width: 1440, height: 900 });
+	await page.addInitScript(() => {
+		const w = window as unknown as {
+			__flying: boolean;
+			__wheels: number;
+			__landedAt: number | null;
+		};
+		w.__flying = false;
+		w.__wheels = 0;
+		w.__landedAt = null;
+		addEventListener(
+			'wheel',
+			() => {
+				if (w.__flying) w.__wheels++;
+			},
+			{ capture: true, passive: true },
+		);
+		const start = document.startViewTransition?.bind(document);
+		if (!start) return;
+		document.startViewTransition = ((update: ViewTransitionUpdateCallback) => {
+			const vt = start(update);
+			vt.ready.then(
+				() => {
+					w.__flying = true;
+				},
+				() => {},
+			);
+			vt.finished.finally(() => {
+				w.__flying = false;
+				w.__landedAt = window.scrollY;
+			});
+			return vt;
+		}) as typeof document.startViewTransition;
+	});
+	const vts = await recordTransitions(page);
+	await page.goto('/');
+	const sticker = page.getByRole('link', { name: 'Basilica. Open project' });
+	await sticker.hover();
+	await page.waitForTimeout(600);
+	// the flight at a tenth of its speed, so the wheel turns while it flies
+	const cdp = await context.newCDPSession(page);
+	await cdp.send('Animation.enable');
+	await cdp.send('Animation.setPlaybackRate', { playbackRate: 0.1 });
+	await sticker.click();
+	await page.waitForFunction(
+		() => (window as unknown as { __flying: boolean }).__flying,
+	);
+	await page.mouse.wheel(0, 600);
+	await page.mouse.wheel(0, 600);
+	await cdp.send('Animation.setPlaybackRate', { playbackRate: 1 });
+	await vts.settled();
+	await expect(page).toHaveURL(at('/projects/basilica'));
+	const seen = await page.evaluate(() => {
+		const w = window as unknown as { __wheels: number; __landedAt: number };
+		return { wheels: w.__wheels, landedAt: w.__landedAt };
+	});
+	// the wheel turned while it flew, and the project, opened at its top, was
+	// still there when it landed: the header the sticker landed in on screen
+	expect(seen.wheels).toBeGreaterThan(0);
+	expect(seen.landedAt).toBe(0);
+	await expect(page.locator('header.mast .slap-stk')).toBeInViewport();
+	// once it has landed, the wheel scrolls the page again
+	await page.mouse.wheel(0, 300);
+	await expect.poll(() => scrollY(page)).toBeGreaterThan(0);
+});
+
+test('a lifted sticker waits for its page’s scripts too, so the flight never holds the screen still for them', async ({
+	page,
+}) => {
+	const vts = await recordTransitions(page);
+	await page.goto('/');
+	await page.waitForLoadState('networkidle');
+	await page.evaluate(() => {
+		const w = window as unknown as { __vtAt: number };
+		w.__vtAt = 0;
+		new MutationObserver(() => {
+			if (!w.__vtAt && document.documentElement.dataset.vt) {
+				w.__vtAt = performance.now();
+			}
+		}).observe(document.documentElement, { attributes: true });
+	});
+	// the scripts a page asks for once its data is in come slowly
+	const late: string[] = [];
+	await page.route('**/_next/static/chunks/*.js', async (route) => {
+		late.push(new URL(route.request().url()).pathname);
+		await new Promise((r) => setTimeout(r, 450));
+		await route.continue();
+	});
+	const sticker = page.getByRole('link', {
+		name: 'Super Space, 2026. Open project',
+	});
+	await sticker.click();
+	await expect(sticker).toHaveClass(/is-waiting/);
+	await expect(page).toHaveURL(at('/projects/super-space'));
+	await vts.settled();
+	const [open] = await vts.take();
+	expect(open).toMatchObject({ direction: 'open', finished: true });
+	expect(late.length).toBeGreaterThan(0);
+	const { started, ran } = await page.evaluate((paths) => {
+		const ends = performance
+			.getEntriesByType('resource')
+			.filter((r) => paths.some((p) => r.name.endsWith(p)))
+			.map((r) => (r as PerformanceResourceTiming).responseEnd);
+		return {
+			started: (window as unknown as { __vtAt: number }).__vtAt,
+			ran: Math.min(...ends),
+		};
+	}, late);
+	// the flight started only once the first of them was in
+	expect(started).toBeGreaterThan(ran);
+});
+
+test('a press shows at once: the sticker comes up before its click', async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 1440, height: 900 });
+	await page.goto('/');
+	const sticker = page.locator('.collage .stk--basilica');
+	const box = await sticker.boundingBox();
+	if (!box) throw new Error('no sticker');
+	const mid = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+	await page.mouse.move(mid.x, mid.y);
+	await page.mouse.down();
+	await expect(sticker).toHaveAttribute('data-pressed', '');
+	await expect
+		.poll(() => sticker.evaluate((e) => getComputedStyle(e).translate))
+		.toBe('0px -6px');
+	// a press that goes elsewhere before it lets go is not a click
+	await page.mouse.move(mid.x + box.width, mid.y + box.height, { steps: 4 });
+	await expect(sticker).not.toHaveAttribute('data-pressed');
+	await page.mouse.up();
+	await page.waitForTimeout(300);
+	await expect(page).toHaveURL(at('/'));
+});
+
+test.describe('on a touchscreen', () => {
+	test.use({
+		viewport: { width: 390, height: 844 },
+		hasTouch: true,
+		isMobile: true,
+	});
+
+	test('a finger on a sticker shows it pressed at once, and lets it down when it scrolls the page', async ({
+		page,
+		context,
+	}) => {
+		await page.goto('/');
+		const sticker = page.locator('.collage .stk--basilica');
+		await sticker.scrollIntoViewIfNeeded();
+		const box = await sticker.boundingBox();
+		if (!box) throw new Error('no sticker');
+		const mid = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+		const cdp = await context.newCDPSession(page);
+		const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', y: number) =>
+			cdp.send('Input.dispatchTouchEvent', {
+				type,
+				touchPoints: type === 'touchEnd' ? [] : [{ x: mid.x, y, id: 1 }],
+			});
+		await touch('touchStart', mid.y);
+		await expect(sticker).toHaveAttribute('data-pressed', '');
+		for (let i = 1; i <= 8; i++) await touch('touchMove', mid.y - i * 12);
+		await touch('touchEnd', mid.y - 96);
+		await expect(sticker).not.toHaveAttribute('data-pressed');
+		await page.waitForTimeout(300);
+		await expect(page).toHaveURL(at('/'));
+	});
+
+	test('a finger on the Back arrow or a tab shows it pressed before the transition starts', async ({
+		page,
+		context,
+	}) => {
+		await page.goto('/projects/covidtracker');
+		const back = page.locator('.mast .back');
+		const box = await back.boundingBox();
+		if (!box) throw new Error('no Back arrow');
+		const cdp = await context.newCDPSession(page);
+		const at0 = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+		await cdp.send('Input.dispatchTouchEvent', {
+			type: 'touchStart',
+			touchPoints: [{ ...at0, id: 1 }],
+		});
+		await expect(back).toHaveAttribute('data-pressed', '');
+		await cdp.send('Input.dispatchTouchEvent', {
+			type: 'touchEnd',
+			touchPoints: [],
+		});
+		await expect(page).toHaveURL(at('/'));
+	});
 });
 
 test('a page turn that does not open or leave a project stays instant', async ({

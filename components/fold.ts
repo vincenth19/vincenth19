@@ -261,7 +261,8 @@ function inset(hull: Point[], d: number): Point[] {
 	return poly;
 }
 
-function contains(poly: Point[], p: Point): boolean {
+/** True when `p` is inside the convex polygon `poly` (or on its outline). */
+export function inside(poly: Point[], p: Point): boolean {
 	let sign = 0;
 	for (let i = 0; i < poly.length; i++) {
 		const a = poly[i];
@@ -314,7 +315,7 @@ export function grip(
 	const inner = round > 0 ? inset(hull, round) : [];
 	// deep inside (no grip is there), it faces out from the middle
 	const from =
-		inner.length >= 3 && !contains(inner, d)
+		inner.length >= 3 && !inside(inner, d)
 			? nearestOn(inner, d)
 			: centroid(hull);
 	const n = unit(

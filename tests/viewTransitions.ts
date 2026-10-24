@@ -33,6 +33,8 @@ export type Recorded = {
 	pairs: string[];
 	/** The first and last transform of each sticker's group: where it flew from and to. */
 	flights: Record<string, { from: string; to: string }>;
+	/** How far (px, down when positive) the book's and the socials' groups move, once tuned (DeskProvider's tuneFlights). */
+	moves: Record<string, number>;
 	/** True when something cut it short (skipTransition), so it never animated to its end. */
 	skipped: boolean;
 	finished: boolean;
@@ -89,6 +91,7 @@ export async function recordTransitions(page: Page) {
 				names: [],
 				pairs: [],
 				flights: {},
+				moves: {},
 				skipped: false,
 				finished: false,
 			};
@@ -127,6 +130,32 @@ export async function recordTransitions(page: Page) {
 								String(f?.transform ?? '');
 							rec.flights[name] = { from: t(k[0]), to: t(k.at(-1)) };
 						}
+						if (part === 'group' && (name === 'book' || name === 'socials')) {
+							// read a moment on, once the page has tuned the flights
+							const k = () => effect.getKeyframes();
+							const y = (f: ComputedKeyframe | undefined) =>
+								Number(
+									/matrix\(([^)]+)\)/
+										.exec(String(f?.transform ?? ''))?.[1]
+										.split(',')[5],
+								);
+							setTimeout(() => {
+								const f = k();
+								rec.moves[name] = y(f.at(-1)) - y(f[0]);
+							}, 0);
+						}
+					}
+					// An image that animates nothing of its own (animation: none) is
+					// there all the same: read off its style, which has a size only
+					// for an image that exists
+					const exists = (part: 'old' | 'new', name: string) =>
+						getComputedStyle(
+							document.documentElement,
+							`::view-transition-${part}(${name})`,
+						).width.endsWith('px');
+					for (const name of rec.names) {
+						if (exists('old', name)) old.add(name);
+						if (exists('new', name)) fresh.add(name);
 					}
 					rec.pairs = [...old].filter((n) => fresh.has(n));
 				})

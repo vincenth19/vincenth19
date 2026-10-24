@@ -1,6 +1,12 @@
-/* ═════════ the desk + lamp light ═════════ */
+/* ═════════ the desk + lamp light ═════════
+   The lamp's light and the shade around it are drawn in tiles of their own
+   height, not the page's (and below the shade's, as dark as its edge, by
+   ::before): a background drawn to the page's height has to be drawn again,
+   all of it, each time the page grows, as Super Space's does after the
+   sticker lands (AfterLanding). */
 .desk {
 	position: relative;
+	isolation: isolate;
 	min-height: 100vh;
 	padding: 0 16px 96px;
 	overflow-x: clip;
@@ -19,10 +25,19 @@
 		),
 		url(/img/desk.svg);
 	background-size:
-		auto,
-		auto,
+		100% 1100px,
+		100% 2000px,
 		900px 600px;
+	background-repeat: no-repeat, no-repeat, repeat;
 	background-blend-mode: normal, normal, multiply;
+}
+.desk::before {
+	content: '';
+	position: absolute;
+	z-index: -1;
+	inset: 2000px 0 0;
+	pointer-events: none;
+	background: rgba(9, 6, 4, 0.58);
 }
 
 @media (max-width: 760px) {

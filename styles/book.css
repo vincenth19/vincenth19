@@ -197,7 +197,8 @@
 	pointer-events: none;
 }
 .tab:hover,
-.tab:active {
+.tab:active,
+.tab[data-pressed] {
 	filter: none;
 	translate: 0 1px;
 }

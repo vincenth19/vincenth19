@@ -1174,6 +1174,9 @@ function listed(asked: Scope) {
 	return { rows: order(rows, asked.kinds), filter: asked.kinds, unknown: 0 };
 }
 
+/** An emoji typed into the query scores above any match (they go up to 1), so it leads its strip. */
+const TYPED_EMOJI = 1.01;
+
 function run(
 	q: string,
 	final: boolean,
@@ -1215,11 +1218,13 @@ function run(
 	const rows: Row[] = [];
 	for (const item of homeItems()) {
 		if (!keep(item)) continue;
-		// an emoji typed into the query is that emoji, above any name like it
+		// an emoji typed into the query is that emoji: first, above any other
+		// emoji whose name is as good a match (one named for the same word),
+		// and several typed come in the order they were typed
+		const typedAt =
+			item.kind === 'emoji' && item.emoji ? typedEmoji.indexOf(item.emoji) : -1;
 		const name =
-			item.kind === 'emoji' && item.emoji && typedEmoji.includes(item.emoji)
-				? 1
-				: nameScore(q, item);
+			typedAt >= 0 ? TYPED_EMOJI - typedAt * 1e-6 : nameScore(q, item);
 		const scored = byItem.get(item) ?? [];
 		const real = scored[0]?.score >= Math.max(cut, top - NEAR_MISS);
 		const matched = real ? scored : [];

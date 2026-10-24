@@ -199,9 +199,22 @@
 	rotate: -3.5deg;
 }
 /* Flown in from the Projects page, it lands in the pose that sticker was lifted
-   or peeled in (DeskProvider sets it), then its corner is pressed down flat. */
+   or peeled in (DeskProvider sets it), then its corner is pressed down flat.
+   Peeled off past the line, that sticker had risen a little about the point
+   taken hold of (.stk[data-ready], styles/stickers.css: the same scale): this
+   one lands risen the same (data-risen), so the two images the transition
+   blends are one, and comes down with the corner. */
 .slap-stk[data-press] {
 	transition: --peel 0.42s cubic-bezier(0.3, 0.7, 0.35, 1);
+}
+.slap-stk[data-risen] .stk-body {
+	scale: 1.025;
+}
+.slap-stk:is([data-risen], [data-press]) .stk-body {
+	transform-origin: var(--lift-x, 100%) var(--lift-y, 100%);
+}
+.slap-stk[data-press] .stk-body {
+	transition: scale 0.42s cubic-bezier(0.3, 0.7, 0.35, 1);
 }
 /* flat, it shows no flap: not even the sliver of backing past the die-cut */
 .slap-stk:not([data-posed], [data-press]) .stk-flapwrap {
@@ -245,7 +258,8 @@
 	height: 28px;
 }
 .back:hover,
-.back:active {
+.back:active,
+.back[data-pressed] {
 	background: rgba(242, 233, 216, 0.13);
 	transform: translateX(-3px);
 }

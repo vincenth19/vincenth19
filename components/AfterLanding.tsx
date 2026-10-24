@@ -7,7 +7,7 @@ import {
 	useEffect,
 	useState,
 } from 'react';
-import { transitionRunning, whenLanded } from './DeskProvider';
+import { transitionRunning, whenSettled } from './DeskProvider';
 
 /**
  * The part of a long page below its first screen (Super Space's sections
@@ -15,11 +15,13 @@ import { transitionRunning, whenLanded } from './DeskProvider';
  * server rendered it. Opened in a page transition (from the Projects page,
  * or by Back and Forward), the page is put in place inside the transition's
  * update, while the browser draws nothing new: then only its first screen is
- * built there, and the rest is added once the sticker has landed, a part at a
- * time (one a frame, each a small task), so neither the screen held still
+ * built there, and the rest is added once the sticker has landed and been
+ * pressed down (`whenSettled`), a part at a time (one a frame, each a small
+ * task), so neither the screen held still
  * before the flight nor the frames after it wait for eleven thousand pixels of
- * page. Until the first part is in, a screen's height of the stage stands in
- * for it, so the page scrolls (and keeps its scrollbar) as it will.
+ * page. Until the last part is in, a screen's height of the stage stands in
+ * below the parts that are, so the page scrolls on (and keeps its scrollbar)
+ * meanwhile, rather than ending under the hero.
  */
 export function AfterLanding({ children }: { children: ReactNode }) {
 	const parts = Children.toArray(children);
@@ -41,7 +43,9 @@ export function AfterLanding({ children }: { children: ReactNode }) {
 			});
 		};
 		if (shown === 0) {
-			whenLanded().then(() => {
+			// once the landed sticker has been pressed down too: the press runs
+			// on the main thread, and a part laid out meanwhile would stop it
+			whenSettled().then(() => {
 				if (!gone) next();
 			});
 		} else {
@@ -56,7 +60,7 @@ export function AfterLanding({ children }: { children: ReactNode }) {
 	return (
 		<>
 			{parts.slice(0, shown)}
-			{shown === 0 && <div className="ss-later" aria-hidden="true" />}
+			{!all && <div className="ss-later" aria-hidden="true" />}
 		</>
 	);
 }

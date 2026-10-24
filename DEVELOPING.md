@@ -87,19 +87,27 @@ smaller still and the hero's gaps tighten, down to a 600px-tall window.
   (`productPage: true` in `content/projects.ts`) gets `prefetch={false}` on its
   sticker, because prefetching the route would make the home page preload the route's
   fonts and stylesheet (and Chrome warns when a preload goes unused). A pointer that
-  rests on the sticker 0.1 s (`INTENT_MS` in `StickerLink`; one only passing over it
-  on its way elsewhere fetches nothing), the focus, or a finger going down calls
-  `router.prefetch` instead (`DeskProvider`'s `intent`): with a mouse the page, its
-  stylesheet and its fonts are in by the click, and the sticker flies at once; a tap
-  waits for them while the sticker lifts (see Page transitions).
+  comes to rest on the sticker for 0.1 s (`INTENT_MS` in `StickerLink`: it has not
+  moved more than 4px, `REST_PX`, since; each move further starts the wait again, so
+  one crossing it on its way elsewhere fetches nothing, however slowly it goes), the
+  focus, or a finger going down calls `router.prefetch` instead (`DeskProvider`'s
+  `intent`): with a mouse the page, its stylesheet and its fonts are in by the click,
+  and the sticker flies at once; a tap waits for them while the sticker lifts (see
+  Page transitions).
 - Opened in a page transition (from the Projects page, or by Back and Forward), the
   page is put in place inside the transition's update, while the browser draws
   nothing new: there only the hero is built. The sections below it
-  (`components/AfterLanding.tsx`) are added once the sticker has landed, one a frame,
-  each a small task; until the first is in, a screen of the stage stands in for them
-  (`.ss-later`), so the page keeps its scrollbar. Loaded or reloaded, the page is all
-  there from the start, as the server sent it, every section at its real height (so
-  a reload or the browser's Back puts the reader where they were).
+  (`components/AfterLanding.tsx`) are added once the sticker has landed and been
+  pressed down (`whenSettled`: the press runs on the main thread, and a section laid
+  out meanwhile would stop it), one a frame; until the last is in, a screen of the
+  stage stands in below them (`.ss-later`), so the page scrolls on meanwhile. Each is
+  a small task because nothing behind them is drawn to the page's height: the desk's
+  lamp light and shade, and the stage's fade in from the desk, are tiles of their own
+  height (the rest a plain colour, `styles/desk.css`, `.ss::after`), where a
+  background as tall as the page would be drawn again, all of it, each time the page
+  grew. Loaded or reloaded, the page is all there from the start, as the server sent
+  it, every section at its real height (so a reload or the browser's Back puts the
+  reader where they were).
 
 ### The launcher
 
@@ -121,8 +129,11 @@ one does (2px, the field's height, steady while it moves); the web row's icon is
   row's parts, as the real one does (screen readers hear the list), and Tab again, or
   Tab on a row with nothing to list, moves on through the page, so it never keeps the
   keyboard; Esc puts a list away and otherwise closes the launcher, as v0.1.4's does,
-  and a "Super + Space" button opens it again, empty). One difference on purpose: →
-  past a row's last part goes round to its first (and ← the other way), where the
+  and a "Super + Space" button opens it again, empty). Differences on purpose: the
+  key hints say what Ctrl+Enter does on the row chosen ("reveal" for a file, "copy
+  link" on the web row, "copy" on the rest, which is what this copy does with it),
+  and "↓ then ← →" shows only while a row ↓ can reach has parts; and → past a
+  row's last part goes round to its first (and ← the other way), where the
   real one stops, because the best part is often the last in time order, as the
   opening search's is, and a key that does nothing reads as broken. `engine.ts`
   is the search (names, with the daemon's title-only typo rule; scope words ported
@@ -135,7 +146,8 @@ one does (2px, the field's height, steady while it moves); the web row's icon is
   three letters only as a swap, one of four never as a changed letter, so "node" is
   not "note"; small words like "up" and "to" count only inside a group's phrase,
   "pick up", "set up"; an emoji's names are matched whole or from four letters, never
-  as a typo, and an emoji typed into the query comes first and searches for what it
+  as a typo, and an emoji typed into the query comes first (ahead of another named
+  for the same word: 🥳 is "party" and "birthday" too) and searches for what it
   shows, the first of its words ("🐶" for "dog", not "Dog face"); a clipboard copy is found
   by where it came from, a page of history by its browser, Chrome being Chromium;
   scope words narrow by extension, "pdf", and "songs" to songs, "voice memos" to
@@ -260,14 +272,20 @@ Forward (a trackpad swipe included).
   pages have them, at different heights (the masthead is taller with a sticker in
   it, 169 px at 1440 wide), so each moves there on the flight's timing, rather than
   the two layouts showing at once, two rows of tabs a fade apart. In the book only
-  the leaf's page changes: the old one fades off the new one. A book or socials that
-  would move most of a screen (a project opened from far down the Projects page, or
-  back to it, or back from far down a product page) is not moved: DeskProvider sets
-  `data-vt-still` once the new page is in, and the old one goes. Nothing else is
-  named: a product page's stage (Super Space's is 11,000 px tall) and the masthead
-  are the page (the transition's root). Each named element is captured on its own
-  and rastered again for it, which adds to the moment the screen holds still before
-  the flight.
+  the leaf's page changes: the old one fades off the new one. They move as far as
+  the two pages have them apart (a project opens at the top, so from far down the
+  Projects page the book comes down most of a screen, as the page scrolling back up
+  would), but from no further than a screen away (`tuneFlights`): back from far down
+  a long page, a slide of thousands of pixels would only be a streak. Super Space has
+  no book: going there, the old book fades with the old page; leaving it, the new
+  book is there from the first frame, as the new page is (a sticker without a
+  partner rises in; the book does not). Nothing else is named: a product page's
+  stage (Super Space's is 11,000 px tall) and the masthead are the page (the
+  transition's root). A named element is captured on its own: the book and the
+  socials are layers of their own at all times (`will-change: transform`), so the
+  capture takes them as they are drawn already, where naming them only as the
+  transition starts would have the browser draw them (and the page behind them)
+  again, in the moment the screen holds still before the flight.
 - The timing is in `styles/transitions.css`: one duration and easing for every
   flight and move, opening and leaving alike (`--vt-dur`, 0.44 s; `--vt-ease`), and
   `--vt-fade` (0.1 s, front-loaded, `--vt-fade-ease`) for the old page and the old
@@ -281,10 +299,11 @@ Forward (a trackpad swipe included).
   main thread; once the transition is ready, `tuneFlights` holds each group at its
   landing size and folds the change into its transform as a scale (the same
   picture). The new page is live under the flight, so it puts its work off until
-  the sticker has landed: `whenLanded()` resolves then (Super Space adds its
-  sections below the hero), and `whenSettled()` once the landed sticker has been
-  pressed down too (0.42 s later; Super Space's launcher waits for it before it
-  loads).
+  the sticker has landed and been pressed down (`whenSettled()`, 0.42 s after the
+  landing: the press is a main-thread animation): Super Space adds its sections
+  below the hero then, and its launcher waits for it before it loads. The page under the snapshots holds still meanwhile
+  (`holdScroll`: a wheel, a finger or a scrolling key does not move it), as the
+  flight lands where the header was when it started.
 - The navigation happens inside `document.startViewTransition`, which waits until the
   new page is on screen (its own layout effects have scrolled it and moved focus) and
   the fonts its first screen is laid out in have loaded (at most 150 ms; they were
@@ -296,15 +315,24 @@ Forward (a trackpad swipe included).
   from the fold it was let go in (see Peeling a sticker). One whose page is still on
   its way (a tap on Super Space, which has no hover to fetch it ahead) lifts off the
   page (0.1 s; one peeled off keeps its fold, and flies as soon as the page is in) and
-  waits, lifted (and bobbing after 0.2 s), until the page's data has come in, with the
-  stylesheet and fonts it asked for ahead: `DeskProvider` counts Next.js's requests
-  for a page's data (`?_rsc=`) as they go through `fetch`, notes each preload that
-  goes into the head while a page's data comes in as that page's, and checks a
-  page's own preloads against the fetches that have finished (Resource Timing): a
-  page already in is not held back by another page's fonts still on their way (a
-  pointer that crossed Super Space's sticker on its way to Basilica's). A page that takes
-  more than 1.5 s opens as a plain navigation instead, and a transition never holds
-  the screen for more than 1.2 s. A project opens at the top with its title focused;
+  waits, lifted (and bobbing after 0.2 s, by transform alone, so the compositor
+  keeps it going while the page comes in), until the page's data has come in, with
+  the stylesheet, fonts and scripts it asked for ahead: `DeskProvider` counts
+  Next.js's requests for a page's data (`?_rsc=`) as they go through `fetch`, notes
+  each preload and each script of its components that goes into the head while a
+  page's data comes in as that page's, and checks a page's own preloads against the
+  fetches that have finished (Resource Timing), and its scripts against their `load`:
+  a page already in is not held back by another page's fonts still on their way (a
+  pointer that crossed Super Space's sticker on its way to Basilica's), and React has
+  the page's components to render it with before the screen holds still for it. A
+  page that takes more than 1.5 s opens as a plain navigation instead, and a
+  transition's update never holds the screen for more than 1.2 s, the page, its
+  stickers' images and its fonts all within that one deadline (the browser's capture
+  of the two pages comes on top). A press shows at once: a sticker comes up a little
+  as the pointer goes down (`data-pressed`, on the sticker itself, so the flight
+  starts from it as it is), and a finger on the Back arrow or a tab shows them
+  pressed (a touch gets no `:active` until the tap is over), so the screen answers
+  before the transition holds it still. A project opens at the top with its title focused;
   coming back puts the Projects page where it was when the project opened (as the
   browser's Back would), the sticker focused, and scrolls only as far as it takes to
   bring the whole sticker on screen (to the middle only for one that would be off it).
@@ -343,11 +371,15 @@ Forward (a trackpad swipe included).
   there.
 - `tests/transitions.spec.ts` checks that the stickers share the name, that every
   way in and out morphs, that the book and the socials move by transform with the
-  flight and the old leaf is gone in 0.1 s, that a prefetched sticker flies at once
-  with nothing but transform and opacity animating while the launcher waits for the
-  landing, that one whose page is in is not held back by another page's fonts, and
-  that Super Space puts in only its hero during the transition (and all of itself on
-  a load);
+  flight (from far down the Projects page too, from no further than a screen) and
+  the old leaf is gone in 0.1 s, that leaving Super Space the book is there from the
+  first frame, that a prefetched sticker flies at once with nothing but transform
+  and opacity animating while the launcher waits for the landing, that one whose
+  page is in is not held back by another page's fonts, that a lifted one waits for
+  its page's scripts, that a wheel turned during the flight does not scroll the page,
+  that a press shows at once, and that Super Space puts in only its hero during the
+  transition and until the landed sticker is pressed down (and all of itself on a
+  load);
   `tests/viewTransitions.ts` records what each transition the page starts really
   animated. To measure a transition (the time from the click to its first frame, the
   update, long tasks, dropped frames, layout shifts), drive the production build
@@ -378,9 +410,12 @@ taken by its edge, from any side or corner, with a mouse or a finger, and peeled
   (`--disc` or `--round`). A press takes hold of the point of the outline furthest out
   the way the paper there faces (`grip`: square to a side, turning round a corner
   over `--gz`), so nothing past the outline folds before the pointer moves. The fold
-  turns with the pull (`--fold`), up to 33°, but only as far as the paper it would lift
-  beyond P stays within the fold's depth (`swingRoom`): a corner turns freely, a
-  straight side only a little at first, more the further it is pulled. A pull that
+  turns with the pull (`--fold`), up to 33° on a side and 60° at a corner (where no
+  straight run of the outline longer than a sixth of the width faces out: a rounded
+  corner, or the stamp's cut one, read off pixels), but only as far as the paper it
+  would lift beyond P stays within the fold's depth (`swingRoom`): a corner turns
+  freely, so one pulled along a side folds square to it and stays under the pointer,
+  and a straight side turns only a little at first, more the further it is pulled. A pull that
   leans further than that slides P along the side toward the way the pointer went
   (`regrip`, as a fingertip dragged sideways slides along an edge), just as far as
   the fold is square to the pull: the paper stays under the pointer, and the fold
@@ -435,11 +470,13 @@ taken by its edge, from any side or corner, with a mouse or a finger, and peeled
   `hover` (a mouse over an edge, below) or `hint`; `data-hand` is set while a fold by
   hand is drawn.
 - A mouse over an edge (not the bottom-right corner, which lifts by itself) lifts
-  that edge a little by hand where the pointer is (0.08, `HOVER_PEEL`, with the
-  spring), and the corner stays at rest meanwhile; the fold follows the pointer
-  along the edge, and lies back down when it leaves the edge (over the middle the
-  corner lifts, as it always has). A press there takes that lift over as it is, and a
-  click flies from it.
+  that edge a little by hand (0.08, `HOVER_PEEL`, with the spring), and the corner
+  stays at rest meanwhile. On a straight side the fold is square to it, so the side
+  lifts along its length as one strip (paper folded along a straight line has no
+  one place to lift); round a corner, and on the seal, it turns with the pointer. It
+  lies back down when the pointer leaves the edge (over the middle the corner lifts,
+  as it always has). A press there takes that lift over as it is, and a click flies
+  from it.
 - The bottom-right corner also lifts by itself: just at rest (`--rest`), so there is
   something to see; a little more on a touchscreen (`pointer: coarse`), where nothing
   else shows it; more on hover (`--hover`) and in a click's lift. That fold is the
@@ -449,12 +486,20 @@ taken by its edge, from any side or corner, with a mouse or a finger, and peeled
   (0.16 s) while that side lifts, and it comes back up as the fold springs back. Each
   fold cuts the other's face, so when both show, the deeper one wins. A lift taken
   over (the corner's, or an edge's under the mouse) counts for nothing toward opening
-  it, nor toward the band (`base`): every side opens after the same pull.
+  it, nor toward the band (`base`): every side opens after the same pull. Pressed on
+  the spot the lift left (a mouse on a hovered corner is there, short of its curl),
+  the pointer has no paper under it: the paper's tip, ahead of it, keeps its place
+  at first and then gains on it (`lead`, eased away over twice its length), so after
+  a short pull the paper is under the pointer, and stays so; pressed on the curl
+  itself, the curl moves with it from the start.
 - Let go with it pulled past 0.34 (the pointer's travel as a part of the width · √2;
   the sticker rises a little there, about the point taken hold of so it stays under
   the pointer, `data-ready`, and a phone that can gives a 10 ms tick, once a press),
-  or flick it in (600 px/s into the sticker, within 30° of the way in, after 30 px),
-  and it comes off. Once far enough, it stays so until pushed back 0.02 under the line
+  or flick it in (600 px/s the way the paper is pulled, square to the fold, within
+  30° of that way, after 30 px), and it comes off. The way the paper is pulled is the
+  turned fold's (or the regripped one's): a finger's flick from a top or a bottom edge
+  must lean to peel at all (`START_LEAN`), and that leaning flick opens as one
+  straight in from a side does. Once far enough, it stays so until pushed back 0.02 under the line
   (`READY_GIVE`, about 6px), so a finger resting on the line does not flicker the cue,
   and letting go does what the cue last said. Off, it keeps that pose (its own corner
   stays down, `--lift: 0`) and flies into the header from it (`open(href, true)` in
@@ -466,8 +511,10 @@ taken by its edge, from any side or corner, with a mouse or a finger, and peeled
   down. The header sticker takes the same pose before the transition captures it
   (`takePose` in `DeskProvider`, which draws the fold again at the header's size), so
   the cross-fade between the two images is between two of the same, from whichever
-  side it was peeled; once it has landed its fold and corner are pressed down flat
-  (the fold by script, `layDown`; the corner by `data-press`, `styles/masthead.css`).
+  side it was peeled, risen as it was (`data-risen`: the same 1.025 about the same
+  point of it); once it has landed its fold and corner are pressed down flat, and it
+  comes down onto the page (the fold by script, `layDown`; the corner and the rise by
+  `data-press`, `styles/masthead.css`).
   A click's pose (at rest or on hover, or lifted while its page loads) hands over the
   same way. Let go sooner, or while pushing it back down (400 px/s, read from the
   pointer, which paper held back by the band may hardly show), and a short spring
@@ -477,8 +524,9 @@ taken by its edge, from any side or corner, with a mouse or a finger, and peeled
 - A press that does not move, or wanders less than a tap does (15px for a finger,
   6px for a mouse), is a tap or a click and opens the sticker as before; so do
   Enter and Space; a modifier or middle click opens a new tab. A drag's own click
-  is dropped, but only until the next press. A second finger ends a peel without
-  opening anything.
+  is dropped, but only until the next press, and so is a click while the paper is
+  still in hand (the main button let go with another held). A second finger ends a
+  peel without opening anything.
 - Space opens a sticker, as Enter does, though it is a link: the brief asked for
   "Enter/Space" to open a sticker, so a sticker behaves as a button does there,
   where a link would scroll the page. Every other link keeps the link's keys.
@@ -501,13 +549,16 @@ taken by its edge, from any side or corner, with a mouse or a finger, and peeled
   touches sent through Chrome's own input (CDP), so touch-action and scrolling are
   real; a flick's touches carry their own times, so its speed does not depend on how
   busy the machine is. By touch it peels the top and bottom edges straight in after a
-  hold, keeps quick straight flicks at the page's ends from opening anything, hands a
-  swipe after a pause back to scrolling, and keeps the paper under a leaning finger;
-  with a mouse, an edge lifts on hover and the hovered corner needs the same pull as
-  any side. It also checks the hand-off: peeled off with its page in, the
-  transition starts in the release's own task with no lift, the flight animating
-  transform alone; peeled off before its page is in, it waits in its fold, its
-  corner down, and flies from it once the page comes.
+  hold, opens them by a quick flick that leans, keeps quick straight flicks at the
+  page's ends from opening anything, hands a swipe after a pause back to scrolling,
+  and keeps the paper under a leaning finger; with a mouse, an edge lifts on hover,
+  the hovered corner needs the same pull as any side and comes to be under the
+  pointer, a corner pulled along a side stays under it, and a click while the paper
+  is in hand opens nothing. It also checks the hand-off: peeled off with its page in,
+  the transition starts in the release's own task with no lift, the flight animating
+  transform alone; peeled off past the line, the header sticker lands risen as it
+  was; peeled off before its page is in, it waits in its fold, its corner down, and
+  flies from it once the page comes.
 
 ## Where the site differs from the design prototype
 

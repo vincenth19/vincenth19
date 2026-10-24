@@ -665,12 +665,37 @@ export function answerLabel(a: Answer): string {
 	return `${side(a.input, a.inputLabel)} is ${side(a.output, a.outputLabel)}${a.detail ? `. ${a.detail}` : ''}`;
 }
 
-/** The key hints under the list, for the mode and the selected row (SuperSpace.qml). */
+/**
+ * What Ctrl+Enter does on a row, for its hint: a file is shown in its folder
+ * ("reveal", as the real launcher's hint says); any other row copies what it
+ * points at (Launcher's `message`), the web row its search's link.
+ */
+function altHint(row: DrawnRow | undefined): string {
+	switch (row?.kind) {
+		case undefined:
+		case 'file':
+		case 'folder':
+		case 'image':
+		case 'video':
+		case 'audio':
+			return 'ctrl ↵ reveal';
+		case 'web':
+			return 'ctrl ↵ copy link';
+		default:
+			return 'ctrl ↵ copy';
+	}
+}
+
+/**
+ * The key hints under the list, for the mode and the selected row
+ * (SuperSpace.qml). `anyParts`: a row ↓ can still reach has parts for ← →.
+ */
 function hints(
 	mode: Mode,
 	parts: string,
 	answer: Answer | null,
 	anyParts: boolean,
+	row: DrawnRow | undefined,
 ) {
 	if (mode === 'sections')
 		return ['← → step', '↵ open there', 'shift tab or esc back to typing'];
@@ -689,11 +714,11 @@ function hints(
 			`→ ${parts}`,
 			'↓ ↑ rows',
 			'tab list them',
-			'ctrl ↵ reveal',
+			altHint(row),
 			'esc close',
 		];
 	return [
-		...(answer ? (answer.copy ? ['↵ copy'] : []) : ['↵ open', 'ctrl ↵ reveal']),
+		...(answer ? (answer.copy ? ['↵ copy'] : []) : ['↵ open', altHint(row)]),
 		...(anyParts ? ['↓ then ← → pages, sections, emoji'] : []),
 		'ctrl 1–9 row',
 		'esc close',
@@ -719,9 +744,10 @@ export function Panel({
 	const offset = shown.answer ? 1 : 0;
 	const current = sel >= offset ? rows[sel - offset] : undefined;
 	const parts = partsOf(current);
-	const anyParts = rows.some(
-		(r) => r.hits.length > 1 || (r.strip?.length ?? 0) > 1,
-	);
+	// a row with parts ↓ can reach: any, from the field; one below, once ↓ chose a row
+	const anyParts = rows
+		.slice(mode === 'rows' ? Math.max(0, sel - offset + 1) : 0)
+		.some((r) => r.hits.length > 1 || (r.strip?.length ?? 0) > 1);
 	const pill = shown.filter ? filterLabel(shown.filter) : '';
 	const listed = rows.length > 0 || !!shown.answer;
 	return (
@@ -805,16 +831,20 @@ export function Panel({
 			</div>
 			{listed && (
 				<p className="ssl-hints" aria-hidden="true">
-					{hints(mode, parts, sel < offset ? shown.answer : null, anyParts).map(
-						(h) => (
-							<span
-								key={h}
-								className={/tab|ctrl/.test(h) ? 'is-keys' : undefined}
-							>
-								{h}
-							</span>
-						),
-					)}
+					{hints(
+						mode,
+						parts,
+						sel < offset ? shown.answer : null,
+						anyParts,
+						current,
+					).map((h) => (
+						<span
+							key={h}
+							className={/tab|ctrl/.test(h) ? 'is-keys' : undefined}
+						>
+							{h}
+						</span>
+					))}
 				</p>
 			)}
 		</div>

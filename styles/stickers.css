@@ -160,7 +160,8 @@
 	rotate: var(--tilt, 0deg);
 	transition:
 		--peel 0.35s var(--ease-out),
-		translate 0.3s var(--ease-out);
+		translate 0.3s var(--ease-out),
+		scale 0.3s var(--ease-out);
 	-webkit-tap-highlight-color: transparent;
 	user-select: none;
 }
@@ -286,6 +287,18 @@
 		--peel: var(--rest, 0);
 	}
 }
+/* Pressed (a click or a tap on its way, StickerLink): it comes up a little at
+   once, so the screen answers the press even while the flight is slow to
+   start. The sticker itself moves (not its picture), so the flight starts
+   from it as it is, whatever moment the transition captures it in. */
+.stk[data-pressed]:not([data-peel], .is-lifting) {
+	translate: 0 -6px;
+	scale: 1.02;
+	transition:
+		--peel 0.35s var(--ease-out),
+		translate 0.08s var(--ease-out),
+		scale 0.08s var(--ease-out);
+}
 /* focused from the keyboard: lifted and ringed. Focused back by the page after a
    project opened from a tap or a peel (data-quiet, StickerLink), it shows
    neither until a key is pressed, as a tap's own focus would not; that key
@@ -336,7 +349,8 @@
 }
 /* Pulled far enough: let go now and it comes off, so it starts to. It rises
    about the point taken hold of (--tip-x, --tip-y, set with the pose), so it
-   stays under the pointer, and its shadow falls further. */
+   stays under the pointer, and its shadow falls further. Let go so, the
+   header sticker lands risen the same (styles/masthead.css, data-risen). */
 .stk[data-peel] .stk-body {
 	transform-origin: var(--tip-x, 100%) var(--tip-y, 100%);
 	transition: scale 0.18s var(--ease-out);
@@ -398,20 +412,13 @@
 		translate 0.1s var(--ease-out),
 		scale 0.1s var(--ease-out);
 }
-/* lifted, and its page still loading: it bobs until it flies */
+/* Lifted, and its page still loading: it bobs until it flies. Only the
+   sticker moves, its corner held where the lift put it, so the compositor
+   runs the bob while the main thread reads the page coming in. */
 .stk.is-waiting {
 	animation: stk-wait 0.7s ease-in-out infinite alternate;
 }
-.stk.is-waiting[data-peel='off'] {
-	animation-name: stk-wait-held;
-}
 @keyframes stk-wait {
-	to {
-		translate: 0 -14px;
-		--peel: calc(var(--lift, 0.24) + 0.04);
-	}
-}
-@keyframes stk-wait-held {
 	to {
 		translate: 0 -14px;
 	}
