@@ -4,13 +4,6 @@
 	min-height: 100vh;
 	padding: 0 16px 96px;
 	overflow-x: clip;
-}
-/* The desk, and, while a page transition runs (data-vt), the canvas behind it:
-   the transition fades the old page out before the new one in
-   (styles/transitions.css), and between the two the desk shows, not the dark
-   under it. */
-.desk,
-:root[data-vt] {
 	background-color: var(--desk-wood);
 	background-image:
 		radial-gradient(

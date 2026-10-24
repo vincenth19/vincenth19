@@ -86,9 +86,15 @@ smaller still and the hero's gaps tighten, down to a 600px-tall window.
   (`productPage: true` in `content/projects.ts`) gets `prefetch={false}` on its
   sticker, because prefetching the route would make the home page preload the route's
   fonts and stylesheet (and Chrome warns when a preload goes unused). A pointer on the
-  sticker (or the focus, or a press) calls `router.prefetch` instead (`DeskProvider`'s
-  `intent`), and a click waits for the page while the sticker lifts (see Page
-  transitions).
+  sticker (or the focus, or a finger going down) calls `router.prefetch` instead
+  (`DeskProvider`'s `intent`): with a mouse the page, its stylesheet and its fonts are
+  in by the click, and the sticker flies at once; a tap waits for them while the
+  sticker lifts (see Page transitions).
+- Below the hero, each of the page's sections has `content-visibility: auto`: it is
+  laid out and drawn only as it nears the screen. Opened from the Projects page, the
+  page is put in place inside the view transition, while the screen holds still;
+  then only the hero is laid out, not eleven thousand pixels of page (and the
+  launcher's font, Inter, is not asked for yet).
 
 ### The launcher
 
@@ -181,7 +187,9 @@ one does (2px, the field's height, steady while it moves); the web row's icon is
   inert); `LauncherIsland.tsx` loads the launcher and its index (a chunk of their
   own, about 57 KB gzipped) when they come within 300 px of the screen, or when an
   example search under the screen is pressed, and swaps them in (a failed load is
-  tried again on the next press). The field never takes the focus by itself; an
+  tried again on the next press). Opened from the Projects page, it starts watching
+  for that only once the sticker has landed (`whenSettled` in `DeskProvider`), so
+  loading and building it does not take the main thread from the flight. The field never takes the focus by itself; an
   example pressed with a mouse or a key puts the caret at the end of its search. On
   a phone the examples are under a screen taller than the panel: one pressed when
   the panel is above the top of the window scrolls the page back up to it. The
@@ -229,11 +237,8 @@ one does (2px, the field's height, steady while it moves); the web row's icon is
 Opening a project and leaving it run as a same-document
 [view transition](https://developer.mozilla.org/docs/Web/API/View_Transition_API):
 the sticker flies from its spot on the Projects page into the header (and back), while
-the book moves to its new place and turns its leaf, Super Space's stage rises where the
-book was, and the rest of the desk cross-fades. `DeskProvider` runs it, for every way
-in and out: a sticker click (the sticker lifts for 0.1s first) or peel (no lift: the
-peel was one, so it flies as soon as its page is in; see Peeling a sticker), the Back
-arrow, a tab,
+the old page fades off the new one around it. `DeskProvider` runs it, for every way
+in and out: a sticker click or peel (see Peeling a sticker), the Back arrow, a tab,
 Super Space's "All projects" link (`BackToProjects`), and the browser's Back and
 Forward (a trackpad swipe included).
 
@@ -242,18 +247,36 @@ Forward (a trackpad swipe included).
   `MastFrame`, so a new project needs nothing extra. On the Projects page only the
   sticker that flies carries it (the one clicked, or the one coming home): a named
   sticker that does not fly would leave the page on its own and drift apart from the
-  book. The book, a product page's stage and the socials are named only while a
-  transition runs, when `<html>` carries `data-vt="open"` or `"close"`. The timing is
-  in `styles/transitions.css`. The desk's own name and tagline (or a product page's
-  headline) fade out before the new page's fade in; between the two the desk shows
-  through, as `<html>` takes the desk's background while `data-vt` is set
-  (`styles/desk.css`), so the screen never dims.
+  book. Nothing else is named: the book, a product page's stage and the masthead are
+  the page (the transition's root) and go, or come, with it. Each named element is
+  captured on its own, whole (Super Space's stage is 11,000 px tall) and rastered
+  again for it, which adds to the moment the screen holds still before the flight.
+- The timing is in `styles/transitions.css`: one duration and easing for every
+  flight, opening and leaving alike (`--vt-dur`, 0.44 s; `--vt-ease`), and
+  `--vt-fade` (0.18 s) for the old page fading off the new one. The new page is there
+  from the transition's first frame, under the old one as it fades, so no frame shows
+  neither (the screen never dips to the dark under the desk) and nothing is blended.
+- Only transform and opacity animate, so the compositor runs the flight without the
+  main thread. Where the two ends of a morph differ in size (the sticker on the page
+  and in the header), the browser would animate its group's width and height, on the
+  main thread; once the transition is ready, `tuneFlights` holds each group at its
+  landing size and folds the change into its transform as a scale (the same
+  picture). The new page is live under the flight, so it puts its heavy work off
+  until the sticker has landed: `whenSettled()` resolves then (Super Space's
+  launcher waits for it before it loads).
 - The navigation happens inside `document.startViewTransition`, which waits until
   the new page is on screen (its own layout effects have scrolled it and moved focus)
-  before it captures it. The browser draws nothing new meanwhile, so a clicked
-  sticker waits, lifted (and bobbing after 0.2 s), until its page's data has come in
-  before the flight starts: `DeskProvider` counts Next.js's requests for a page's data
-  (`?_rsc=`) as they go through `fetch`. A page that takes more than 1.5 s opens as a
+  and the fonts its first screen is laid out in have loaded (at most 150 ms; they
+  were fetched ahead, see below) before it captures it. The browser draws nothing new
+  meanwhile, so the flight only starts once the page's data is in. A sticker whose
+  page is in (Next.js prefetched it as it came into view, or a pointer on a product
+  page's sticker did) flies at once, from the pose it is in: the flight is its lift.
+  One whose page is still on its way (a tap on Super Space, which has no hover to
+  fetch it ahead) lifts off the page (0.1 s) and waits, lifted (and bobbing after
+  0.2 s), until the page's data has come in, with the stylesheet and fonts it asked
+  for ahead: `DeskProvider` counts Next.js's requests for a page's data (`?_rsc=`) as
+  they go through `fetch`, and checks the preloads in the head against the fetches
+  that have finished (Resource Timing). A page that takes more than 1.5 s opens as a
   plain navigation instead, and a transition never holds the screen for more than
   1.2 s. A project opens at the top with its title focused; coming back puts the
   Projects page where it was when the project opened (as the browser's Back would),
@@ -265,17 +288,9 @@ Forward (a trackpad swipe included).
 - Back or Forward pressed as the flight starts wins: the flight's own step is
   dropped; pressed during the flight, the flight ends where it is and the step
   happens at once. A flight longer than a screen (back from the foot of a long page,
-  `data-vt-far`) starts just past the edge of the screen (`shortenFlight` moves the
-  far end of its keyframes), lands without the overshoot, and the socials fade with
-  the page instead of sliding that far. A book that would slide most of a screen (a
-  sticker opened from far down the Projects page, `data-vt-book-far`) stays still:
-  the old leaf goes and the new page fades in where it is. Elsewhere the leaf turns:
-  the old page is wiped off the new one under it, from its outer edge (back the other
-  way), so every point of the leaf shows one page or the other, never both. Around
-  them the old page (the name and tagline, or a product page's headline) fades out in
-  0.12 s before the new one fades in, so the two are never read over each other; a
-  sticker with no partner (the header sticker, to Writing or Resume) sinks away or
-  rises rather than lie over the page.
+  `data-vt-far`) starts just past the edge of the screen (`tuneFlights` moves the far
+  end of its keyframes). A sticker with no partner (the header sticker, to Writing or
+  Resume) sinks away or rises rather than lie over the page.
 - The browser sends a click made during a transition to `<html>` under its
   snapshots. A press never cuts the flight short: the click waits for it to land, and
   then goes to the new page's Back arrow if that is what is under the pointer (a quick
@@ -300,9 +315,15 @@ Forward (a trackpad swipe included).
   111+, Safari 18+ or Firefox 144+), every navigation is instant; a sticker's click
   still notes where the Projects page was (`desk.remember`), so coming back puts it
   there.
-- `tests/transitions.spec.ts` checks that the stickers share the name and that every
-  way in and out morphs; `tests/viewTransitions.ts` records what each transition the
-  page starts really animated.
+- `tests/transitions.spec.ts` checks that the stickers share the name, that every
+  way in and out morphs, and that a prefetched sticker flies at once with nothing
+  but transform and opacity animating while the launcher waits for the landing;
+  `tests/viewTransitions.ts` records what each transition the page starts really
+  animated. To measure a transition (the time from the click to its first frame, the
+  update, long tasks, dropped frames, layout shifts), drive the production build
+  with Playwright and Chrome's tracing; headless Chrome without a GPU rasters and
+  composites in software, so its frame rates say little about a real screen, but its
+  main-thread numbers do.
 
 ## Peeling a sticker
 

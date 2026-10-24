@@ -15,8 +15,10 @@ import {
 import { flushSync } from 'react-dom';
 
 /**
- * How long a clicked sticker lifts off the page before it flies (the lift runs
- * 0.1s). One peeled off by hand does not wait: the peel was its lift.
+ * How long a clicked sticker whose page is not in yet lifts off the page before
+ * it may fly (the lift runs 0.1s), so the flight starts from the pose the
+ * header sticker takes. A sticker whose page is in flies at once, and one
+ * peeled off by hand does not wait either: the peel was its lift.
  */
 const LIFT_MS = 110;
 /**
@@ -35,6 +37,18 @@ const WAIT_BOB_MS = 220;
 const PAGE_TIMEOUT_MS = 1200;
 /** The longest it waits for the stickers' images to decode once the page is in. */
 const DECODE_TIMEOUT_MS = 250;
+/**
+ * The longest it waits, once the page is in, for the fonts its first screen
+ * needs. They were fetched while the sticker waited (`pageLoaded` waits for
+ * the page's preloads), so this is only their swap from the cache; without it
+ * the new page's headline would change face during the flight.
+ */
+const FONT_WAIT_MS = 150;
+/**
+ * How long a page's data, once fetched, counts as in without asking again:
+ * under the five minutes Next.js keeps a prefetched static page.
+ */
+const FRESH_MS = 4 * 60_000;
 
 /** Which way the sticker flies: up into the header, or back down onto the page. */
 type Direction = 'open' | 'close';
@@ -44,18 +58,20 @@ type Desk = {
 	from: string | null;
 	/**
 	 * The href of the sticker on the Projects page that flies in the running
-	 * transition, and whether it is lifting off the page first (a click) or not
-	 * (Forward). Null when no sticker on this page is about to fly.
+	 * transition, and whether it is lifting off the page first (a click whose
+	 * page is still loading) or not (a click whose page is in, Forward).
+	 * `waiting`: lifted a while, its page still not in. Null when no sticker on
+	 * this page is about to fly.
 	 */
 	flight: { href: string; lift: boolean; waiting?: boolean } | null;
 	/**
-	 * Open a project from its sticker: lift it off the page, then fly it into the
-	 * header. Ignored while another opens: then it returns false. `peeled`: it
-	 * was peeled off by hand, which lifted it already, so it flies as soon as
-	 * its page is in.
+	 * Open a project from its sticker: fly it into the header, at once when its
+	 * page is in, else lifted off the page until it is. Ignored while another
+	 * opens: then it returns false. `peeled`: it was peeled off by hand, which
+	 * lifted it already, so it flies (from that pose) as soon as its page is in.
 	 */
 	open: (href: string, peeled?: boolean) => boolean;
-	/** A pointer or the focus is on a sticker that does not prefetch: its page starts loading. */
+	/** A pointer or the focus is on (or a finger down on) a sticker that does not prefetch: its page starts loading. */
 	intent: (href: string) => void;
 	/**
 	 * A link's onNavigate: when the link opens or leaves a project, it takes the
@@ -176,6 +192,25 @@ function stopCoasting() {
 	);
 }
 
+/**
+ * The events a view transition's own animations send to <html> as they start
+ * and end (one for each part of each snapshot). Nothing on the site listens
+ * for them, but React's root listener would handle each one, on the main
+ * thread, as the flight starts: they go no further than the window.
+ */
+const TRANSITION_EVENTS = [
+	'animationstart',
+	'animationend',
+	'animationiteration',
+	'animationcancel',
+] as const;
+
+function onTransitionAnimation(event: AnimationEvent) {
+	if (event.pseudoElement?.startsWith('::view-transition')) {
+		event.stopImmediatePropagation();
+	}
+}
+
 /** The transition that runs now, so an older one that is skipped leaves the newer one's state alone. */
 let running: ViewTransition | null = null;
 
@@ -282,14 +317,69 @@ function watchPageData() {
 		res.then((r) => r.clone().arrayBuffer()).then(done, done);
 		return res;
 	};
+	// Every fetch that has finished (Resource Timing), so a preload still on
+	// its way can be told from one that is in.
+	try {
+		new PerformanceObserver((list) => {
+			for (const entry of list.getEntries()) fetched.add(entry.name);
+		}).observe({ type: 'resource', buffered: true });
+	} catch {}
+}
+
+/** The URLs whose fetch has finished. */
+const fetched = new Set<string>();
+
+// Watch from the start, before Next.js prefetches the stickers' pages as they
+// come into view, so those count too.
+if (typeof window !== 'undefined') watchPageData();
+
+/**
+ * The stylesheets and fonts a page about to open asked for ahead (Next.js puts
+ * a page's preloads in the head as soon as its data comes in) that are still
+ * on their way. Waited for before the flight, so the new page is drawn in its
+ * own fonts from its first frame.
+ */
+function preloadsPending(): boolean {
+	const now = performance.now();
+	for (const link of document.head.querySelectorAll<HTMLLinkElement>(
+		'link[rel="preload"][as="font"], link[rel="preload"][as="style"]',
+	)) {
+		if (!link.href || fetched.has(link.href)) continue;
+		// one that never comes in (offline, say) is not waited for again
+		const seen = preloadSeen.get(link);
+		if (seen === undefined) preloadSeen.set(link, now);
+		if (seen === undefined || now - seen < LOAD_WAIT_MS) return true;
+	}
+	return false;
+}
+
+/** When each preload was first found still on its way. */
+const preloadSeen = new WeakMap<HTMLLinkElement, number>();
+
+/**
+ * True when `path`'s data is in now: it came in lately (Next.js still has it),
+ * no request for it is on its way, and nor are the preloads it asked for. Then
+ * the transition can start at once without waiting on the network.
+ */
+function pageReady(path: string): boolean {
+	const last = loaded.get(path);
+	const age = last === undefined ? -1 : performance.now() - last;
+	return (
+		// not just now: Next.js may be about to ask for its second part
+		age >= 50 &&
+		age < FRESH_MS &&
+		(loading.get(path) ?? 0) === 0 &&
+		!preloadsPending()
+	);
 }
 
 /**
  * Resolves true once `path`'s data has come in (or needs no request: Next.js
- * has it already), false if it is still loading after `max` ms. Next.js asks
- * for a page in up to two requests, one after the other, a moment after it is
- * told to: the page counts as in once none has been on its way for 50 ms, or,
- * if none was ever asked for, 200 ms on.
+ * has it already), and the stylesheets and fonts it asked for ahead, false if
+ * it is still loading after `max` ms. Next.js asks for a page in up to two
+ * requests, one after the other, a moment after it is told to: the page
+ * counts as in once none has been on its way for 50 ms, or, if none was ever
+ * asked for, 200 ms on.
  */
 function pageLoaded(path: string, max: number): Promise<boolean> {
 	return new Promise((resolve) => {
@@ -299,7 +389,8 @@ function pageLoaded(path: string, max: number): Promise<boolean> {
 			const last = loaded.get(path);
 			if (
 				(loading.get(path) ?? 0) === 0 &&
-				(last === undefined ? now - start >= 200 : now - last >= 50)
+				(last === undefined ? now - start >= 200 : now - last >= 50) &&
+				!preloadsPending()
 			) {
 				finish(true);
 				return;
@@ -326,9 +417,8 @@ function flyingSticker(): HTMLElement | null {
 
 /**
  * Runs `update` (which changes the page) as a view transition. <html> carries
- * data-vt while it runs, which names the book and the stage for it
- * (styles/transitions.css). Returns false when the browser refused to start one;
- * `update` has not run then.
+ * data-vt while it runs (styles/transitions.css times it). Returns false when
+ * the browser refused to start one; `update` has not run then.
  */
 function startPageTransition(
 	direction: Direction,
@@ -347,7 +437,7 @@ function startPageTransition(
 	// a skipped transition rejects these; the navigation itself still happens
 	vt.ready.then(
 		() => {
-			if (running === vt && 'vtFar' in root.dataset) shortenFlight();
+			if (running === vt) tuneFlights('vtFar' in root.dataset);
 		},
 		() => {},
 	);
@@ -359,39 +449,133 @@ function startPageTransition(
 			running = null;
 			delete root.dataset.vt;
 			delete root.dataset.vtFar;
-			delete root.dataset.vtBookFar;
+			for (const done of settling.splice(0)) done();
 		});
 	return true;
 }
 
+/** Work waiting for the running transition to end (`whenSettled`). */
+const settling: (() => void)[] = [];
+
 /**
- * A sticker flying further than a screen (back from far down a long page)
- * would be off screen for most of its flight, then streak in. Its far end is
- * moved to just past the edge of the screen, so the whole flight is seen: it
- * comes in from above (or below) and lands.
+ * Resolves once no page transition runs: at once when none does. A new page
+ * puts off its heavy work with it (loading a chunk, building an index), so the
+ * work does not compete with the flight for the main thread: the main thread
+ * is not needed to run the flight, but the new page is live under it, and its
+ * work would hold up the frames that show it.
  */
-function shortenFlight() {
+export function whenSettled(): Promise<void> {
+	if (!running) return Promise.resolve();
+	return new Promise((resolve) => settling.push(resolve));
+}
+
+/** A 2D affine transform, as CSS's matrix(a, b, c, d, e, f). */
+type Affine = [number, number, number, number, number, number];
+
+function mul(m: Affine, n: Affine): Affine {
+	return [
+		m[0] * n[0] + m[2] * n[1],
+		m[1] * n[0] + m[3] * n[1],
+		m[0] * n[2] + m[2] * n[3],
+		m[1] * n[2] + m[3] * n[3],
+		m[0] * n[4] + m[2] * n[5] + m[4],
+		m[1] * n[4] + m[3] * n[5] + m[5],
+	];
+}
+
+const shift = (x: number, y: number): Affine => [1, 0, 0, 1, x, y];
+
+function parseAffine(value: unknown): Affine | null {
+	const s = String(value ?? '');
+	if (s === 'none' || s === '') return [1, 0, 0, 1, 0, 0];
+	const m = /^matrix\(([^)]+)\)$/.exec(s);
+	if (!m) return null;
+	const v = m[1].split(',').map(Number);
+	if (v.length !== 6 || v.some((n) => !Number.isFinite(n))) return null;
+	return v as Affine;
+}
+
+/**
+ * A group's keyframes with its size held at the landing size and the change
+ * folded into the transform (see `tuneFlights`); `screen`, the screen's
+ * height when the flight is to be kept to just past its edge. Null when the
+ * keyframes are not the browser's usual ones (a size and a 2D matrix each).
+ */
+function flatten(
+	frames: ComputedKeyframe[],
+	screen: number | null,
+): ComputedKeyframe[] | null {
+	const end = frames.at(-1);
+	const w1 = Number.parseFloat(String(end?.width ?? ''));
+	const h1 = Number.parseFloat(String(end?.height ?? ''));
+	if (!(w1 > 0 && h1 > 0)) return null;
+	const next: ComputedKeyframe[] = [];
+	for (const f of frames) {
+		const w = Number.parseFloat(String(f.width ?? ''));
+		const hh = Number.parseFloat(String(f.height ?? ''));
+		const m = parseAffine(f.transform);
+		if (!(w > 0 && hh > 0) || !m) return null;
+		const s = w / w1;
+		// the browser's: m about the centre of a w × hh box; this one: about the
+		// centre of the w1 × h1 box, scaled by s from its top left
+		let t = mul(mul(shift(w / 2, hh / 2), m), shift(-w / 2, -hh / 2));
+		t = mul(t, [s, 0, 0, s, 0, 0]);
+		t = mul(mul(shift(-w1 / 2, -h1 / 2), t), shift(w1 / 2, h1 / 2));
+		if (screen !== null) {
+			// where the box is placed (its top, before it turns): to just past the edge
+			const y = Math.min(Math.max(m[5], -hh - 24), screen + 24);
+			t[5] += y - m[5];
+		}
+		const {
+			width: _w,
+			height: _h,
+			backdropFilter,
+			...rest
+		} = f as ComputedKeyframe & { backdropFilter?: string };
+		const keep: ComputedKeyframe = {
+			...rest,
+			transform: `matrix(${t.join(', ')})`,
+		};
+		// a backdrop filter that changes would be kept (none does, on this site)
+		if (backdropFilter && backdropFilter !== 'none') {
+			keep.backdropFilter = backdropFilter;
+		}
+		next.push(keep);
+	}
+	return next;
+}
+
+/**
+ * Makes every flight a compositor animation, and shortens one longer than a
+ * screen.
+ *
+ * Where the two ends of a morph differ in size (the sticker on the page and in
+ * the header), the browser animates its group's width and height along with
+ * its transform, and that runs on the main thread: anything the new page does
+ * meanwhile would make the flight stutter. Here each group keeps its landing
+ * size the whole way and the change in size goes into its transform, as a
+ * scale (the same picture, moved and scaled by the compositor alone). The
+ * group's transform turns about its centre, so the scale is set about the top
+ * left corner, where the browser's own size change grows from. The scale is
+ * the change in width, kept square: a snapshot fills its group's width and
+ * keeps its own proportions, so one whose height changes is not stretched.
+ *
+ * `far`: a sticker flying further than a screen (back from far down a long
+ * page) would be off screen for most of its flight, then streak in. Its far
+ * end is moved to just past the edge of the screen, so the whole flight is
+ * seen: it comes in from above (or below) and lands.
+ */
+function tuneFlights(far: boolean) {
 	const h = window.innerHeight;
 	for (const a of document.documentElement.getAnimations({ subtree: true })) {
 		const effect = a.effect as KeyframeEffect | null;
-		if (!effect?.pseudoElement?.startsWith('::view-transition-group(stk-')) {
-			continue;
-		}
-		const frames = effect.getKeyframes();
-		let changed = false;
-		for (const f of frames) {
-			const m = /^matrix\(([^)]+)\)$/.exec(String(f.transform ?? ''));
-			const size = Number.parseFloat(String(f.height ?? ''));
-			if (!m || !Number.isFinite(size)) continue;
-			const v = m[1].split(',').map(Number);
-			if (v.length !== 6 || v.some((n) => !Number.isFinite(n))) continue;
-			const y = Math.min(Math.max(v[5], -size - 24), h + 24);
-			if (y === v[5]) continue;
-			v[5] = y;
-			f.transform = `matrix(${v.join(', ')})`;
-			changed = true;
-		}
-		if (changed) effect.setKeyframes(frames);
+		const pseudo = effect?.pseudoElement ?? '';
+		if (!effect || !pseudo.startsWith('::view-transition-group(')) continue;
+		const next = flatten(
+			effect.getKeyframes(),
+			far && pseudo.startsWith('::view-transition-group(stk-') ? h : null,
+		);
+		if (next) effect.setKeyframes(next);
 	}
 }
 
@@ -462,6 +646,23 @@ function stickersDecoded(): Promise<unknown> {
 }
 
 /**
+ * Resolves once the fonts the new page is laid out in have loaded (or after
+ * FONT_WAIT_MS), so it is captured in its own faces rather than swapping them
+ * in during the flight. Call it once the page has been laid out: that is when
+ * the browser asks for the fonts it uses.
+ */
+function fontsIn(): Promise<unknown> {
+	void document.documentElement.offsetHeight; // laid out (already, most often)
+	if (document.fonts?.status !== 'loading') {
+		return Promise.resolve();
+	}
+	return Promise.race([
+		document.fonts.ready,
+		new Promise((resolve) => window.setTimeout(resolve, FONT_WAIT_MS)),
+	]);
+}
+
+/**
  * Lives in the root layout, so it survives navigations: it remembers where the
  * reader came from, which lets the Projects page put the open sticker back in
  * place, and it runs every navigation that opens or leaves a project (a sticker,
@@ -499,6 +700,9 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 		window.addEventListener('click', onClickDuringTransition, capture);
 		window.addEventListener('pointerdown', onPointerInput, capture);
 		window.addEventListener('keydown', onKeyInput, capture);
+		for (const type of TRANSITION_EVENTS) {
+			window.addEventListener(type, onTransitionAnimation, capture);
+		}
 		const watch = { capture: true, passive: true };
 		for (const type of ['touchstart', 'touchend', 'touchcancel'] as const) {
 			window.addEventListener(type, onTouches, watch);
@@ -507,6 +711,9 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 		return () => {
 			window.removeEventListener('pointerdown', onPointerInput, capture);
 			window.removeEventListener('keydown', onKeyInput, capture);
+			for (const type of TRANSITION_EVENTS) {
+				window.removeEventListener(type, onTransitionAnimation, capture);
+			}
 			for (const type of ['touchstart', 'touchend', 'touchcancel'] as const) {
 				window.removeEventListener(type, onTouches, watch);
 			}
@@ -540,9 +747,6 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 			const root = document.documentElement;
 			const from = window.location.href;
 			const before = flyingSticker()?.getBoundingClientRect().top;
-			const bookBefore = document
-				.querySelector('.book')
-				?.getBoundingClientRect().top;
 			const update = async () => {
 				// Back or Forward pressed after the flight began, before the page changed:
 				// that step wins, and this one neither pushes nor animates.
@@ -570,8 +774,8 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 				}
 				busy.current = false; // also when the page timed out
 				// A sticker that would fly further than a screen (back from far down a
-				// long page) would be off screen for most of its flight: it drops onto
-				// its spot instead, and the socials stay out of it (transitions.css).
+				// long page) would be off screen for most of its flight: its flight is
+				// kept to just past the edge of the screen (tuneFlights).
 				const after = flyingSticker()?.getBoundingClientRect().top;
 				if (
 					before !== undefined &&
@@ -580,24 +784,12 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 				) {
 					root.dataset.vtFar = '';
 				}
-				// A book that would slide most of a screen (a sticker opened from far
-				// down the Projects page, or back to it) stays still: its old leaf
-				// goes, and the new page fades in where it is.
-				const bookAfter = document
-					.querySelector('.book')
-					?.getBoundingClientRect().top;
-				if (
-					bookBefore !== undefined &&
-					bookAfter !== undefined &&
-					Math.abs(bookAfter - bookBefore) > window.innerHeight * 0.4
-				) {
-					root.dataset.vtBookFar = '';
-				}
 				const landing = takePose(pose);
 				if (landing) {
 					running?.finished.catch(() => {}).finally(() => pressDown(landing));
 				}
-				await stickersDecoded();
+				// the page has been laid out (above): its fonts are on their way
+				await Promise.all([stickersDecoded(), fontsIn()]);
 			};
 			const direction = projectPath.test(to()) ? 'open' : 'close';
 			if (!startPageTransition(direction, update)) go();
@@ -633,17 +825,32 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 				go();
 				return true;
 			}
-			setFlight({ href, lift: true });
+			// A click, its page in: it flies at once, from the pose it is in (the
+			// flight is its lift), so the frame after the click is the flight's
+			// first. (One peeled off by hand keeps its lift, below: it flies as
+			// soon as its page is in, which it is then.)
 			const self = { cancelled: false };
 			lift.current = self;
+			if (!peeled && pageReady(href)) {
+				// (after this task: a tab clicked in the same one still wins)
+				queueMicrotask(() => {
+					if (self.cancelled) return;
+					lift.current = null;
+					flushSync(() => setFlight({ href, lift: false }));
+					morph(() => href, go, true);
+				});
+				return true;
+			}
+			setFlight({ href, lift: true });
 			const bob = window.setTimeout(
 				() => setFlight({ href, lift: true, waiting: true }),
 				WAIT_BOB_MS,
 			);
-			// The sticker lifts, and waits lifted (the page still drawing) until
-			// its page is in; only then does it fly, so the flight never freezes
-			// the screen on a page still loading. A page too slow for that opens
-			// without the flight.
+			// Its page is not in yet: the sticker lifts, and waits lifted (the
+			// page still drawing) until its page is in, with the stylesheet and
+			// fonts it asked for; only then does it fly, so the flight never
+			// freezes the screen on a page still loading. A page too slow for
+			// that opens without the flight.
 			Promise.all([
 				new Promise((resolve) =>
 					window.setTimeout(resolve, peeled ? 0 : LIFT_MS),
