@@ -1,38 +1,25 @@
 /* ═════════ page transitions (View Transitions API) ═════════
-   Opening a project and leaving it run as a view transition (DeskProvider): the
-   sticker flies between its spot on the Projects page and the header (the two
-   share a view-transition-name, set inline by StickerLink and MastFrame), the
-   book moves to its new place as its leaf turns, a product page's stage rises
-   where the book was (or sinks away), and the rest of the desk cross-fades.
-   The names below exist only while a transition runs, when <html> carries
-   data-vt ("open" or "close"). DeskProvider sets the far flags once the new page
-   is in, so they only change how the new page is captured. */
-:root[data-vt] .book {
-	view-transition-name: book;
-}
-/* a product page's stage, in place of the book (Super Space's .ss) */
-:root[data-vt] .desk > main:not(.book) {
-	view-transition-name: stage;
-}
-:root[data-vt] .mast .socials {
-	view-transition-name: socials;
-}
-/* A book that would slide most of a screen stays where it is: the old leaf goes
-   (as it does for a stage, below) and the new page fades in in place. */
-:root[data-vt-book-far] .book,
-:root[data-vt-book-far] .mast .socials {
-	view-transition-name: none;
-}
-/* A flight longer than a screen starts just past the edge of the screen
-   (DeskProvider shortens it), and the socials, which would slide as far, fade
-   with the page instead. */
-:root[data-vt-far] .mast .socials {
-	view-transition-name: none;
+   Opening a project and leaving it run as a view transition (DeskProvider):
+   the sticker flies between its spot on the Projects page and the header (the
+   two share a view-transition-name, set inline by StickerLink and MastFrame),
+   and the old page fades off the new one around it.
+
+   The sticker is the only thing named, so the only thing captured on its own:
+   everything else (the book, a product page's stage, the masthead) is the
+   page, and goes with it in one cross-fade. Everything here animates transform
+   and opacity only, so the compositor runs it without the main thread: the
+   sticker's change in size is folded into its transform by DeskProvider
+   (tuneFlights) once the transition is ready. */
+:root {
+	/* one timing for every flight, opening a project and leaving it */
+	--vt-dur: 0.44s;
+	--vt-ease: cubic-bezier(0.2, 0, 0, 1);
+	/* how long the old page takes to fade off the new one */
+	--vt-fade: 0.18s;
 }
 
 /* The page under the snapshots does not take clicks while a transition runs;
-   DeskProvider cuts the transition short at a press and gives the click to
-   what is under the pointer on the new page. */
+   DeskProvider holds a press made during the flight (see its notes). */
 ::view-transition {
 	pointer-events: none;
 }
@@ -40,49 +27,25 @@
 /* DeskProvider starts no transition with reduced motion; the rules below only
    move things for readers who have not asked for less motion. */
 @media (prefers-reduced-motion: no-preference) {
-	/* Every name but the page's own (below) is a sticker: it flies on top, and
-	   lands with a little give, as if pressed down. */
+	/* Every name but the page's own is a sticker: it flies on top */
 	::view-transition-group(*) {
 		z-index: 1;
-		animation-duration: 0.52s;
-		animation-timing-function: cubic-bezier(0.32, 1.25, 0.45, 1);
+		animation-duration: var(--vt-dur);
+		animation-timing-function: var(--vt-ease);
 	}
-	::view-transition-group(root),
-	::view-transition-group(book),
-	::view-transition-group(stage),
-	::view-transition-group(socials) {
+	::view-transition-group(root) {
 		z-index: 0;
-		animation-duration: 0.5s;
-		animation-timing-function: var(--ease-out);
 	}
-	/* coming in from the edge of the screen, the sticker lands without the give */
-	:root[data-vt-far]::view-transition-group(*) {
-		animation-timing-function: var(--ease-out);
-	}
-	/* The desk and the masthead around the sticker: the old page's name and
-	   tagline (or a product page's headline) go first, and the new page's come
-	   in after them, so the two are never read over each other. In between,
-	   the desk under them shows (styles/desk.css), so the screen never dims. */
+	/* The new page is there from the first frame, and the old one fades off
+	   it: no frame shows neither (the screen never dips to the dark under the
+	   desk), and nothing is blended (plus-lighter would brighten the desk where
+	   the two overlap). */
 	::view-transition-old(root) {
-		mix-blend-mode: normal;
-		animation: vt-fade-out 0.12s ease-out both;
-	}
-	::view-transition-new(root) {
-		mix-blend-mode: normal;
-		animation: vt-fade-in 0.26s 0.1s var(--ease-out) both;
-	}
-	/* The leaf turns as the book moves: the old page is wiped off the new one
-	   under it, from its outer edge (back the other way), so every point of the
-	   leaf shows one page or the other, never both. */
-	::view-transition-old(book) {
 		z-index: 1;
 		mix-blend-mode: normal;
-		animation: vt-turn 0.22s var(--ease-out) both;
+		animation: vt-fade-out var(--vt-fade) ease-out both;
 	}
-	:root[data-vt='close']::view-transition-old(book) {
-		animation-name: vt-turn-back;
-	}
-	::view-transition-new(book) {
+	::view-transition-new(root) {
 		mix-blend-mode: normal;
 		animation: none;
 	}
@@ -90,21 +53,10 @@
 	   Writing or Resume, or coming back from there) gets out of the way, or
 	   settles in, rather than lie over the page */
 	::view-transition-old(*):only-child {
-		animation: vt-sink 0.14s var(--ease-out) both;
+		animation: vt-sink var(--vt-fade) ease-out both;
 	}
 	::view-transition-new(*):only-child {
-		animation: vt-rise 0.36s 0.06s var(--ease-out) both;
-	}
-	/* the book gives way to a product page's stage, or the stage to the book:
-	   the old one gets out of the way at once, the new one rises after it, so
-	   the two are never read over each other */
-	::view-transition-old(book):only-child,
-	::view-transition-old(stage):only-child {
-		animation: vt-sink 0.14s var(--ease-out) both;
-	}
-	::view-transition-new(book):only-child,
-	::view-transition-new(stage):only-child {
-		animation: vt-rise 0.42s 0.1s var(--ease-out) both;
+		animation: vt-rise var(--vt-dur) 0.06s var(--vt-ease) both;
 	}
 }
 
@@ -119,27 +71,6 @@
 @keyframes vt-fade-out {
 	to {
 		opacity: 0;
-	}
-}
-@keyframes vt-fade-in {
-	from {
-		opacity: 0;
-	}
-}
-@keyframes vt-turn {
-	from {
-		clip-path: inset(0);
-	}
-	to {
-		clip-path: inset(0 100% 0 0);
-	}
-}
-@keyframes vt-turn-back {
-	from {
-		clip-path: inset(0);
-	}
-	to {
-		clip-path: inset(0 0 0 100%);
 	}
 }
 @keyframes vt-sink {

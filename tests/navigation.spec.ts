@@ -27,7 +27,8 @@ test('Super Space flies into the header as its page opens, and Back flies it hom
 	await sticker.scrollIntoViewIfNeeded();
 	const left = await page.evaluate(() => window.scrollY);
 	await sticker.click();
-	// it lifts off the page before it flies
+	// its page does not prefetch (it only starts to load as the pointer comes
+	// onto the sticker): it lifts off the page while it waits for it, then flies
 	await expect(sticker).toHaveClass(/is-lifting/);
 
 	await expect(page).toHaveURL(at('/projects/super-space'));
@@ -69,9 +70,11 @@ test('Super Space flies into the header as its page opens, and Back flies it hom
 		['open', true],
 		['close', true],
 	]);
-	// the book gave way to the product page's stage, and back
-	expect(runs[0].names).toEqual(expect.arrayContaining(['book', 'stage']));
-	expect(runs[1].names).toEqual(expect.arrayContaining(['book', 'stage']));
+	// only the sticker was captured on its own: the book and the product page's
+	// stage went, and came, with the page around them
+	for (const run of runs) {
+		expect([...run.names].sort()).toEqual(['root', 'stk-superspace']);
+	}
 	expect(problems).toEqual([]);
 });
 

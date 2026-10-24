@@ -34,9 +34,10 @@ type Props = Pick<Project, 'sticker'> & {
 };
 
 /**
- * A sticker on the Projects page. A plain click (or Enter, or Space) lifts it
- * off the page, then opens the project in a view transition that flies it into
- * the header (it shares its view-transition-name with the header sticker).
+ * A sticker on the Projects page. A plain click (or Enter, or Space) opens the
+ * project in a view transition that flies it into the header (it shares its
+ * view-transition-name with the header sticker): at once when the project's
+ * page is in, or lifted off the page while it waits for it.
  * Coming back from that project flies it back down onto this spot.
  *
  * It can also be peeled by hand, from any side: its edge, all round (the

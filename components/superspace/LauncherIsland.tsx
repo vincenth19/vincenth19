@@ -9,6 +9,7 @@ import {
 	useRef,
 	useState,
 } from 'react';
+import { whenSettled } from '@/components/DeskProvider';
 import type { LauncherProps } from './launcher/Launcher';
 
 /**
@@ -64,8 +65,17 @@ export function LauncherIsland({
 			},
 			{ rootMargin: '300px 0px' },
 		);
-		observer.observe(el);
-		return () => observer.disconnect();
+		// Opened from the Projects page, the page waits until the sticker has
+		// landed: loading and building the launcher would take the main thread
+		// from the flight.
+		let gone = false;
+		whenSettled().then(() => {
+			if (!gone) observer.observe(el);
+		});
+		return () => {
+			gone = true;
+			observer.disconnect();
+		};
 	}, [load]);
 
 	return (

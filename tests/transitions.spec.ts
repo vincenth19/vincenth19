@@ -193,8 +193,9 @@ test('Super Space: the launcher works between Back and Forward, and the header s
 	expect(runs.map((v) => v.direction)).toEqual(['open', 'close', 'open']);
 	for (const run of runs) {
 		expect(run.pairs).toContain('stk-superspace');
-		// the book gives way to the stage, or the stage to the book
-		expect(run.names).toEqual(expect.arrayContaining(['book', 'stage']));
+		// the book gives way to the stage, or the stage to the book, with the
+		// page: neither is captured on its own (the stage is 11,000px tall)
+		expect([...run.names].sort()).toEqual(['root', 'stk-superspace']);
 	}
 	expect(problems).toEqual([]);
 });
@@ -433,13 +434,6 @@ test('a sticker opened from far down the Projects page leaves the book where it 
 	const vts = await recordTransitions(page);
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.goto('/');
-	await page.evaluate(() => {
-		const w = window as unknown as { __bookFar: boolean };
-		w.__bookFar = false;
-		new MutationObserver(() => {
-			if ('vtBookFar' in document.documentElement.dataset) w.__bookFar = true;
-		}).observe(document.documentElement, { attributes: true });
-	});
 	const sticker = page.getByRole('link', {
 		name: 'CovidTracker, 2021. Open project',
 	});
@@ -449,14 +443,132 @@ test('a sticker opened from far down the Projects page leaves the book where it 
 	await expect(page).toHaveURL(at('/projects/covidtracker'));
 	await vts.settled();
 	const [open] = await vts.take();
-	expect(
-		await page.evaluate(
-			() => (window as unknown as { __bookFar: boolean }).__bookFar,
-		),
-	).toBe(true);
-	// the sticker flies; the book does not slide a screen's height under it
+	// the sticker flies; the book does not slide a screen's height under it: it
+	// is never captured on its own, and goes with the page
 	expect(open.pairs).toContain('stk-covid');
-	expect(open.pairs).not.toContain('book');
+	expect([...open.names].sort()).toEqual(['root', 'stk-covid']);
+});
+
+test('a prefetched sticker flies at once, on the compositor, and the new page waits for it to land', async ({
+	page,
+}) => {
+	// a screen tall enough that the launcher is near it as the page opens: it
+	// would start loading at once, but waits for the landing
+	await page.setViewportSize({ width: 1440, height: 1300 });
+	await page.addInitScript(() => {
+		type Seen = {
+			clicked: number[];
+			started: number[];
+			finished: number[];
+			lifted: boolean;
+			props: string[];
+			launcher: number | null;
+		};
+		const w = window as unknown as { __seen: Seen };
+		w.__seen = {
+			clicked: [],
+			started: [],
+			finished: [],
+			lifted: false,
+			props: [],
+			launcher: null,
+		};
+		const seen = w.__seen;
+		window.addEventListener('click', (e) => seen.clicked.push(e.timeStamp), {
+			capture: true,
+		});
+		const start = document.startViewTransition?.bind(document);
+		if (!start) return;
+		document.startViewTransition = ((update: ViewTransitionUpdateCallback) => {
+			seen.started.push(performance.now());
+			const vt = start(update);
+			// what runs, once the page has retimed it
+			vt.ready
+				.then(() => new Promise((r) => setTimeout(r, 0)))
+				.then(() => {
+					for (const a of document.documentElement.getAnimations({
+						subtree: true,
+					})) {
+						const effect = a.effect as KeyframeEffect | null;
+						if (!effect?.pseudoElement?.startsWith('::view-transition')) {
+							continue;
+						}
+						for (const f of effect.getKeyframes()) {
+							for (const p of Object.keys(f)) {
+								if (
+									['offset', 'easing', 'composite', 'computedOffset'].includes(
+										p,
+									)
+								) {
+									continue;
+								}
+								const what = `${effect.pseudoElement} ${p}`;
+								if (!seen.props.includes(what)) seen.props.push(what);
+							}
+						}
+					}
+				})
+				.catch(() => {});
+			vt.finished.finally(() => seen.finished.push(performance.now()));
+			return vt;
+		}) as typeof document.startViewTransition;
+		new MutationObserver(() => {
+			if (document.querySelector('.stk.is-lifting')) seen.lifted = true;
+			if (
+				seen.launcher === null &&
+				document.querySelector('.ssl[data-ready]')
+			) {
+				seen.launcher = performance.now();
+			}
+		}).observe(document, { subtree: true, attributes: true, childList: true });
+	});
+	await page.goto('/');
+	const sticker = page.getByRole('link', {
+		name: 'Super Space, 2026. Open project',
+	});
+	// the pointer comes onto the sticker, and stays a moment: its page comes in
+	await sticker.hover();
+	await expect
+		.poll(() =>
+			page.evaluate(() =>
+				performance
+					.getEntriesByType('resource')
+					.some((r) => r.name.includes('/projects/super-space?_rsc')),
+			),
+		)
+		.toBe(true);
+	await page.waitForTimeout(400);
+	await sticker.click();
+	await expect(page).toHaveURL(at('/projects/super-space'));
+	await expect(page.locator('.ssl')).toHaveAttribute('data-ready', '');
+	const seen = await page.evaluate(
+		() =>
+			(
+				window as unknown as {
+					__seen: {
+						clicked: number[];
+						started: number[];
+						finished: number[];
+						lifted: boolean;
+						props: string[];
+						launcher: number | null;
+					};
+				}
+			).__seen,
+	);
+	expect(seen.started).toHaveLength(1);
+	// no lift first: the transition starts in the click's own task
+	expect(seen.lifted).toBe(false);
+	expect(seen.started[0] - (seen.clicked.at(-1) ?? 0)).toBeLessThan(100);
+	// nothing animates that the compositor cannot run on its own
+	const allowed = /\s(transform|translate|opacity|mixBlendMode)$/;
+	expect(seen.props.filter((p) => !allowed.test(p))).toEqual([]);
+	expect(seen.props).toContain(
+		'::view-transition-group(stk-superspace) transform',
+	);
+	// the launcher loads once the sticker has landed, not during the flight
+	expect(seen.launcher).not.toBeNull();
+	expect(seen.launcher ?? 0).toBeGreaterThanOrEqual(seen.finished[0]);
 });
 
 test('a lifted sticker waits for its page before it flies, so the screen never freezes on a slow page', async ({
