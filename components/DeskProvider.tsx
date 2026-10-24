@@ -13,6 +13,14 @@ import {
 	useState,
 } from 'react';
 import { flushSync } from 'react-dom';
+import {
+	bezier,
+	drawHand,
+	type Hand,
+	handOf,
+	layDown,
+	stopLaying,
+} from './fold';
 
 /**
  * How long a clicked sticker lifts off the page before it flies (the lift runs
@@ -395,25 +403,33 @@ function shortenFlight() {
 	}
 }
 
-/** How a sticker's corner is peeled: --peel, and the angle (degrees) it folds along. */
-type Pose = { peel: number; fold: number };
+/**
+ * How a sticker is peeled: its own corner's --peel (lifted by a click, or at
+ * rest), and the fold by hand, from whichever side it was peeled (or null).
+ */
+type Pose = { peel: number; hand: Hand | null };
 
 /** The pose the Projects page's flying sticker is in now (lifted, or peeled off by hand), or null. */
 function bookPose(): Pose | null {
 	const el = flyingSticker();
 	if (!el?.classList.contains('stk')) return null;
-	const style = getComputedStyle(el);
-	const peel = Number.parseFloat(style.getPropertyValue('--peel'));
-	const fold = Number.parseFloat(style.getPropertyValue('--fold'));
+	const peel = Number.parseFloat(
+		getComputedStyle(el).getPropertyValue('--peel'),
+	);
 	if (!Number.isFinite(peel)) return null;
-	return { peel, fold: Number.isFinite(fold) ? fold : 45 };
+	return { peel, hand: handOf(el) };
 }
+
+/** How the header sticker's corner and fold are pressed down once it has landed (as --peel's transition there, styles/masthead.css). */
+const PRESS_MS = 420;
+const pressEase = bezier(0.3, 0.7, 0.35, 1);
 
 /**
  * The header sticker, flying in from the Projects page, takes the pose that
  * sticker was captured in, so the two images the transition cross-fades are
- * one and the same: the corner never dissolves from one pose to the other.
- * It lays the corner down once it has landed (`pressDown`).
+ * one and the same: the paper never dissolves from one pose to the other. A
+ * fold by hand is drawn again at the header sticker's own size (it is kept in
+ * units of the width). It is laid down once it has landed (`pressDown`).
  */
 function takePose(pose: Pose | null): HTMLElement | null {
 	const el = flyingSticker();
@@ -421,7 +437,8 @@ function takePose(pose: Pose | null): HTMLElement | null {
 	delete el.dataset.press;
 	el.dataset.posed = '';
 	el.style.setProperty('--peel', pose.peel.toFixed(4));
-	el.style.setProperty('--fold', `${pose.fold.toFixed(2)}deg`);
+	stopLaying(el);
+	drawHand(el, pose.hand);
 	// the backing, folded over, is in the picture now
 	const flap = el.querySelector<HTMLImageElement>('.stk-flap');
 	if (flap) flap.loading = 'eager';
@@ -429,14 +446,15 @@ function takePose(pose: Pose | null): HTMLElement | null {
 }
 
 /**
- * The header sticker has landed: its corner is pressed down flat (data-press
- * eases it, styles/masthead.css); then the flap is put away.
+ * The header sticker has landed: its corner and its fold are pressed down
+ * flat (data-press eases the corner, styles/masthead.css; the fold is laid
+ * down by script, as fast); then the flaps are put away.
  */
 function pressDown(el: HTMLElement) {
 	delete el.dataset.posed;
 	el.dataset.press = '';
 	el.style.removeProperty('--peel');
-	el.style.removeProperty('--fold');
+	layDown(el, PRESS_MS, pressEase);
 	const done = (event?: TransitionEvent) => {
 		if (event && event.propertyName !== '--peel') return;
 		window.clearTimeout(timer);

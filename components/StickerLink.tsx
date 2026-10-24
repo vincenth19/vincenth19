@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import {
+	type CSSProperties,
 	type KeyboardEvent,
 	type MouseEvent,
 	type PointerEvent,
@@ -38,11 +39,12 @@ type Props = Pick<Project, 'sticker'> & {
  * the header (it shares its view-transition-name with the header sticker).
  * Coming back from that project flies it back down onto this spot.
  *
- * It can also be peeled by hand: its bottom-right corner (the grip) follows a
- * mouse or a finger that pulls it, and let go far enough in (or flicked) the
- * sticker comes off and flies from there; let go sooner and the corner springs
- * back down (components/usePeel.ts). A finger on the grip that goes any
- * other way than up the diagonal scrolls the page, as anywhere else on it.
+ * It can also be peeled by hand, from any side: its edge, all round (the
+ * grips), folds back under a mouse or a finger that pulls it, and let go far
+ * enough in (or flicked) the sticker comes off and flies from there; let go
+ * sooner and it springs back down (components/usePeel.ts). A finger on an
+ * edge that goes any other way than into the sticker, leaning, scrolls the
+ * page, as anywhere else on it; the middle is the page.
  */
 export function StickerLink({
 	href,
@@ -186,16 +188,40 @@ export function StickerLink({
 			onDragStart={peel.onDragStart}
 			onFocus={onFocus}
 		>
-			<span className="stk-body">
+			<span
+				className="stk-body"
+				style={{ '--back': `url("${sticker.back}")` } as CSSProperties}
+			>
 				<span className="stk-face">
-					<img src={sticker.src} alt="" />
+					<span className="stk-cut">
+						<img src={sticker.src} alt="" />
+					</span>
 				</span>
 				<span className="stk-flapwrap">
-					{/* the curled-back corner; lazy keeps it out of the page's preloads */}
-					<img className="stk-flap" src={sticker.back} alt="" loading="lazy" />
+					<span className="stk-cut">
+						{/* the curled-back corner; lazy keeps it out of the page's preloads */}
+						<img
+							className="stk-flap"
+							src={sticker.back}
+							alt=""
+							loading="lazy"
+						/>
+					</span>
 				</span>
-				{/* the corner to take hold of: peel it back (usePeel) */}
-				<span className="stk-grip" aria-hidden="true" />
+				{/* a fold by hand, from any side (components/fold.ts) */}
+				<span className="stk-handwrap">
+					<span className="stk-hold">
+						<span className="stk-hand" />
+					</span>
+				</span>
+				{/* the edge to take hold of, all round: peel it back (usePeel) */}
+				<span className="stk-grips" aria-hidden="true">
+					<span className="stk-grip" data-side="top" />
+					<span className="stk-grip" data-side="bottom" />
+					<span className="stk-grip" data-side="left" />
+					<span className="stk-grip" data-side="right" />
+				</span>
+				<span className="stk-mid" aria-hidden="true" />
 			</span>
 		</Link>
 	);

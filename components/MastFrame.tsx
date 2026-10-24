@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import type { HeaderSticker } from '@/content/projects';
 import { stickerName, useDesk } from './DeskProvider';
 
@@ -55,23 +55,38 @@ export function MastFrame({
 						className={`slap-stk stk--${open.key}`}
 						style={{ viewTransitionName: stickerName(open.key) }}
 					>
-						<span className="stk-body">
+						<span
+							className="stk-body"
+							style={
+								{ '--back': `url("${open.sticker.back}")` } as CSSProperties
+							}
+						>
 							<span className="stk-face">
-								<img
-									src={open.sticker.src}
-									alt={open.sticker.alt}
-									// the page's largest image when a project link is opened directly
-									fetchPriority="high"
-								/>
+								<span className="stk-cut">
+									<img
+										src={open.sticker.src}
+										alt={open.sticker.alt}
+										// the page's largest image when a project link is opened directly
+										fetchPriority="high"
+									/>
+								</span>
 							</span>
-							{/* the corner it lands with, if it was peeled (DeskProvider); flat, nothing shows */}
+							{/* the corner it lands with, if it was lifted (DeskProvider); flat, nothing shows */}
 							<span className="stk-flapwrap">
-								<img
-									className="stk-flap"
-									src={open.sticker.back}
-									alt=""
-									loading="lazy"
-								/>
+								<span className="stk-cut">
+									<img
+										className="stk-flap"
+										src={open.sticker.back}
+										alt=""
+										loading="lazy"
+									/>
+								</span>
+							</span>
+							{/* the fold it lands with, if it was peeled by hand (components/fold.ts) */}
+							<span className="stk-handwrap">
+								<span className="stk-hold">
+									<span className="stk-hand" />
+								</span>
 							</span>
 						</span>
 					</figure>

@@ -13,15 +13,20 @@ export type Recorded = {
 	/** view-transition-name of each sticker on screen when it started (the old state), by class. */
 	named: Record<string, string>;
 	/**
-	 * How far the Projects page's flying sticker was peeled (its --peel) when
-	 * the transition captured it, or null when none of them flew.
+	 * How far the Projects page's flying sticker was peeled when the
+	 * transition captured it (its fold by hand's --drag, or its corner's
+	 * --peel), or null when none of them flew.
 	 */
 	peel: number | null;
+	/** The angle (degrees) its fold by hand lay at then (--fold), or null without one. */
+	fold: number | null;
 	/**
-	 * How far the header sticker was peeled (its --peel) when the transition
+	 * How far the header sticker was peeled (as `peel`) when the transition
 	 * captured the new page, or null on a page without one.
 	 */
 	landed: number | null;
+	/** The angle its fold by hand lay at then, or null without one. */
+	landedFold: number | null;
 	/** Every name the transition animated. */
 	names: string[];
 	/** The names with an old and a new image: shared elements that morph. */
@@ -47,16 +52,28 @@ export async function recordTransitions(page: Page) {
 		w.__vts = [];
 		const start = document.startViewTransition?.bind(document);
 		if (!start) return;
+		/** How far a sticker is peeled, and the angle of its fold by hand (components/fold.ts), as shown. */
+		const pose = (el: Element) => {
+			const style = getComputedStyle(el);
+			const hand = el.hasAttribute('data-hand');
+			return {
+				peel: Number.parseFloat(
+					style.getPropertyValue(hand ? '--drag' : '--peel'),
+				),
+				fold: hand ? Number.parseFloat(style.getPropertyValue('--fold')) : null,
+			};
+		};
 		document.startViewTransition = ((update: ViewTransitionUpdateCallback) => {
 			const named: Record<string, string> = {};
 			let peel: number | null = null;
+			let fold: number | null = null;
 			for (const el of document.querySelectorAll('.stk, .slap-stk')) {
 				const where = el.classList.contains('slap-stk') ? 'header' : 'book';
 				const key = [...el.classList].find((c) => c.startsWith('stk--'));
 				const style = getComputedStyle(el);
 				named[`${where} ${key}`] = style.viewTransitionName;
 				if (where === 'book' && style.viewTransitionName.startsWith('stk-')) {
-					peel = Number.parseFloat(style.getPropertyValue('--peel'));
+					({ peel, fold } = pose(el));
 				}
 			}
 			const rec: Recorded = {
@@ -66,7 +83,9 @@ export async function recordTransitions(page: Page) {
 					null,
 				named,
 				peel,
+				fold,
 				landed: null,
+				landedFold: null,
 				names: [],
 				pairs: [],
 				flights: {},
@@ -84,9 +103,9 @@ export async function recordTransitions(page: Page) {
 				.then(() => {
 					const header = document.querySelector('.slap-stk');
 					if (header) {
-						rec.landed = Number.parseFloat(
-							getComputedStyle(header).getPropertyValue('--peel'),
-						);
+						const landed = pose(header);
+						rec.landed = landed.peel;
+						rec.landedFold = landed.fold;
 					}
 					const old = new Set<string>();
 					const fresh = new Set<string>();
