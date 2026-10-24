@@ -117,10 +117,11 @@ const hulls = new Map<string, Point[]>();
 /**
  * Reads a sticker's outline off its backing image (the flap's <img>), once
  * it has loaded: the convex hull of its opaque pixels. Same-origin SVG, so
- * the canvas can be read.
+ * the canvas can be read. Its shade is read off the same file (`learnShade`).
  */
 export function learnHull(img: HTMLImageElement) {
 	const src = img.src;
+	if (src) learnShade(src);
 	if (!src || hulls.has(src) || !img.complete || !img.naturalWidth) return;
 	try {
 		const w = img.naturalWidth;
@@ -356,16 +357,97 @@ export function swingRoom(
 
 /* ── drawing a fold ── */
 
-/** The shade of the backing, in from its outer edge (its share of SHADE_SPAN): bright where it was lifted from, dimmer toward the fold. */
-const SHADE = [
-	['#f8f5ee', 0],
-	['#eee9df', 0.177],
-	['#d3ccbf', 0.323],
-	['#c4bcad', 0.403],
-	['#b1a998', 1],
-] as const;
-/** How far in (a part of the width) the shade reaches, as the corner's backing images draw it. */
-const SHADE_SPAN = 0.438;
+/**
+ * How a backing is shaded, in from its outer edge: its gradient's stops (a
+ * colour, and how far in, as a share of `span`), bright where it was lifted
+ * from and dimmer toward the fold; `span`, how far in (a part of the width)
+ * the gradient runs. Each backing draws its own (the seal's darkens over less
+ * than half the distance the card's and the stamp's do), so the hand's flap
+ * takes it from the backing's file (`learnShade`): taken over from the
+ * corner's own flap, which is that image, it looks the same. This one, the
+ * card's and the stamp's, stands in until the file has been read.
+ */
+type Shade = { stops: [string, number][]; span: number };
+const SHADE: Shade = {
+	stops: [
+		['#f8f5ee', 0],
+		['#eee9df', 0.177],
+		['#d3ccbf', 0.323],
+		['#c4bcad', 0.403],
+		['#b1a998', 1],
+	],
+	span: 0.438,
+};
+
+/** Each backing's shade, by the image's URL (SHADE while its file is on its way, or if it has no gradient). */
+const shades = new Map<string, Shade>();
+
+/** A length of an SVG attribute: a number, or a percentage of `whole`. */
+function svgLength(value: string | null, whole: number, fallback: number) {
+	if (value === null || value.trim() === '') return fallback;
+	const v = Number.parseFloat(value);
+	if (!Number.isFinite(v)) return fallback;
+	return value.trim().endsWith('%') ? (v / 100) * whole : v;
+}
+
+/**
+ * Reads a backing's shade off its file (same-origin SVG, already in the
+ * cache from its <img>): the first linear gradient's stops, and how far it
+ * runs, as a part of the image's width.
+ */
+function learnShade(src: string) {
+	if (shades.has(src)) return;
+	shades.set(src, SHADE);
+	fetch(src)
+		.then((response) => (response.ok ? response.text() : ''))
+		.then((text) => {
+			if (!text) return;
+			const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
+			const svg = doc.documentElement;
+			const gradient = doc.querySelector('linearGradient');
+			if (svg.nodeName !== 'svg' || !gradient) return;
+			const box = (svg.getAttribute('viewBox') ?? '')
+				.split(/[\s,]+/)
+				.map(Number);
+			const width =
+				box.length === 4 && box[2] > 0
+					? box[2]
+					: svgLength(svg.getAttribute('width'), 0, 0);
+			const height =
+				box.length === 4 && box[3] > 0
+					? box[3]
+					: svgLength(svg.getAttribute('height'), 0, 0);
+			if (!(width > 0 && height > 0)) return;
+			// in the image's own units, or (the default) a share of its box
+			const user = gradient.getAttribute('gradientUnits') === 'userSpaceOnUse';
+			const len = (name: string, whole: number, fallback: string) =>
+				svgLength(
+					gradient.getAttribute(name) ?? fallback,
+					user ? whole : 1,
+					0,
+				) * (user ? 1 : whole);
+			const dx = len('x2', width, '100%') - len('x1', width, '0%');
+			const dy = len('y2', height, '0%') - len('y1', height, '0%');
+			const span = Math.hypot(dx, dy) / width;
+			const stops: [string, number][] = [];
+			for (const stop of gradient.querySelectorAll('stop')) {
+				const style = stop.getAttribute('style') ?? '';
+				const colour =
+					stop.getAttribute('stop-color') ??
+					/stop-color\s*:\s*([^;]+)/.exec(style)?.[1]?.trim();
+				if (!colour) continue;
+				stops.push([colour, svgLength(stop.getAttribute('offset'), 1, 0)]);
+			}
+			if (stops.length >= 2 && span > 0) shades.set(src, { stops, span });
+		})
+		.catch(() => {});
+}
+
+/** A sticker's shade: its backing's, or the stand-in until that has been read. */
+function shadeOf(root: HTMLElement): Shade {
+	const flap = root.querySelector<HTMLImageElement>('img.stk-flap');
+	return (flap && shades.get(flap.src)) || SHADE;
+}
 
 /** The folds drawn on each sticker, as drawn. */
 const drawn = new WeakMap<HTMLElement, Hand>();
@@ -440,9 +522,10 @@ export function drawHand(root: HTMLElement, hand: Hand | null) {
 	const angle = Math.atan2(-n.x, n.y);
 	const span = Math.abs(w * Math.sin(angle)) + Math.abs(h * Math.cos(angle));
 	const start = -outer + dot(n, { x: w / 2, y: h / 2 }) + span / 2;
-	const stops = SHADE.map(
-		([colour, at]) => `${colour} ${px(start + at * SHADE_SPAN * w)}`,
-	).join(', ');
+	const shade = shadeOf(root);
+	const stops = shade.stops
+		.map(([colour, at]) => `${colour} ${px(start + at * shade.span * w)}`)
+		.join(', ');
 	flap.style.backgroundImage = `linear-gradient(${((angle * 180) / Math.PI).toFixed(2)}deg, ${stops})`;
 	const lift = dot(n, at) - c;
 	root.style.setProperty('--tip-x', px(at.x - 2 * lift * n.x));

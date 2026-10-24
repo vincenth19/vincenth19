@@ -260,13 +260,43 @@ test('Super Space’s “All projects” link flies the sticker home from the fo
 	});
 	expect(seen.far).toBe(true);
 	// it still flies, but from just above the screen, not ten thousand pixels
-	// away, and the socials come down with it from no further than a screen
+	// away; the socials, which would slide a screen over the new header as it
+	// stands still, are the new page's, in place under the old one as it fades
 	expect(close.pairs).toContain('stk-superspace');
 	expect(seen.from).not.toBeNull();
 	expect(seen.from ?? 0).toBeGreaterThan(-seen.height);
-	expect(close.pairs).toContain('socials');
-	expect(close.moves.socials).toBeGreaterThan(0);
-	expect(close.moves.socials).toBeLessThanOrEqual(seen.height + 1);
+	expect(close.pairs).not.toContain('socials');
+	expect(close.pairs).not.toContain('book');
+	expect(close.moves).toEqual({});
+});
+
+test('back from far down a project, the book and the socials are the Projects page’s, in place: nothing slides a screen over its header', async ({
+	page,
+}) => {
+	// a short screen, so the project's foot is further than a screen down
+	await page.setViewportSize({ width: 390, height: 600 });
+	const vts = await recordTransitions(page);
+	await page.goto('/');
+	await page
+		.getByRole('link', { name: 'CovidTracker, 2021. Open project' })
+		.click();
+	await expect(page).toHaveURL(at('/projects/covidtracker'));
+	await vts.settled();
+	await vts.take();
+	await page.evaluate(() =>
+		window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' }),
+	);
+	expect(await scrollY(page)).toBeGreaterThan(600 + 200);
+	await page.waitForTimeout(200);
+	await page.getByRole('link', { name: 'Back', exact: true }).click();
+	await expect(page).toHaveURL(at('/'));
+	await vts.settled();
+	const [close] = await vts.take();
+	expect(close).toMatchObject({ direction: 'close', finished: true });
+	expect(close.pairs).toContain('stk-covid');
+	expect(close.pairs).not.toContain('book');
+	expect(close.pairs).not.toContain('socials');
+	expect(close.moves).toEqual({});
 });
 
 test('Back from a project opened at the top of the Projects page lands at the top, not scrolled down to the sticker', async ({
@@ -963,48 +993,88 @@ test('leaving Super Space, the book is there from the transition’s first frame
 	page,
 }) => {
 	await page.setViewportSize({ width: 1440, height: 900 });
+	const vts = await recordTransitions(page);
+	// Holds every part of the transition at its first frame once it is ready,
+	// until the test lets it go (window.__go), so that frame can be looked at
 	await page.addInitScript(() => {
-		const w = window as unknown as {
-			__book: { width: string; animation: string; opacity: string }[];
-		};
-		w.__book = [];
+		const w = window as unknown as { __held: boolean; __go: () => void };
+		w.__held = false;
+		w.__go = () => {};
 		const start = document.startViewTransition?.bind(document);
 		if (!start) return;
 		document.startViewTransition = ((update: ViewTransitionUpdateCallback) => {
 			const vt = start(update);
 			vt.ready
 				.then(() => {
-					const style = getComputedStyle(
-						document.documentElement,
-						'::view-transition-new(book)',
+					const parts = document.documentElement
+						.getAnimations({ subtree: true })
+						.filter((a) =>
+							(a.effect as KeyframeEffect | null)?.pseudoElement?.startsWith(
+								'::view-transition',
+							),
+						);
+					for (const a of parts) {
+						a.pause();
+						a.currentTime = 0;
+					}
+					w.__go = () => {
+						for (const a of parts) a.play();
+					};
+					requestAnimationFrame(() =>
+						requestAnimationFrame(() => {
+							w.__held = true;
+						}),
 					);
-					w.__book.push({
-						width: style.width,
-						animation: style.animationName,
-						opacity: style.opacity,
-					});
 				})
 				.catch(() => {});
 			return vt;
 		}) as typeof document.startViewTransition;
 	});
 	await page.goto('/projects/super-space');
+	await page.waitForLoadState('networkidle');
+	// where the Projects page's book lies, under the masthead: on Super Space
+	// that is its hero (the headline), on the dark stage
+	const band = { x: 400, y: 300, width: 640, height: 160 };
+	const before = await page.screenshot({ clip: band });
 	await page.getByRole('link', { name: 'Back', exact: true }).click();
-	await expect(page).toHaveURL(at('/'));
-	await page.waitForFunction(() => !('vt' in document.documentElement.dataset));
-	const [book] = await page.evaluate(
-		() =>
-			(
-				window as unknown as {
-					__book: { width: string; animation: string; opacity: string }[];
-				}
-			).__book,
+	await page.waitForFunction(
+		() => (window as unknown as { __held: boolean }).__held,
 	);
-	// the new book, with no partner on the stage (Super Space has none), is
-	// shown as it is: it does not rise in after a pause, as a sticker would
-	expect(book.width).toMatch(/px$/);
-	expect(book.animation).toBe('none');
-	expect(book.opacity).toBe('1');
+	// the first frame: the old page, whole, over the new one (the book is the
+	// new page's, under it), not the new book drawn over the hero
+	const first = await page.screenshot({ clip: band });
+	const differ = await page.evaluate(
+		async ([a, b]) => {
+			const read = async (data: string) => {
+				const img = await createImageBitmap(
+					await (await fetch(`data:image/png;base64,${data}`)).blob(),
+				);
+				const c = new OffscreenCanvas(img.width, img.height);
+				const g = c.getContext('2d') as OffscreenCanvasRenderingContext2D;
+				g.drawImage(img, 0, 0);
+				return g.getImageData(0, 0, img.width, img.height).data;
+			};
+			const [p, q] = [await read(a), await read(b)];
+			let off = 0;
+			for (let i = 0; i < p.length; i += 4) {
+				const d =
+					Math.abs(p[i] - q[i]) +
+					Math.abs(p[i + 1] - q[i + 1]) +
+					Math.abs(p[i + 2] - q[i + 2]);
+				if (d > 60) off++;
+			}
+			return off / (p.length / 4);
+		},
+		[before.toString('base64'), first.toString('base64')],
+	);
+	expect(differ).toBeLessThan(0.02);
+	await page.evaluate(() => (window as unknown as { __go: () => void }).__go());
+	await expect(page).toHaveURL(at('/'));
+	await vts.settled();
+	// the book is not named in it: it is the new page's, in place
+	const [close] = await vts.take();
+	expect(close.names).not.toContain('book');
+	expect(close.pairs).toContain('socials');
 });
 
 test('the page holds still under the flight: a wheel turned meanwhile does not scroll it', async ({

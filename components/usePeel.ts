@@ -150,7 +150,7 @@ const FOLD_SWING_CORNER = 60;
  * little more the further it is pulled (components/fold.ts, swingRoom).
  */
 const FOLD_ROOM = 1;
-/** A flick: let go while the pointer moves in this fast (px/s, the way the paper is pulled: square to the fold, into the sticker) ... */
+/** A flick: let go while the pointer moves in this fast (px/s, the way it has pulled the paper, into the sticker) ... */
 const FLING_SPEED = 600;
 /** ... after pulling it in this far (px, the same way) ... */
 const FLING_PULL = 30;
@@ -212,15 +212,18 @@ type Press = {
 	/** the peel the paper already had when it was taken (the corner's own lift): it counts for nothing */
 	base: number;
 	/**
-	 * A lift taken over where the pointer is not on the paper it lifted (the
-	 * mouse over a lifted corner presses the spot the corner left): how far
-	 * (px) the paper's tip lies ahead of the pointer, into the sticker, and
-	 * `lift` the peel that lift had. The lead eases away over the first
-	 * 2 × `lead` px of the pull, so the paper comes to be under the pointer.
+	 * How far (px, along the way the paper faces out) the paper's tip lies
+	 * ahead of the pointer, into the sticker, as it takes hold: a lift taken
+	 * over where the pointer is not on the paper it lifted (the mouse over a
+	 * lifted corner presses the spot the corner left), or a press on the
+	 * grip's band outside the outline; behind it (negative) when the press is
+	 * inside the outline, the paper's edge short of the finger. `lift` is the
+	 * peel the lift taken over had. The lead eases away over the first
+	 * 2 × |lead| px of the pull, so the paper comes to be under the pointer.
 	 */
 	lead: number;
 	lift: number;
-	/** how much of the lead (px) it has caught up so far: once under the pointer, it stays under it */
+	/** how much of the lead (px) it has made up so far: once under the pointer, it stays under it */
 	caught: number;
 	/** where the paper's tip is now (the sticker's frame) */
 	now: Point;
@@ -292,8 +295,10 @@ function stopMotion(el: HTMLElement) {
 }
 
 export type Peel = {
-	/** A press on the sticker: on a grip it may become a peel. */
-	onPointerDown: (event: PointerEvent<HTMLElement>) => void;
+	/** A press on the sticker: on a grip it may become a peel (true: it is taken as one that may). */
+	onPointerDown: (event: PointerEvent<HTMLElement>) => boolean;
+	/** True while the press in hand is still a tap or a click (it has not set off as a peel or a scroll). */
+	tapping: () => boolean;
 	/** A link dragged out by its edge would carry the link away instead of peeling. */
 	onDragStart: (event: DragEvent<HTMLElement>) => void;
 	/** True for the click a drag makes when it ends: it is dropped. */
@@ -902,7 +907,7 @@ export function usePeel(
 	const onPointerDown = useCallback(
 		(event: PointerEvent<HTMLElement>) => {
 			const el = ref.current;
-			if (!el || press.current) return;
+			if (!el || press.current) return false;
 			// one pointer at a time, the main button, and no modifier (a new tab)
 			if (
 				!event.isPrimary ||
@@ -912,7 +917,7 @@ export function usePeel(
 				event.shiftKey ||
 				event.altKey
 			) {
-				return;
+				return false;
 			}
 			// a new press: the click an earlier drag made has come by now, if it was to
 			clickUntil.current = 0;
@@ -921,12 +926,12 @@ export function usePeel(
 				target instanceof Element
 					? target.closest<HTMLElement>('.stk-grip')
 					: null;
-			if (!grip) return;
+			if (!grip) return false;
 			// a sticker already lifting or flying is not in hand
 			if (el.classList.contains('is-lifting') || el.dataset.peel === 'off') {
-				return;
+				return false;
 			}
-			if ('vt' in document.documentElement.dataset) return;
+			if ('vt' in document.documentElement.dataset) return false;
 			const tilt = tiltOf(el);
 			const g = grabAt(el, event.clientX, event.clientY, tilt);
 			// where it was pressed, in the sticker's own frame (from its middle)
@@ -992,6 +997,8 @@ export function usePeel(
 				const sprung = moving.get(el);
 				stopMotion(el);
 				p.mode = 'peel';
+				/** Caught springing back (or mid-hint): the paper goes on from where it is. */
+				const caught = !!sprung && same(sprung.g, p.g) && !sprung.hover;
 				if (sprung && same(sprung.g, p.g)) {
 					p.g = sprung.g;
 					p.tip = tipOf(p.g, sprung.peel, sprung.a);
@@ -1006,13 +1013,17 @@ export function usePeel(
 				} else {
 					p.tip = p.g.at;
 				}
-				// A lift taken over (the corner's, an edge's under the mouse) with
-				// the pointer not on the paper it lifted, but on the spot the paper
-				// left, or past it: the paper's tip lies ahead of the pointer. It
-				// keeps its place at first and then catches up, so the pointer has
-				// the paper under it after a short pull, rather than pushing the
-				// empty spot along a corner's length behind the curl.
-				if (p.base > 0) {
+				// The pointer is seldom on the paper's tip as it takes hold. A lift
+				// taken over (the corner's, an edge's under the mouse) lies ahead
+				// of it, into the sticker, when it presses the spot the paper left
+				// (or the grip's band outside the outline); a press inside the
+				// outline (a finger's grip reaches 28px in) has the tip behind it,
+				// at the edge. Either way the tip eases over to the pointer as it
+				// pulls (see Press, `lead`), so after a short pull the paper is
+				// under the pointer, and stays so, rather than keeping that gap
+				// the whole way. Pressed on the curl itself, the curl moves with
+				// it from the start.
+				if (!caught) {
 					const n = facing(p.g, 0);
 					const pointer = {
 						x: size.w / 2 + pressed.x,
@@ -1025,17 +1036,16 @@ export function usePeel(
 						y: pointer.y - 2 * (dot(n, pointer) - fold) * n.y,
 					};
 					const onFlap =
+						p.base > 0 &&
 						dot(n, pointer) < fold &&
 						dot(n, flat) > fold &&
 						inside(p.g.hull, flat);
-					// how far in (px) the tip is, and the pointer, from where the edge lay
+					// how far in (px) the tip is, and the pointer, from where the edge lies flat
 					const tipIn = Math.SQRT2 * p.base * p.g.w;
-					const pointerIn = Math.min(
-						tipIn,
-						Math.max(0, dot(n, p.g.at) - dot(n, pointer)),
-					);
-					if (!onFlap && tipIn - pointerIn > 2) {
-						p.lead = tipIn - pointerIn;
+					const pointerIn = dot(n, p.g.at) - dot(n, pointer);
+					const lead = tipIn - pointerIn;
+					if (!onFlap && Math.abs(lead) > 2) {
+						p.lead = lead;
 						p.lift = p.base;
 					}
 				}
@@ -1127,6 +1137,14 @@ export function usePeel(
 
 			const move = (e: globalThis.PointerEvent) => {
 				if (e.pointerId !== p.id) return;
+				// A mouse moving with no button held let go without a pointerup the
+				// page heard (one lost to another window, say): it is let go now,
+				// and opens nothing. (Any button still held keeps the paper in hand,
+				// the main one let go with another down.)
+				if (p.type === 'mouse' && e.buttons === 0) {
+					release(false, e.timeStamp);
+					return;
+				}
 				const dx = e.clientX - p.x;
 				const dy = e.clientY - p.y;
 				p.far = Math.max(p.far, Math.hypot(dx, dy));
@@ -1204,12 +1222,16 @@ export function usePeel(
 				// a lead (see Press) eases away as the pointer pulls: the tip keeps
 				// its place, then gains on the pointer until it is under it
 				let tip = { x: p.tip.x + m.x, y: p.tip.y + m.y };
-				if (p.lead > 0) {
-					const k = Math.max(0, 1 - Math.hypot(m.x, m.y) / (2 * p.lead));
-					p.caught = Math.max(p.caught, p.lead * (1 - k * k));
+				if (p.lead !== 0) {
+					const span = 2 * Math.abs(p.lead);
+					const k = Math.max(0, 1 - Math.hypot(m.x, m.y) / span);
+					const caught = p.lead * (1 - k * k);
+					if (Math.abs(caught) > Math.abs(p.caught)) p.caught = caught;
 					const n = facing(p.g, 0);
 					tip = { x: tip.x + n.x * p.caught, y: tip.y + n.y * p.caught };
-					// what it caught up counts for nothing toward opening, as the lift did not
+					// What it caught up counts for nothing toward opening, as the
+					// lift did not; nor what it gained: every side opens after the
+					// same pull of the pointer.
 					p.base = p.lift - p.caught / (Math.SQRT2 * p.g.w);
 				}
 				p.now = tip;
@@ -1288,27 +1310,34 @@ export function usePeel(
 					if (commit) glide(-speed.y + p.owed / GLIDE_TAU);
 					return;
 				}
-				// The flick: fast the way the paper is pulled, far enough that way,
-				// and not off to one side of it. The way it is pulled is square to
-				// the fold, into the sticker: a leaning pull turns the fold, or
-				// slides the point held along the side (regrip), so a flick that
-				// leans, as a finger's from a top or bottom edge must (START_LEAN),
-				// and that peels, opens as one straight in does.
+				// The flick: fast the way the pointer has pulled the paper, far
+				// enough that way, not off to one side of it, and into the sticker
+				// (within START_CONE of straight in from where it took hold). The
+				// way the pointer pulled it, not the fold's: a pull that leans
+				// slides the point held along a straight side (regrip), its fold
+				// staying close to square, while the paper under the pointer goes
+				// the pointer's way; a finger's flick from a top or a bottom edge
+				// must lean to peel at all (START_LEAN), and so opens as one
+				// straight in from a side does.
 				const inward = { x: -p.g.n.x, y: -p.g.n.y };
-				const fold = p.peel > 0 ? facing(p.shown, p.a) : p.g.n;
-				const way = { x: -fold.x, y: -fold.y };
 				const last = {
 					x: p.samples.at(-1)?.x ?? 0,
 					y: p.samples.at(-1)?.y ?? 0,
 				};
+				const travelled = Math.hypot(last.x, last.y);
+				const way =
+					travelled > 1
+						? { x: last.x / travelled, y: last.y / travelled }
+						: inward;
 				const flick = { x: speed.x, y: speed.y };
 				// (a held finger's straight pull opens only by being pulled far enough:
 				// flicked, it is too like a thumb asking for more page)
 				const flung =
 					!p.held &&
+					Math.abs(angleFrom(inward, way)) <= START_CONE &&
 					dot(flick, way) >= FLING_SPEED &&
 					Math.abs(angleFrom(way, flick)) <= FLING_CONE &&
-					dot(last, way) >= FLING_PULL;
+					travelled >= FLING_PULL;
 				// Pushed back as it was let go: read from the pointer, which the
 				// paper (held back by the band past PEEL_MAX) may hardly show.
 				// Its speed the way it was pulled, out from where it lay flat.
@@ -1386,6 +1415,7 @@ export function usePeel(
 			el.addEventListener('lostpointercapture', lost);
 			// (the sticker is going: nothing is laid back down, nothing glides)
 			endPress.current = finish;
+			return true;
 		},
 		[ref],
 	);
@@ -1416,6 +1446,16 @@ export function usePeel(
 		if (performance.now() > clickUntil.current) return false;
 		clickUntil.current = 0;
 		return true;
+	}, []);
+
+	const tapping = useCallback(() => {
+		const p = press.current;
+		if (!p) return false;
+		// a press that hardly moved is a tap even once it peeled (release)
+		return (
+			p.mode === 'press' ||
+			(p.mode === 'peel' && p.far < (TAP_SLOP[p.type] ?? 8))
+		);
 	}, []);
 
 	const stop = useCallback(() => {
@@ -1505,6 +1545,7 @@ export function usePeel(
 	return useMemo(
 		() => ({
 			onPointerDown,
+			tapping,
 			onDragStart,
 			dragged,
 			stop,
@@ -1513,7 +1554,17 @@ export function usePeel(
 			hover,
 			unhover,
 		}),
-		[onPointerDown, onDragStart, dragged, stop, calm, drop, hover, unhover],
+		[
+			onPointerDown,
+			tapping,
+			onDragStart,
+			dragged,
+			stop,
+			calm,
+			drop,
+			hover,
+			unhover,
+		],
 	);
 }
 

@@ -120,14 +120,12 @@
 /* The hand's flap: the backing (its own image as the mask, --back, set
    inline) mirrored across the fold, shaded in from the outline (fold.ts). It
    may lie past the box, so nothing clips it there but the corner's fold: the
-   paper the corner lifts is not under it (.stk-hold). Drawn only while the
-   hand holds a fold (data-hand). */
-.stk-handwrap {
-	display: none;
-}
-[data-hand] .stk-handwrap {
-	display: block;
-}
+   paper the corner lifts is not under it (.stk-hold). It has nothing to draw
+   until the hand holds a fold (no background, data-hand), but it is always
+   there, so its mask is fetched with the page: hidden until the first fold,
+   the mask would only be asked for then, and the flap would draw nothing
+   (masked out by an image not yet in) for the frames it took to come, the
+   corner taken over from the stylesheet cut off with no flap at all. */
 .stk-hold {
 	--m: calc(var(--w) * 0.6);
 	position: absolute;
@@ -164,6 +162,12 @@
 		scale 0.3s var(--ease-out);
 	-webkit-tap-highlight-color: transparent;
 	user-select: none;
+	/* a press that is not on a grip never drags the link away (StickerLink
+	   sets draggable={false} too): it is a click, or a peel */
+	-webkit-user-drag: none;
+}
+.stk img {
+	-webkit-user-drag: none;
 }
 /* The grip (usePeel): a band all round the outline, the shape the stylesheet
    gives it (--disc: a ring round a disc; --round: a rectangle's), 46px across
@@ -221,7 +225,60 @@
 /* a round sticker: a ring round its disc, in four sectors (the sides within
    30° of the horizontal, so their way in is always across) */
 .stk--superspace .stk-grips {
-	clip-path: circle(calc(var(--w) * var(--disc) + var(--gout)));
+	/* The ring round its disc, and round the ribbon's tails, which reach past
+	   the disc below it on either side (superspace-back.svg: 0.46 of the width
+	   out from the middle, 0.34 below it): a press there takes hold of the
+	   paper too, rather than of the link. A polygon, every 10° round the ring,
+	   so the band round each tail is part of it: along each ray it reaches as
+	   far as the ring or the tail's band does (--r10 to --r50). */
+	--gr: calc(var(--w) * var(--disc) + var(--gout));
+	--tx: calc(var(--w) * 0.46 + var(--gout));
+	--ty: calc(var(--w) * 0.34 + var(--gout));
+	--r10: max(var(--gr), min(var(--tx) / 0.98481, var(--ty) / 0.17365));
+	--r20: max(var(--gr), min(var(--tx) / 0.93969, var(--ty) / 0.34202));
+	--r30: max(var(--gr), min(var(--tx) / 0.86603, var(--ty) / 0.5));
+	--r40: max(var(--gr), min(var(--tx) / 0.76604, var(--ty) / 0.64279));
+	--r50: max(var(--gr), min(var(--tx) / 0.64279, var(--ty) / 0.76604));
+	clip-path: polygon(
+		calc(50% + var(--gr)) 50%,
+		calc(50% + var(--r10) * 0.98481) calc(50% + var(--r10) * 0.17365),
+		calc(50% + var(--r20) * 0.93969) calc(50% + var(--r20) * 0.34202),
+		calc(50% + var(--r30) * 0.86603) calc(50% + var(--r30) * 0.5),
+		calc(50% + var(--tx)) calc(50% + var(--ty)),
+		calc(50% + var(--r40) * 0.76604) calc(50% + var(--r40) * 0.64279),
+		calc(50% + var(--r50) * 0.64279) calc(50% + var(--r50) * 0.76604),
+		calc(50% + var(--gr) * 0.5) calc(50% + var(--gr) * 0.86603),
+		calc(50% + var(--gr) * 0.34202) calc(50% + var(--gr) * 0.93969),
+		calc(50% + var(--gr) * 0.17365) calc(50% + var(--gr) * 0.98481),
+		50% calc(50% + var(--gr)),
+		calc(50% - var(--gr) * 0.17365) calc(50% + var(--gr) * 0.98481),
+		calc(50% - var(--gr) * 0.34202) calc(50% + var(--gr) * 0.93969),
+		calc(50% - var(--gr) * 0.5) calc(50% + var(--gr) * 0.86603),
+		calc(50% - var(--r50) * 0.64279) calc(50% + var(--r50) * 0.76604),
+		calc(50% - var(--r40) * 0.76604) calc(50% + var(--r40) * 0.64279),
+		calc(50% - var(--tx)) calc(50% + var(--ty)),
+		calc(50% - var(--r30) * 0.86603) calc(50% + var(--r30) * 0.5),
+		calc(50% - var(--r20) * 0.93969) calc(50% + var(--r20) * 0.34202),
+		calc(50% - var(--r10) * 0.98481) calc(50% + var(--r10) * 0.17365),
+		calc(50% - var(--gr)) 50%,
+		calc(50% - var(--gr) * 0.98481) calc(50% - var(--gr) * 0.17365),
+		calc(50% - var(--gr) * 0.93969) calc(50% - var(--gr) * 0.34202),
+		calc(50% - var(--gr) * 0.86603) calc(50% - var(--gr) * 0.5),
+		calc(50% - var(--gr) * 0.76604) calc(50% - var(--gr) * 0.64279),
+		calc(50% - var(--gr) * 0.64279) calc(50% - var(--gr) * 0.76604),
+		calc(50% - var(--gr) * 0.5) calc(50% - var(--gr) * 0.86603),
+		calc(50% - var(--gr) * 0.34202) calc(50% - var(--gr) * 0.93969),
+		calc(50% - var(--gr) * 0.17365) calc(50% - var(--gr) * 0.98481),
+		50% calc(50% - var(--gr)),
+		calc(50% + var(--gr) * 0.17365) calc(50% - var(--gr) * 0.98481),
+		calc(50% + var(--gr) * 0.34202) calc(50% - var(--gr) * 0.93969),
+		calc(50% + var(--gr) * 0.5) calc(50% - var(--gr) * 0.86603),
+		calc(50% + var(--gr) * 0.64279) calc(50% - var(--gr) * 0.76604),
+		calc(50% + var(--gr) * 0.76604) calc(50% - var(--gr) * 0.64279),
+		calc(50% + var(--gr) * 0.86603) calc(50% - var(--gr) * 0.5),
+		calc(50% + var(--gr) * 0.93969) calc(50% - var(--gr) * 0.34202),
+		calc(50% + var(--gr) * 0.98481) calc(50% - var(--gr) * 0.17365)
+	);
 }
 .stk--superspace .stk-grip {
 	inset: 0;

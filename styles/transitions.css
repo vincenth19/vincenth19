@@ -24,10 +24,16 @@
 	--vt-fade: 0.1s;
 	--vt-fade-ease: cubic-bezier(0.2, 0.4, 0.4, 1);
 }
-:root[data-vt] .book {
+/* ... unless the new page keeps it in place (data-vt-page, DeskProvider's
+   morph): one the old page did not have (leaving Super Space, which has no
+   book), or, coming back, one that would come from further than a screen
+   away (it would slide a screen over the new header). Not named on the new
+   page, it is part of it, under the old page as that fades off; named, it
+   would be drawn over the old page from the first frame. */
+:root[data-vt]:not([data-vt-page~='book']) .book {
 	view-transition-name: book;
 }
-:root[data-vt] .mast .socials {
+:root[data-vt]:not([data-vt-page~='socials']) .mast .socials {
 	view-transition-name: socials;
 }
 /* Each is a layer of its own at all times, so the transition takes them as
@@ -94,14 +100,11 @@
 	::view-transition-new(*):only-child {
 		animation: vt-rise var(--vt-dur) 0.06s var(--vt-ease) both;
 	}
-	/* ... but a book or socials with no partner (Super Space has no book) are
-	   the page's: the new one is there from the first frame, the old one fades
-	   off with the old page. (These outrank the two rules above, which a name's
-	   own rule, with no :only-child, would not.) */
-	::view-transition-new(book):only-child,
-	::view-transition-new(socials):only-child {
-		animation: none;
-	}
+	/* ... but a book or socials with no partner (Super Space has no book, or
+	   the new page keeps its own in place) are the old page's: they fade off
+	   with it. (This outranks the rule above, which a name's own rule, with no
+	   :only-child, would not.) A new one never goes without a partner: the new
+	   page keeps it then (data-vt-page, above). */
 	::view-transition-old(book):only-child,
 	::view-transition-old(socials):only-child {
 		animation: vt-fade-out var(--vt-fade) var(--vt-fade-ease) both;

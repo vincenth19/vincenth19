@@ -103,10 +103,14 @@ export function StickerLink({
 	 * (data-pressed, styles/stickers.css): the screen answers the press even
 	 * where the flight is slow to start (a slow phone holds the screen still
 	 * while the new page is put in place). It stays up for the flight to start
-	 * from; a press that does not click (a drag, a scroll) lets it down.
+	 * from; a press that does not click (a drag, a scroll) lets it down. A
+	 * press on the edge (a grip) may be a peel, and paper being peeled does not
+	 * hop first: it comes up only as it lets go, if it was a tap or a click.
 	 */
 	const pressing = useRef(0);
 	const pressedAt = useRef({ x: 0, y: 0 });
+	/** The press in hand is on a grip, and comes up only if it lets go as a tap. */
+	const gripPress = useRef(false);
 	const unpress = () => {
 		window.clearTimeout(pressing.current);
 		const el = ref.current;
@@ -215,6 +219,8 @@ export function StickerLink({
 		window.clearTimeout(resting.current.timer);
 		resting.current.asked = true;
 		intent?.();
+		const onGrip = peel.onPointerDown(e);
+		gripPress.current = false;
 		if (
 			e.isPrimary &&
 			e.button === 0 &&
@@ -223,12 +229,17 @@ export function StickerLink({
 		) {
 			window.clearTimeout(pressing.current);
 			pressedAt.current = { x: e.clientX, y: e.clientY };
-			e.currentTarget.dataset.pressed = '';
+			if (onGrip) gripPress.current = true;
+			else e.currentTarget.dataset.pressed = '';
 		}
-		peel.onPointerDown(e);
 	}
-	// let go: the click comes at once if it is one (it keeps the press up)
-	function onPointerUp() {
+	// let go: the click comes at once if it is one (it keeps the press up); a
+	// press on the edge that stayed a tap comes up now, for the flight to start from
+	function onPointerUp(e: PointerEvent<HTMLAnchorElement>) {
+		if (gripPress.current) {
+			gripPress.current = false;
+			if (peel.tapping()) e.currentTarget.dataset.pressed = '';
+		}
 		window.clearTimeout(pressing.current);
 		pressing.current = window.setTimeout(unpress, 200);
 	}
@@ -274,6 +285,8 @@ export function StickerLink({
 			href={href}
 			prefetch={prefetch}
 			scroll={false}
+			// a press off the grips (the seal's ribbon, say) is a click, never a drag of the link
+			draggable={false}
 			aria-label={label}
 			onClick={onClick}
 			onKeyDown={onKeyDown}

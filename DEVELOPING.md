@@ -93,7 +93,15 @@ smaller still and the hero's gaps tighten, down to a 600px-tall window.
   focus, or a finger going down calls `router.prefetch` instead (`DeskProvider`'s
   `intent`): with a mouse the page, its stylesheet and its fonts are in by the click,
   and the sticker flies at once; a tap waits for them while the sticker lifts (see
-  Page transitions).
+  Page transitions). Once they are in, and the main thread is free, they are put to
+  use (`putAhead`): the stylesheet goes into the head as React would put it there
+  (every rule in it is scoped to the page, so it changes nothing on the Projects
+  page), and the preloaded fonts are loaded, so a pointer that rests on the sticker
+  and moves on leaves no preload unused for Chrome to warn about (React, rendering
+  the page later, takes that stylesheet as its own). Not once the sticker is
+  opening: then React puts the stylesheet in as it renders the page, where only the
+  new page is styled for it (put in ahead, the Projects page would be restyled too,
+  and the flight would start later).
 - Opened in a page transition (from the Projects page, or by Back and Forward), the
   page is put in place inside the transition's update, while the browser draws
   nothing new: there only the hero is built. The sections below it
@@ -277,9 +285,14 @@ Forward (a trackpad swipe included).
   Projects page the book comes down most of a screen, as the page scrolling back up
   would), but from no further than a screen away (`tuneFlights`): back from far down
   a long page, a slide of thousands of pixels would only be a streak. Super Space has
-  no book: going there, the old book fades with the old page; leaving it, the new
-  book is there from the first frame, as the new page is (a sticker without a
-  partner rises in; the book does not). Nothing else is named: a product page's
+  no book: going there, the old book fades with the old page. Leaving it, the new
+  book is not named at all (`data-vt-page`, set in the update, before the new page is
+  captured): it is part of the new page, under the old one as that fades off, where
+  a named book would be drawn over the old page from the first frame, cutting its
+  headline away. Coming back from further than a screen away (from far down a long
+  project, or Super Space's foot), the book and the socials are the new page's in
+  the same way, in place, rather than sliding a screen over the new header as it
+  stands still. Nothing else is named: a product page's
   stage (Super Space's is 11,000 px tall) and the masthead are the page (the
   transition's root). A named element is captured on its own: the book and the
   socials are layers of their own at all times (`will-change: transform`), so the
@@ -330,7 +343,8 @@ Forward (a trackpad swipe included).
   stickers' images and its fonts all within that one deadline (the browser's capture
   of the two pages comes on top). A press shows at once: a sticker comes up a little
   as the pointer goes down (`data-pressed`, on the sticker itself, so the flight
-  starts from it as it is), and a finger on the Back arrow or a tab shows them
+  starts from it as it is; on its edge, which may be a peel, as it lets go, if it was
+  a tap), and a finger on the Back arrow or a tab shows them
   pressed (a touch gets no `:active` until the tap is over), so the screen answers
   before the transition holds it still. A project opens at the top with its title focused;
   coming back puts the Projects page where it was when the project opened (as the
@@ -372,8 +386,10 @@ Forward (a trackpad swipe included).
 - `tests/transitions.spec.ts` checks that the stickers share the name, that every
   way in and out morphs, that the book and the socials move by transform with the
   flight (from far down the Projects page too, from no further than a screen) and
-  the old leaf is gone in 0.1 s, that leaving Super Space the book is there from the
-  first frame, that a prefetched sticker flies at once with nothing but transform
+  the old leaf is gone in 0.1 s, that leaving Super Space the first frame is the old
+  page whole (the book under it, not over its headline), that coming back from far
+  down a project nothing slides a screen over the header, that a prefetched sticker
+  flies at once with nothing but transform
   and opacity animating while the launcher waits for the landing, that one whose
   page is in is not held back by another page's fonts, that a lifted one waits for
   its page's scripts, that a wheel turned during the flight does not scroll the page,
@@ -385,7 +401,13 @@ Forward (a trackpad swipe included).
   update, long tasks, dropped frames, layout shifts), drive the production build
   with Playwright and Chrome's tracing; headless Chrome without a GPU rasters and
   composites in software, so its frame rates say little about a real screen, but its
-  main-thread numbers do.
+  main-thread numbers do. (Do not read a pseudo-element's computed style for a
+  name the running transition does not have, `getComputedStyle(html,
+  '::view-transition-new(book)')` with no book named: the Chromium the tests use
+  crashes on it.) Throttled four times, Super Space's update is mostly React
+  putting the new page in place and the style and layout of its first screen
+  (forced as its title takes the focus), which the browser must have before it can
+  capture the page.
 
 ## Peeling a sticker
 
@@ -402,9 +424,14 @@ taken by its edge, from any side or corner, with a mouse or a finger, and peeled
   (`.stk-hand`). The flap is the backing image used as a mask (`--back`), so its
   outline is the backing's own alpha whatever the sticker (the seal's points, the
   stamp's perforations, the card's rounded corners), and it is shaded in from the
-  outline along the fold's normal, as the corner's backing images are: bright at the
-  outer edge, dimmer toward the fold. A pose is kept in units of the width
-  (`Hand`), so the header sticker can draw it again at its own size.
+  outline along the fold's normal with the backing's own gradient (its stops and its
+  run, read off the file, `learnShade`: the seal's darkens over less than half the
+  distance the card's and the stamp's do), so a corner taken over from the
+  stylesheet's flap looks the same. The flap is laid out from the start, with nothing
+  to draw until a fold: hidden until the first one, its mask would only be fetched
+  then, and the flap would draw nothing for the frames that took (the corner taken
+  over cut off, with no flap). A pose is kept in units of the width (`Hand`), so the
+  header sticker can draw it again at its own size.
 - The outline is read off the backing image once it has loaded (`learnHull`: the
   convex hull of its opaque pixels); until then the stylesheet's shape stands in
   (`--disc` or `--round`). A press takes hold of the point of the outline furthest out
@@ -424,8 +451,10 @@ taken by its edge, from any side or corner, with a mouse or a finger, and peeled
   most, as `swingRoom` allows).
 - The grip is a band all round the outline (`.stk-grip`, `styles/stickers.css`):
   26px across with a mouse (18px in, 8px out), 46px with a finger (28px in, 18px out),
-  a ring round the seal's disc and a rounded rectangle round the others, with a grab
-  cursor. Its parts are shapes hit-tested through their clip-paths: `.stk-grips` cuts
+  a ring round the seal's disc (and round its ribbon's tails, which reach past the
+  disc below it) and a rounded rectangle round the others, with a grab cursor. A
+  press anywhere else on a sticker is a click, never a drag of the link (it is not
+  draggable). Its parts are shapes hit-tested through their clip-paths: `.stk-grips` cuts
   the band's outside, and the middle, `.stk-mid` (on top), is the sticker as a link,
   where a finger scrolls the page and a tap opens it. The band is four grips, each
   letting the browser scroll a finger the way that can never be a peel there
@@ -491,15 +520,21 @@ taken by its edge, from any side or corner, with a mouse or a finger, and peeled
   the pointer has no paper under it: the paper's tip, ahead of it, keeps its place
   at first and then gains on it (`lead`, eased away over twice its length), so after
   a short pull the paper is under the pointer, and stays so; pressed on the curl
-  itself, the curl moves with it from the start.
+  itself, the curl moves with it from the start. The same goes the other way: a press
+  inside the outline (a finger's grip reaches 28px in) has the paper's edge behind
+  the finger, and the edge gains on it over twice that gap (as does a press on the
+  band outside the outline, with the edge ahead), counting for nothing toward
+  opening it either.
 - Let go with it pulled past 0.34 (the pointer's travel as a part of the width · √2;
   the sticker rises a little there, about the point taken hold of so it stays under
   the pointer, `data-ready`, and a phone that can gives a 10 ms tick, once a press),
-  or flick it in (600 px/s the way the paper is pulled, square to the fold, within
-  30° of that way, after 30 px), and it comes off. The way the paper is pulled is the
-  turned fold's (or the regripped one's): a finger's flick from a top or a bottom edge
-  must lean to peel at all (`START_LEAN`), and that leaning flick opens as one
-  straight in from a side does. Once far enough, it stays so until pushed back 0.02 under the line
+  or flick it in (600 px/s the way the pointer has pulled it, within 30° of that way,
+  after 30 px, the pull itself within 60° of straight in), and it comes off. The way
+  is the pointer's, not the fold's: on a straight side the fold stays close to square
+  while the point held slides along it (`regrip`), the paper under the pointer going
+  the pointer's way. A finger's flick from a top or a bottom edge must lean to peel
+  at all (`START_LEAN`), and that leaning flick, however far it leans (to
+  `START_CONE`), opens as one straight in from a side does. Once far enough, it stays so until pushed back 0.02 under the line
   (`READY_GIVE`, about 6px), so a finger resting on the line does not flicker the cue,
   and letting go does what the cue last said. Off, it keeps that pose (its own corner
   stays down, `--lift: 0`) and flies into the header from it (`open(href, true)` in
@@ -525,8 +560,12 @@ taken by its edge, from any side or corner, with a mouse or a finger, and peeled
   6px for a mouse), is a tap or a click and opens the sticker as before; so do
   Enter and Space; a modifier or middle click opens a new tab. A drag's own click
   is dropped, but only until the next press, and so is a click while the paper is
-  still in hand (the main button let go with another held). A second finger ends a
-  peel without opening anything.
+  still in hand (the main button let go with another held). A mouse moving with no
+  button held lets go of the paper (its button came up where the page did not hear
+  it), and opens nothing. A second finger ends a peel without opening anything. A
+  press on the middle comes up at once (`data-pressed`, Page transitions); one on the
+  edge, which may be a peel, only as it lets go as a tap or a click: paper being
+  peeled does not hop first.
 - Space opens a sticker, as Enter does, though it is a link: the brief asked for
   "Enter/Space" to open a sticker, so a sticker behaves as a button does there,
   where a link would scroll the page. Every other link keeps the link's keys.
@@ -551,10 +590,14 @@ taken by its edge, from any side or corner, with a mouse or a finger, and peeled
   busy the machine is. By touch it peels the top and bottom edges straight in after a
   hold, opens them by a quick flick that leans, keeps quick straight flicks at the
   page's ends from opening anything, hands a swipe after a pause back to scrolling,
-  and keeps the paper under a leaning finger; with a mouse, an edge lifts on hover,
+  keeps the paper under a leaning finger, brings it under one that took hold well
+  inside the edge or just outside it, and keeps a press that peels from hopping
+  first; with a mouse, an edge lifts on hover,
   the hovered corner needs the same pull as any side and comes to be under the
-  pointer, a corner pulled along a side stays under it, and a click while the paper
-  is in hand opens nothing. It also checks the hand-off: peeled off with its page in,
+  pointer, a corner pulled along a side stays under it, a click while the paper is in
+  hand opens nothing, nor does a peel whose button came up unheard, the hand's flap
+  has its mask before the first press and each sticker's own shade, and the seal's
+  ribbon tails are grips. It also checks the hand-off: peeled off with its page in,
   the transition starts in the release's own task with no lift, the flight animating
   transform alone; peeled off past the line, the header sticker lands risen as it
   was; peeled off before its page is in, it waits in its fold, its corner down, and

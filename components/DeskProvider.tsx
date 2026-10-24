@@ -510,6 +510,77 @@ function pageLoaded(path: string, max: number): Promise<boolean> {
 	});
 }
 
+/** The pages whose stylesheets and fonts were put to use ahead (`putAhead`). */
+const putAheadFor = new Set<string>();
+
+/**
+ * Puts the stylesheets and fonts the page at `path` asked for ahead (its data
+ * is in) to use now: a product page's (Super Space's) own stylesheet goes into
+ * the head as React would put it there, after the others of its precedence
+ * (its rules are scoped to that page, so they change nothing here), and the
+ * fonts it preloaded are loaded. The browser warns about a preload that goes
+ * unused (a pointer that rested on the sticker and moved on); and React finds
+ * the stylesheet in place when it renders the page, and takes it as its own.
+ */
+function putAhead(path: string) {
+	if (putAheadFor.has(path)) return;
+	const links = [...(preloadsOf.get(path) ?? [])].filter(
+		(el): el is HTMLLinkElement =>
+			el instanceof HTMLLinkElement && el.isConnected && isIn(el),
+	);
+	const fonts = links
+		.filter((link) => link.as === 'font')
+		.map((link) => new URL(link.href).pathname);
+	const placed = [
+		...document.head.querySelectorAll<HTMLLinkElement>(
+			'link[rel="stylesheet"][data-precedence]',
+		),
+	];
+	const after = placed.at(-1);
+	// (nothing in yet to put to use: asked again when it is)
+	if (!after || !links.some((link) => link.as === 'style')) return;
+	putAheadFor.add(path);
+	const has = (href: string) =>
+		[
+			...document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]'),
+		].find((link) => link.getAttribute('href') === href);
+	let last = after;
+	for (const link of links) {
+		const href = link.getAttribute('href');
+		if (link.as !== 'style' || !href) continue;
+		let sheet = has(href);
+		if (!sheet) {
+			sheet = document.createElement('link');
+			sheet.rel = 'stylesheet';
+			sheet.href = href;
+			sheet.dataset.precedence = after.dataset.precedence ?? '';
+			last.after(sheet);
+			last = sheet;
+		}
+		const loadFonts = (el: HTMLLinkElement) => {
+			let rules: CSSRuleList | undefined;
+			try {
+				rules = el.sheet?.cssRules;
+			} catch {}
+			for (const rule of rules ?? []) {
+				if (!(rule instanceof CSSFontFaceRule)) continue;
+				const src = rule.style.getPropertyValue('src');
+				if (!fonts.some((font) => src.includes(font))) continue;
+				const family = rule.style.getPropertyValue('font-family');
+				const weight =
+					rule.style.getPropertyValue('font-weight').split(' ')[0] || '400';
+				const style = rule.style.getPropertyValue('font-style') || 'normal';
+				document.fonts.load(`${style} ${weight} 1em ${family}`).catch(() => {});
+			}
+		};
+		if (sheet.sheet) loadFonts(sheet);
+		else {
+			const el = sheet;
+			el.addEventListener('load', () => loadFonts(el), { once: true });
+		}
+	}
+}
+
 /** The sticker that flies: the one element on the page named for a sticker. */
 function flyingSticker(): HTMLElement | null {
 	for (const el of document.querySelectorAll<HTMLElement>('.stk, .slap-stk')) {
@@ -580,6 +651,7 @@ function startPageTransition(
 		vt = document.startViewTransition(update);
 	} catch {
 		delete root.dataset.vt;
+		delete root.dataset.vtPage;
 		return false;
 	}
 	running = vt;
@@ -600,6 +672,7 @@ function startPageTransition(
 			running = null;
 			delete root.dataset.vt;
 			delete root.dataset.vtFar;
+			delete root.dataset.vtPage;
 			// after the header sticker's press down, which starts now (pressDown)
 			window.setTimeout(settle, 0);
 		});
@@ -725,6 +798,17 @@ function flatten(
 	return next;
 }
 
+/** What moves with the flight besides the sticker: a view-transition-name, and what carries it (styles/transitions.css). */
+const movers = [
+	['book', '.book'],
+	['socials', '.mast .socials'],
+] as const;
+
+/** Where an element's top is on screen, or null when the page has none. */
+function topOf(selector: string): number | null {
+	return document.querySelector(selector)?.getBoundingClientRect().top ?? null;
+}
+
 /**
  * Makes every flight a compositor animation, and shortens one longer than a
  * screen.
@@ -747,9 +831,10 @@ function flatten(
  *
  * The book and the socials move with the flight as far as the two pages have
  * them apart (the masthead's change in height, and the scroll: a project
- * opens at the top), but never from further than a screen away (back from
- * far down a long page): past that, a slide is only a streak, so it starts a
- * screen from where it lands.
+ * opens at the top), but never from further than a screen away (opened from
+ * far down the Projects page): past that, a slide is only a streak, so it
+ * starts a screen from where it lands. (Coming back from further than that,
+ * they are not named at all, `morph`: they are the new page's, in place.)
  */
 function tuneFlights(far: boolean) {
 	const h = window.innerHeight;
@@ -967,6 +1052,8 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 			const root = document.documentElement;
 			const from = window.location.href;
 			const before = flyingSticker()?.getBoundingClientRect().top;
+			const was = movers.map(([, selector]) => topOf(selector));
+			delete root.dataset.vtPage;
 			const update = async () => {
 				// one deadline over all of it: the screen holds still no longer
 				const until = performance.now() + PAGE_TIMEOUT_MS;
@@ -1015,6 +1102,27 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 				) {
 					root.dataset.vtFar = '';
 				}
+				// The book and the socials move to where the new page has them, from
+				// where the old page had them, but only where the reader can follow
+				// that: one the old page did not have (Super Space has no book), or,
+				// coming back, one that would come from further than a screen away
+				// (from far down a long page, it would slide a screen over the new
+				// header as that stands still), is the new page's own: not named, it
+				// lies in place under the old page as that fades off
+				// (styles/transitions.css).
+				const back = !projectPath.test(to());
+				const stay = movers
+					.filter(([, selector], i) => {
+						const from = was[i];
+						const at = topOf(selector);
+						return (
+							from === null ||
+							at === null ||
+							(back && Math.abs(at - from) > window.innerHeight)
+						);
+					})
+					.map(([name]) => name);
+				if (stay.length > 0) root.dataset.vtPage = stay.join(' ');
 				// the page has been laid out (above): its fonts are on their way
 				await Promise.all([
 					stickersDecoded(left(DECODE_TIMEOUT_MS)),
@@ -1038,6 +1146,24 @@ export function DeskProvider({ children }: { children: ReactNode }) {
 	const intent = useCallback(
 		(href: string) => {
 			router.prefetch(href);
+			// Once it is in, and the main thread is free, its stylesheet and fonts
+			// go to use (it may not be clicked: a pointer that rested on the
+			// sticker moves on). Not once the sticker is opening: then React puts
+			// them in place as it renders the page, where the new page alone is
+			// styled for them, not the Projects page as well (with the CPU four
+			// times slower, that held a tap's flight back by 40 to 60 ms).
+			pageLoaded(href, LOAD_WAIT_MS).then((ok) => {
+				if (!ok) return;
+				const idle =
+					window.requestIdleCallback ??
+					((run: () => void) => window.setTimeout(run, 1));
+				idle(
+					() => {
+						if (!busy.current) putAhead(href);
+					},
+					{ timeout: 1000 },
+				);
+			});
 		},
 		[router],
 	);

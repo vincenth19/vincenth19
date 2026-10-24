@@ -406,8 +406,13 @@
 	gap: var(--xxs);
 	min-width: 0;
 }
-/* the headline: what matched, never more than two lines (cut between them, as the panel does) */
+/* the headline: what matched, never more than two lines; cut short, it ends
+   in an ellipsis, as the panel's elided text does */
 .ss .ssl-head {
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	line-clamp: 2;
 	max-height: calc(var(--fs-heading) * 1.24 * 2);
 	margin: 0;
 	overflow: hidden;
