@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { DeskProvider } from '@/components/DeskProvider';
 import { Masthead } from '@/components/Masthead';
 import { SkipLink } from '@/components/SkipLink';
+import { WebMcp } from '@/components/WebMcp';
 import { site } from '@/content/site';
 import { baseOpenGraph } from '@/lib/metadata';
 import { bricolage, fraunces, frauncesUpright } from './fonts';
@@ -57,6 +58,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
 						<Masthead />
 						{children}
 					</div>
+					{/* the site's tools for an AI agent in the browser, where it has WebMCP */}
+					<WebMcp />
 				</DeskProvider>
 			</body>
 		</html>

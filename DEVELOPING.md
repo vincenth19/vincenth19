@@ -49,7 +49,8 @@ next preview deploy passes.
   `StickerLink` (lift → fly, and the peel by hand from any side, `usePeel.ts` and
   `fold.ts`), `MastFrame` (the masthead's open state), `TabLinks`
   (current tab), `FocusTitle` (a project or post title takes focus when it opens),
-  `SkipLink` (Skip to content) and `DeskProvider` (runs opening and leaving a project
+  `SkipLink` (Skip to content), `WebMcp` (the tools an AI agent in the browser can
+  use, see Tools for AI agents) and `DeskProvider` (runs opening and leaving a project
   as a view transition, see below, and remembers where you came from, so the sticker
   flies back to its own spot). Client components get their text as props from a
   server parent, like their icons.
@@ -602,6 +603,72 @@ taken by its edge, from any side or corner, with a mouse or a finger, and peeled
   transform alone; peeled off past the line, the header sticker lands risen as it
   was; peeled off before its page is in, it waits in its fold, its corner down, and
   flies from it once the page comes.
+
+## Tools for AI agents (WebMCP)
+
+The site hands an AI agent in the browser four tools through
+[WebMCP](https://github.com/webmachinelearning/webmcp), so it can use the site as a
+visitor does:
+
+| Tool | What it does |
+| --- | --- |
+| `list_projects` | Every project on the Projects page, in its order: slug, name, year (when there is one), caption, the URL of its page on vincenth19.com, and its links where it has any (Super Space's from `content/superspace.ts`, with its install command) |
+| `open_project` | Opens a project in the tab (`{ project: "<slug>" }`), as a visitor would, and answers with the page's `url` and `title` once it is shown |
+| `get_resume` | The resume page's note and jobs, and its URL |
+| `get_contact` | The email address, the masthead's links and the site's URL. It only reads: it sends nothing |
+
+- `lib/webmcp/tools.ts` holds them, as plain data and functions; `lib/webmcp/types.ts`
+  types the API (TypeScript does not have it yet). Their titles and descriptions are
+  in `content/site.ts` (`agentTools`), with the site's other words. Every answer is
+  read from `content/`, the same data the pages show: nothing is typed into a tool,
+  so a project without a year or links (Basilica, for now) has none in its answer
+  either.
+- `components/WebMcp.tsx`, in the root layout inside `DeskProvider`, registers them
+  once per page load, so they work from every page, and takes them away when it
+  unmounts (it aborts their signal; React's StrictMode and a hot reload in `next dev`
+  do that, and register them again). Only a browser with WebMCP downloads them:
+  `WebMcp` looks for `document.modelContext` (or `navigator.modelContext`, Chrome's
+  earlier preview) and only then imports `lib/webmcp/tools.ts`, which is a chunk of
+  its own with the content it reads. (That is why the tools read `content/` directly
+  rather than getting their words as props: as props, every visitor would download
+  them.) A browser that refuses a tool (its name taken, a page not allowed tools) is
+  not the visitor's problem: the refusal is dropped, and nothing is logged.
+- `open_project` opens a project the way a visitor would. On the Projects page it
+  clicks the project's sticker (scrolled into view first if it is off screen), so the
+  sticker flies into the header as it does for a click (`StickerLink`, `DeskProvider`'s
+  `open`); from any other page it goes through `DeskProvider`'s `navigate`, which runs
+  the project transition a link gets, or, where the desk would not animate (reduced
+  motion), a plain navigation. A flight already on its way lands first
+  (`whenSettled`), and calls that come together (an agent may send several in one
+  turn) take turns, each starting once those before it have answered: the desk,
+  busy with the first, would drop the second. It answers once the page is shown and
+  its transition has settled, gives up 6 s after its turn comes, and stops waiting
+  when the agent aborts it (a sticker already clicked still opens its project). A
+  slug the site does not have is refused. The agent learns only that the call failed
+  (a rejection reaches it as an `OperationError`, its message stays in the page), so
+  what it has to go on is the input schema's `enum` of slugs and `list_projects`; a
+  tool that should tell the agent something answers with it rather than rejecting.
+- To add a tool, add it to `siteTools` in `lib/webmcp/tools.ts`: a snake_case name, its
+  title and description in `site.agentTools` (what it returns or does and when to use
+  it, written for the agent; its key goes in the `Site` type's `agentTools` too, in
+  `content/site.ts`), an `inputSchema` (a JSON Schema object; one that takes nothing
+  is `{ type: 'object', properties: {}, additionalProperties: false }`), `annotations`
+  (`readOnlyHint: true` for one that only reads) and `execute`. Read what it returns
+  from `content/`. In `tests/webmcp.spec.ts`, add its name to `NAMES` (the tests
+  count the tools from it) and a test that compares its answer with what the page
+  shows.
+- To try them: no browser turns WebMCP on by default yet. In Chrome, turn on
+  `chrome://flags/#enable-webmcp-testing` and relaunch, open the site, and use
+  Chrome's Model Context Tool Inspector extension (Chrome 150 and later) to list the
+  tools and call them.
+- `tests/webmcp.spec.ts` gives the page a stand-in for `document.modelContext` (the
+  Chromium the tests use has none) that does what the spec says, and calls the tools
+  as an agent does (a rejection comes back only as an `OperationError`). It checks
+  that the four tools register once and stay through every way round the site, that
+  what they answer is what the pages show, that `open_project` opens each project
+  from every kind of page with the site's own transition, and two sent at once one
+  after the other, and that a browser without WebMCP never downloads them. A test of
+  the browser's own WebMCP runs only where the flag is on.
 
 ## Where the site differs from the design prototype
 

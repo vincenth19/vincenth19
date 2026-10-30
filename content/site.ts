@@ -20,6 +20,9 @@ export type Social = { label: string; href: string; icon: IconName };
 /** One line of the masthead subtitle: an italic verb, then the rest of the command. */
 export type Command = { verb: string; rest: Inline[] };
 
+/** A tool's title, shown to the user, and its description, for the agent. */
+export type AgentTool = { title: string; description: string };
+
 export type Site = {
 	name: string;
 	url: string;
@@ -61,6 +64,18 @@ export type Site = {
 		heading: string;
 		note: string;
 		back: string;
+	};
+	/**
+	 * The tools an AI agent in the browser can use on the site (WebMCP,
+	 * lib/webmcp/tools.ts): a title shown to the user, and a description that
+	 * tells the agent what each does and when to use it.
+	 */
+	agentTools: {
+		listProjects: AgentTool;
+		/** `project`: what its one input is. */
+		openProject: AgentTool & { project: string };
+		getResume: AgentTool;
+		getContact: AgentTool;
 	};
 };
 
@@ -185,5 +200,28 @@ export const site: Site = {
 		heading: 'Page not found',
 		note: 'This page is not in the book. The link may be old or mistyped.',
 		back: 'Back to projects',
+	},
+	agentTools: {
+		listProjects: {
+			title: 'List projects',
+			description:
+				"Lists Vincent Haryadi's projects, in the order the site's Projects page shows them. For each: its slug (the id open_project takes), name, year when known, a one-line summary, the absolute URL of its page, and its outbound links (label and href) where it has any; Super Space also gives its install command. Use it to answer what Vincent has built, or to find a project's slug before opening it.",
+		},
+		openProject: {
+			title: 'Open a project',
+			description:
+				"Opens one of Vincent Haryadi's projects in this tab, the way a visitor clicking its sticker would, and waits until its page is shown. Returns the opened page's url and title. Use it when the user wants to see a project; list_projects gives the slugs and what each project is. It only changes the page this tab shows.",
+			project: 'The slug of the project to open, as list_projects gives it.',
+		},
+		getResume: {
+			title: 'Get resume',
+			description:
+				"Returns Vincent Haryadi's resume as the site shows it: a one-line summary (note) and every job, in the order the resume page lists them, each with when, role, org and, where known, where; plus the absolute URL of the resume page. Use it for questions about Vincent's experience, roles or work history.",
+		},
+		getContact: {
+			title: 'Get contact details',
+			description:
+				"Returns how to reach Vincent Haryadi: the email address, every profile linked from the site's header (label and href, the email's mailto: link among them) and the site's URL. It only reads: it sends nothing. Use it when the user wants to contact Vincent or find Vincent elsewhere; the user writes the message themselves.",
+		},
 	},
 };
